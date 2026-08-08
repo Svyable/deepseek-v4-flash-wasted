@@ -1,17 +1,19 @@
-# Official reference access — unblock Gate V0/V1/V2 without over-downloading
+# Official reference access — unblock README Gates A–C / V0–V2 without over-downloading
 
 **Status: BLOCKED in the original bootstrap environment by Hugging Face CONNECT 403. Highest-leverage external dependency.**
 
 PR #3 narrowed the project blocker considerably. The public E2M1, UE8M0 and E4M3FN number formats are already implemented and exhaustively tested. What remains blocked is now mostly **DeepSeek-specific convention and checkpoint truth**:
 
-- actual tensor names/shapes/storage;
-- FP4 nibble ordering;
-- scale direction/application;
-- exact native scale tensor layout/dtype;
-- official one-projection oracle output;
-- model-specific arithmetic and encoding.
+- actual tensor names/shapes/storage — **Gate A / V0**;
+- FP4 nibble ordering — **Gate B / V1**;
+- scale direction/application — **Gate B / V1**;
+- exact native scale tensor layout/dtype — **Gate A/V0 + Gate B/V1**;
+- official one-projection oracle output — **Gate C / V2**;
+- later model-specific arithmetic and encoding.
 
 This document defines the smallest useful acquisition sequence. The goal is to unlock the most gates before committing to a multi-hundred-GB checkpoint download.
+
+Gate terminology follows `docs/VALIDATION.md` §4a. README letters A–N are stable design gates; V-levels are the operational numerical/semantic ladder. This document primarily owns the external-artifact side of **Gate A/V0, Gate B/V1, and Gate C/V2**.
 
 Do not bypass an organization/network policy. Run these steps from an authorized environment that can access the official repository.
 
@@ -121,7 +123,7 @@ Do not change the pinned revision between metadata and later weight retrieval.
 
 Before downloading any tensor payloads, read the official reference and answer the conventions that PR #3 deliberately left unresolved.
 
-### Q1 — FP4 nibble order
+### Q1 — FP4 nibble order — Gate B / V1
 
 Find the exact code that extracts/expands packed E2M1 values.
 
@@ -142,7 +144,7 @@ Record:
 
 Then reconcile the literal `0x21` assertion in `tests/test_quant.c`.
 
-### Q2 — FP8 scale direction
+### Q2 — FP8 scale direction — Gate B / V1
 
 Find the exact operation applied to the checkpoint tensor convention currently described as `weight_scale_inv`.
 
@@ -162,7 +164,7 @@ or another transformation.
 
 Record the actual reference expression. Tensor naming is not enough.
 
-### Q3 — exact scale storage
+### Q3 — exact scale storage — Gate A/V0 + Gate B/V1
 
 Confirm for relevant tensor families:
 
@@ -174,17 +176,17 @@ Confirm for relevant tensor families:
 - whether scales are stored transposed/reordered;
 - whether expert FP4 and trunk FP8 use different scale conventions.
 
-### Q4 — E4M3 variant
+### Q4 — E4M3 variant — Gate B / V1
 
 Confirm the target path actually uses finite `e4m3fn` semantics (max finite `448`, only `S.1111.111` NaN) for the checkpoint tensors being ported.
 
 PR #3 has a correct public-format implementation of that variant, but the target tensor-family convention still belongs in the official-reference reconciliation.
 
-### Q5 — expert matrix orientation/naming
+### Q5 — expert matrix orientation/naming — Gate A / V0
 
 Confirm real checkpoint names and logical orientation for routed-expert `w1/w2/w3` (or aliases). Do not assume the synthetic fixture's names prove the official export.
 
-### Q6 — bootstrap/hash routing representation
+### Q6 — bootstrap/hash routing representation — Gate A/V0, then Gate F/V4
 
 Confirm whether the first three layers' deterministic routing data exists as checkpoint tensors, constants, code logic, or another representation.
 
@@ -192,7 +194,7 @@ This can materially change both `tools/inventory.py` rules and the proposed pref
 
 ---
 
-## 5. Run index-only Gate V0 immediately
+## 5. Run README Gate A / V0 index-only inventory immediately
 
 Once `config.json` and `model.safetensors.index.json` exist locally:
 
@@ -221,9 +223,9 @@ Update `tools/inventory.py` rules against the official names and record correcti
 
 ---
 
-## 6. Header-only checkpoint truth is the next storage target
+## 6. Header-only checkpoint truth is the next Gate A / V0 storage target
 
-Full Gate V0 needs safetensors header metadata (dtype, shape, offsets) for all shards. The current local `HeaderOnlyIndex` reads only the 8-byte header length plus JSON header **after a shard file exists locally**, but obtaining an entire shard only to read its header is wasteful.
+Full Gate A/V0 needs safetensors header metadata (dtype, shape, offsets) for all shards. The current local `HeaderOnlyIndex` reads only the 8-byte header length plus JSON header **after a shard file exists locally**, but obtaining an entire shard only to read its header is wasteful.
 
 A high-leverage future tooling improvement is a remote/range header fetcher:
 
@@ -234,7 +236,7 @@ GET next header_length bytes -> safetensors JSON header
 
 against the official pinned shard URL, without downloading tensor payloads.
 
-If the hosting path supports authenticated HTTP Range reliably, this could make Gate V0 checkpoint-header verification a tiny metadata operation rather than a full model download.
+If the hosting path supports authenticated HTTP Range reliably, this could make Gate A/V0 checkpoint-header verification a tiny metadata operation rather than a full model download.
 
 Until such tooling exists, use an authorized environment and the smallest supported retrieval mechanism that preserves official bytes and provenance. Do not reconstruct headers from config arithmetic.
 
@@ -242,7 +244,7 @@ Until such tooling exists, use an authorized environment and the smallest suppor
 
 ## 7. Acquisition tier 2 — tiny real tensor/oracle sample
 
-Before full conversion, acquire only enough real material to close V1 and V2 if the repository/hosting tooling permits selective shard retrieval.
+Before full conversion, acquire only enough real material to close Gate B/V1 and Gate C/V2 if the repository/hosting tooling permits selective shard retrieval.
 
 Desired sample:
 
@@ -259,7 +261,7 @@ Generate frozen oracle fixtures per `docs/FIXTURES.md`.
 
 ---
 
-## 8. Gate V1 closeout procedure
+## 8. README Gate B / V1 closeout procedure
 
 After official reference access:
 
@@ -270,13 +272,13 @@ After official reference access:
 5. if current assumptions disagree, let the tests fail;
 6. change the implementation only after the official fixture exists;
 7. update `docs/NUMERICS.md`, `docs/TENSOR_MAP.md`, `docs/VALIDATION.md`;
-8. mark V1 passed only when public-format conformance **and** official convention agreement both hold.
+8. mark Gate B/V1 passed only when public-format conformance **and** official convention agreement both hold.
 
 Do not combine this with SIMD work.
 
 ---
 
-## 9. Gate V2 minimal oracle
+## 9. README Gate C / V2 minimal oracle
 
 The next gate should remain one quantized linear projection.
 
@@ -295,7 +297,7 @@ Choose dimensions that cross at least one relevant scale boundary.
 
 The official generator and the C test must be separated as described in `docs/FIXTURES.md`; the C suite should replay the frozen fixture offline.
 
-Once V2 passes, the native quantized arithmetic becomes usable as a proven model primitive rather than only a format decoder.
+Once Gate C/V2 passes, the native quantized arithmetic becomes usable as a proven model primitive rather than only a format decoder.
 
 ---
 
@@ -322,10 +324,10 @@ Then follow `docs/CONVERSION.md`.
 | Tier | Artifacts | Unlocks |
 |---|---|---|
 | 0 | license/notice | legal ability to copy/adapt official source with correct attribution |
-| 1 | config/index/inference/encoding/tokenizer | real tensor names, convention review, encoder/oracle harness development, much of Gate V0 name mapping |
-| header metadata | safetensors headers | exact dtype/shape/offset/byte totals; full Gate V0 storage truth |
-| 2 | selected real tensor/oracle material | close V1, pass V2, establish projection tolerance |
-| 3 | full checkpoint | converter, real container, model-layer/end-to-end gates |
+| 1 | config/index/inference/encoding/tokenizer | real tensor names, convention review, encoder/oracle harness development, much of **Gate A/V0** name mapping |
+| header metadata | safetensors headers | exact dtype/shape/offset/byte totals; full **Gate A/V0** storage truth |
+| 2 | selected real tensor/oracle material | close **Gate B/V1**, pass **Gate C/V2**, establish projection tolerance |
+| 3 | full checkpoint | converter, real container, Gates D–K and later systems/performance gates |
 
 The project should not treat “full checkpoint unavailable” as equivalent to “no useful progress possible.” PR #3 already demonstrated why.
 
@@ -338,8 +340,8 @@ When access is restored, update all of the following in the same PR that first c
 - `docs/INVENTORY-0731.md` — remove/qualify the blocker and record commands/results;
 - `docs/TENSOR_MAP.md` — real names/shapes/conventions;
 - `docs/NUMERICS.md` — nibble/scale/reference agreement;
-- `docs/VALIDATION.md` — V0/V1 status;
-- `ROADMAP.md` — phase status;
+- `docs/VALIDATION.md` — Gate A/V0 and Gate B/V1 status/concordance if assumptions change;
+- `README.md` §18 and `ROADMAP.md` if a gate definition/status changes;
 - `UPSTREAM.md` / `LICENSES/` — official source provenance/license where applicable;
 - `reference/README.md` or machine-readable provenance artifact — resolved revision/hashes;
 - `docs/EXPERIMENTS.md` — any significant handoff assumption the official release disproves.
