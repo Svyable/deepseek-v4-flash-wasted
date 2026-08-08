@@ -91,7 +91,7 @@ Root/local companion documents:
 - [`../ROADMAP.md`](../ROADMAP.md) — phase schedule and current project status; not a separate gate vocabulary.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution scope, testing, documentation and evidence requirements.
 - [`../UPSTREAM.md`](../UPSTREAM.md) — import provenance and local-vs-upstream ownership.
-- [`../reference/README.md`](../reference/README.md) — local official-artifact staging/provenance policy; raw model assets are ignored.
+- [`../reference/README.md`](../reference/README.md) — local official-artifact staging/provenance policy; its staged artifacts feed Gates A–C / V0–V2 even though the staging file itself is not evidence.
 
 ## Imported WASTE documents
 
