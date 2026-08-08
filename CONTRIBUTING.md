@@ -8,10 +8,23 @@ Read first:
 2. `AGENTS.md`
 3. `UPSTREAM.md`
 4. `docs/README.md`
-5. `ROADMAP.md`
-6. the task-specific document under `docs/`
+5. `docs/VALIDATION.md` §4a
+6. `ROADMAP.md`
+7. the task-specific document under `docs/`
 
 For arithmetic/fixture work, also read `docs/NUMERICS.md` and `docs/FIXTURES.md`.
+
+## Gate vocabulary
+
+Every PR should use the canonical gate map in `docs/VALIDATION.md` §4a.
+
+- README §18 defines **14 stable design gates A–N**.
+- `VALIDATION.md` defines operational `V0–V11` levels.
+- `ROADMAP.md` phases are schedule only.
+
+When both labels exist, cite both, for example `Gate B / V1` or `Gate K / V9`.
+
+README systems/performance Gates `G`, `L`, `M`, and `N` intentionally have no V-number. Operational `V7` and `V11` intentionally have no README letter. Do not invent new “Gate 0/1/2” labels in a contribution.
 
 ## Branch and PR scope
 
@@ -35,7 +48,9 @@ Avoid combining a new arithmetic primitive, a new container format, a SIMD rewri
 
 State in the PR/issue:
 
-- which `ROADMAP.md` phase this belongs to;
+- which README §18 gate letter(s) A–N this work affects;
+- which operational `VALIDATION.md` V-level it passes/depends on, if one exists;
+- which `ROADMAP.md` phase schedules it;
 - source of truth used (checkpoint/reference/public spec/upstream WASTE);
 - highest existing validation gate;
 - new gate the change intends to pass;
@@ -79,10 +94,12 @@ Mutation-test high-risk seams when practical. A surviving known-wrong mutation i
 
 For storage/cache changes:
 
-- cache-on and cache-off must preserve model output;
+- README **Gate G** cache-on/cache-off identity must remain true;
 - prefetch can change timing only;
 - parser/record bounds must remain hardened;
-- RAM allocations must be included in the planner.
+- RAM allocations must be included in the planner;
+- storage performance claims belong to **Gate L**;
+- cache-policy/recommendation claims belong to **Gate M**.
 
 ## Checkpoint claims
 
@@ -139,6 +156,7 @@ Update the relevant local document in the same PR:
 
 | Change | Update |
 |---|---|
+| gate definition/concordance | `README.md` §18, `docs/VALIDATION.md` §4a, `ROADMAP.md`, `docs/BENCHMARKS.md`, contributor/PR guidance |
 | checkpoint inventory/name mapping | `docs/INVENTORY-0731.md`, `docs/TENSOR_MAP.md` |
 | official access/retrieval/provenance | `docs/REFERENCE_ACCESS.md`, `reference/README.md` as applicable |
 | native quantization/convention | `docs/NUMERICS.md`, `docs/VALIDATION.md`, `docs/TENSOR_MAP.md` |
@@ -149,7 +167,7 @@ Update the relevant local document in the same PR:
 | RAM/storage/I/O | `docs/MEMORY_AND_IO.md` |
 | performance result | `docs/BENCHMARKS.md` |
 | failed/surprising experiment or test blind spot | append `docs/EXPERIMENTS.md` |
-| DSpark | `docs/DSPARK.md` |
+| DSpark / Gate N | `docs/DSPARK.md`, `docs/BENCHMARKS.md` when measured |
 | API/server | `docs/API.md` |
 | platform behavior | `docs/PLATFORM.md` |
 | phase completion | `ROADMAP.md` |
@@ -160,9 +178,11 @@ Imported WASTE documents should remain historical upstream evidence unless a PR 
 
 A speedup is mergeable only when:
 
-- the relevant correctness gate still passes;
+- the relevant numerical/semantic gate still passes;
+- README Gate G remains true if placement/cache/prefetch changed;
 - memory use remains inside the planner;
 - measurement includes commit/model/container/hardware/cache/I/O configuration;
+- Gate L/M/N claims use the dedicated benchmark methodology;
 - the result is entered in `docs/BENCHMARKS.md`;
 - rejected or hardware-specific conclusions are recorded honestly in `docs/EXPERIMENTS.md`.
 
@@ -185,7 +205,9 @@ Every implementation PR should answer:
 ```text
 What changed?
 Why this boundary now?
-Roadmap phase / validation gate?
+README §18 gate letter(s) A-N?
+Operational V-level / systems gate?
+ROADMAP phase?
 Source of truth?
 Tests/commands run?
 Evidence state of new claims?
