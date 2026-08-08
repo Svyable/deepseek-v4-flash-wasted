@@ -4,10 +4,7 @@
 
 ## Roadmap / gate
 
-<!-- Cite the V-level from docs/VALIDATION.md §4a. That table maps V-levels to
-     README §18's Gates A–N and to ROADMAP phases, so one answer covers all
-     three. Gates G/L/M/N are systems/performance gates with no V-level —
-     name them directly if that is what this PR moves. -->
+<!-- Cite the V-level from docs/VALIDATION.md. Use ROADMAP phase only for schedule. -->
 
 - Roadmap phase:
 - Highest gate passing before this PR:
@@ -15,7 +12,7 @@
 
 ## Source of truth
 
-<!-- Pinned official checkpoint/reference path, repository artifact, or upstream WASTE evidence. -->
+<!-- Pinned official checkpoint/reference path, public numeric spec, repository artifact, or upstream WASTE evidence. -->
 
 - Source:
 - Revision:
@@ -39,6 +36,16 @@ RMS:
 argmax/greedy parity:
 ```
 
+### Fixture independence / mutations
+
+<!-- Required for arithmetic, packing/layout, routing, parser, tokenizer or other silent semantic seams. A round trip through two helpers sharing the same convention is not sufficient evidence; see docs/FIXTURES.md. -->
+
+- What produces the expected answer?
+- Why is it independent of the implementation/convention being tested?
+- Literal/raw convention fixture included where applicable?
+- Known-wrong mutation(s) tested? Which ones survived/failed?
+- Official fixture provenance recorded, if applicable?
+
 ## Memory / storage / API impact
 
 - RAM planner changed? If yes, which allocation is newly accounted for?
@@ -52,6 +59,9 @@ argmax/greedy parity:
 Updated as applicable:
 
 - [ ] `docs/INVENTORY-0731.md` / `docs/TENSOR_MAP.md`
+- [ ] `docs/REFERENCE_ACCESS.md` / `reference/README.md`
+- [ ] `docs/NUMERICS.md`
+- [ ] `docs/FIXTURES.md`
 - [ ] `docs/DEEPSEEK_V4.md` / `docs/ARCHITECTURE.md`
 - [ ] `docs/VALIDATION.md`
 - [ ] `docs/CONTAINER_V4.md` / `docs/CONVERSION.md`
@@ -69,7 +79,8 @@ Updated as applicable:
 - External source copied/adapted?
 - License/notice verified from the pinned source?
 - Required SPDX/attribution preserved?
+- Official reference artifacts pinned/hashes recorded?
 
 ## Deferred / blocked
 
-<!-- Explicitly list what this PR does NOT prove. Synthetic fixtures are not real-checkpoint evidence. -->
+<!-- Explicitly list what this PR does NOT prove. Public-spec/synthetic fixtures are not checkpoint/reference evidence unless they actually consume the pinned official artifact. -->
