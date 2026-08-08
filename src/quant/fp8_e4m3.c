@@ -2,7 +2,7 @@
  * Copyright 2026 The deepseek-v4-flash-wasted authors.
  *
  * E4M3 (finite variant) scalar decode with 128x128 block scales.
- * See fp8_e4m3.h for the format and the unverified scale direction.
+ * See fp8_e4m3.h for the pinned 0731 format/scale provenance.
  */
 
 #include "fp8_e4m3.h"
