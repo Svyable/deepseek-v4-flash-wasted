@@ -1,15 +1,25 @@
 # Platform requirements — macOS, Linux and Windows
 
-**Status: imported WASTE platform code is present and model-free-tested on the PR #1 bootstrap environment; DeepSeek-scale runtime behavior is not yet measured.**
+**Status: imported WASTE platform code is present and model-free-tested; DeepSeek-scale runtime behavior is not yet measured.**
 
 This port inherits WASTE's goal of dependency-light C inference across macOS, Linux and Windows. Cross-platform compilation is necessary but not sufficient: a streamed model also depends on real unbuffered/direct I/O, aligned memory, large-file offsets and bounded memory behavior.
 
-## 1. Current baseline from PR #1
+Gate terminology follows `docs/VALIDATION.md` §4a. Platform work primarily supports:
+
+- **README Gate G** — placement/direct-I/O/cache mode must not change model meaning;
+- **README Gate L** — real target-storage feasibility with the actual expert-record access pattern;
+- **README Gate M** — cache recommendations measured under the real memory/storage environment.
+
+G/L/M are systems/performance gates with no V-number.
+
+## 1. Current baseline
 
 - WASTE source imported at `d9b919a791148b571e643d0af666bf19b4d733ab`.
 - Bootstrap test machine: Ubuntu 24.04, gcc 13.3.0, x86-64, 4 cores.
 - Imported baseline: `31 passed, 0 failed, 12 skipped` before local changes.
-- After inventory test: `32 passed, 0 failed, 12 skipped`.
+- After PR #1 inventory test: `32 passed, 0 failed, 12 skipped`.
+- After PR #3 native quantization tests: **34 passed, 0 failed, 12 skipped**.
+- PR #3 ASan/UBSan run: **33 passed, 0 failed** with a clean warning-free rebuild.
 - The imported GitHub Actions matrix is parked under `.github/workflows-disabled/` because jobs failed before steps executed in this private repository. This is an account/Actions environment problem, not evidence about source portability.
 
 Restore CI rather than shrinking its platform matrix once the account condition is resolved.
@@ -29,7 +39,7 @@ Every platform must provide:
 - atomic file replacement for converter outputs;
 - filesystem support for very large model files.
 
-Correctness may fall back to buffered I/O when a filesystem refuses bypass, but benchmark output must say that it did.
+Correctness may fall back to buffered I/O when a filesystem refuses bypass, but benchmark output must say that it did. Gate G requires the fallback/direct modes to expose the same record bytes/numerics; Gate L separately measures their performance characteristics.
 
 ## 3. Linux
 
@@ -41,9 +51,9 @@ The imported WASTE path uses Linux `O_DIRECT` behavior where available. Requirem
 - I/O length;
 - userspace buffer.
 
-Actual alignment can depend on filesystem/device. The DeepSeek converter/record layout should preserve at least the imported 4 KiB alignment target, while the runtime must handle a platform refusal cleanly.
+Actual alignment can depend on filesystem/device. The DeepSeek converter/record layout should preserve at least the imported 4 KiB alignment target unless Gate A/container-format work proves another requirement, while the runtime must handle a platform refusal cleanly.
 
-Do not infer direct-I/O success from `open()` flags alone. Report the runtime state and verify via the path WASTE already exposes.
+Do not infer direct-I/O success from `open()` flags alone. Report the runtime state and verify through the actual read path.
 
 ### Memory limits
 
@@ -73,13 +83,13 @@ Imported WASTE uses the macOS `fcntl`/`F_NOCACHE` style path rather than Linux `
 
 ### Apple silicon
 
-NEON/vectorized CPU kernels are the first portable optimized target after scalar parity. Apple Accelerate/Metal are optional backends/experiments, not prerequisites for a correct base model.
+NEON/vectorized CPU kernels are the first portable optimized target after scalar/official parity. Apple Accelerate/Metal are optional backends/experiments, not prerequisites for a correct base model.
 
 Unified memory does not eliminate the hard-RAM-budget requirement. A too-large expert cache can still cause memory pressure/paging and destroy streaming performance.
 
-### Internal versus external storage
+### Internal versus external storage — Gate L
 
-Upstream WASTE showed that interface/enclosure bandwidth can dominate a streamed model. Re-measure the actual DeepSeek expert record pattern on the intended volume. “NVMe” describes the drive media, not necessarily the USB/Thunderbolt bridge performance.
+Upstream WASTE showed that interface/enclosure bandwidth can dominate a streamed model. Re-measure the actual DeepSeek expert-record pattern on the intended volume. “NVMe” describes the drive media, not necessarily the USB/Thunderbolt bridge performance.
 
 ## 5. Windows
 
@@ -109,16 +119,17 @@ All offsets/lengths in container code must use explicitly 64-bit-safe types. Do 
 Order of implementation:
 
 1. scalar correctness path;
-2. architecture-neutral threaded baseline;
-3. NEON/AVX2 optimized FP4/FP8 kernels;
-4. AVX-512 only with actual runtime validation;
-5. Metal/CUDA/other accelerators only after profiling and correctness gates.
+2. official-reference parity for the relevant canonical gate;
+3. architecture-neutral threaded baseline;
+4. NEON/AVX2 optimized FP4/FP8 kernels;
+5. AVX-512 only with actual runtime validation;
+6. Metal/CUDA/other accelerators only after profiling and correctness gates.
 
-Every optimized backend runs the same oracle fixtures and real final-logit tests.
+Every optimized backend runs the same independent oracle fixtures and real final-logit tests.
 
 The runtime should report which backend actually dispatched.
 
-## 7. Storage qualification
+## 7. Storage qualification — README Gate L
 
 Before a full DeepSeek performance run on a platform, record:
 
@@ -137,6 +148,8 @@ runtime reader-thread random record throughput
 
 The benchmark working set should exceed RAM/page-cache effects enough to represent actual streaming.
 
+Gate L results belong in `BENCHMARKS.md` and must not be presented as model tok/s by themselves.
+
 ## 8. Converter platform concerns
 
 The converter may use Python/PyTorch and is not constrained to the dependency-free runtime policy.
@@ -152,7 +165,7 @@ Still require:
 
 When source and output are on separate devices, record both in conversion benchmarks.
 
-## 9. Filesystem/direct-I/O fallback policy
+## 9. Filesystem/direct-I/O fallback policy — Gate G first, Gate L second
 
 Correctness hierarchy:
 
@@ -169,6 +182,8 @@ Do not fail model correctness solely because a developer's test filesystem does 
 
 Conversely, do not report buffered fallback performance as representative of the intended streaming configuration without saying so.
 
+Before comparing performance, Gate G must show that direct and fallback read paths produce the same record/model semantics.
+
 ## 10. Platform test fixtures
 
 Keep model-free fixtures small but structurally realistic:
@@ -182,7 +197,7 @@ Keep model-free fixtures small but structurally realistic:
 - direct-I/O fallback behavior;
 - manifest paths with spaces/non-ASCII where platform APIs support them.
 
-PR #1's inventory fixture already demonstrates the value of making a prohibited code path hit EOF by construction. Apply the same adversarial principle to I/O fixtures.
+PR #1's inventory fixture demonstrates the value of making a prohibited code path hit EOF by construction. Apply the same adversarial principle to I/O fixtures.
 
 ## 11. CI restoration plan
 
@@ -192,11 +207,12 @@ Before restoring:
 
 1. inspect repository/account Actions permissions and billing/minutes;
 2. verify `actions/checkout@v4` is allowed;
-3. restore with the documented `git mv`;
-4. trigger manually;
-5. inspect actual logs rather than interpreting a pre-step failure as a code failure.
+3. widen the SPDX source glob so subdirectories such as `src/quant/` are included;
+4. restore with the documented `git mv`;
+5. trigger manually;
+6. inspect actual logs rather than interpreting a pre-step failure as a code failure.
 
-After DeepSeek kernels arrive, extend the matrix with **small model-free oracle fixtures**, not real 0731 weights.
+After DeepSeek kernels arrive, extend the matrix with **small model-free/official-derived replay fixtures**, not real 0731 weights.
 
 ## 12. Platform support definition
 
@@ -205,10 +221,12 @@ A platform is “supported” only when:
 - it builds;
 - model-free suite passes;
 - native I/O wrapper tests pass or documented fallback works;
-- scalar DeepSeek fixtures pass;
+- scalar DeepSeek fixtures pass the relevant canonical gates;
 - at least one optimized backend (or scalar if intentionally slow) reports correctly;
 - a real/subset DeepSeek container opens and passes numerical validation where hardware access exists;
+- Gate G placement identity holds for supported read/cache modes;
 - memory planner respects platform/container limits;
-- server/CLI basic operation works.
+- server/CLI basic operation works;
+- Gate L/M performance claims, if made, are measured on that platform rather than inherited from another OS/device.
 
 Do not reduce “supported” to “compiler emitted a binary.”
