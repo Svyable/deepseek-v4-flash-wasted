@@ -1,8 +1,15 @@
 # DeepSeek V4 container contract
 
-**Status: DESIGN. No DeepSeek container has been written. Exact record fields remain `TBD-GATE0` until the official 0731 checkpoint/reference is available.**
+**Status: DESIGN. No DeepSeek container has been written. Exact record fields remain blocked on README Gate A / V0 checkpoint truth and Gate B / V1 official native-quantization conventions.**
 
 This document defines the invariants a DeepSeek-specific WASTE container must satisfy. It intentionally does **not** redefine imported WASTE `docs/FORMAT.md`: that file documents Kimi format v0 and remains historical/upstream evidence.
+
+Gate terminology follows `docs/VALIDATION.md` §4a:
+
+- **Gate A / V0** decides what tensors/bytes/shapes actually exist;
+- **Gate B / V1** decides the official DeepSeek packing/scale arithmetic semantics stored in native quantized records;
+- **Gate G** requires cached and freshly-read records to be byte/numerically equivalent;
+- later **Gate L/M** measurements evaluate storage/cache performance but do not redefine the format.
 
 ## 1. Primary rule: never confuse model families
 
@@ -28,7 +35,7 @@ These are intended to remain true:
 
 1. **One independently readable record per routed expert.** All bytes needed to apply that expert are co-located.
 2. **Direct-I/O friendly.** Independently read records are aligned to the platform's required boundary; the baseline target is 4 KiB as in WASTE, subject to platform verification.
-3. **Placement changes speed, never precision.** Cached and freshly read copies contain identical payload bytes.
+3. **Placement changes speed, never precision — README Gate G.** Cached and freshly read copies contain identical payload bytes and produce equivalent arithmetic.
 4. **Hard bounds.** Manifest dimensions, offsets, lengths and record counts are validated before arithmetic or allocation.
 5. **Resumable conversion.** Per-layer expert banks can be written/verified independently.
 6. **Self-describing quantization.** Readers consume quantization descriptors from the manifest/record metadata rather than inferring formats from model names.
@@ -45,18 +52,18 @@ model.waste/
   experts-L000.bin
   experts-L001.bin
   ...
-  experts-L042.bin             # only if Gate 0 confirms 43 main MoE layers
+  experts-L042.bin             # only if Gate A/V0 confirms 43 main MoE layers
   tokenizer/ or tokenizer assets
   encoding/ or normalized encoder assets
   generation.json
   provenance.json              # optional if not fully represented in manifest
-  dspark/                      # optional phase-2 component
+  dspark/                      # optional Gate N component
     manifest.json
-    trunk.bin / banks as required by Gate 0
+    trunk.bin / banks as required by Gate A/V0
   usage.waste                  # optional runtime learned-hotlist/statistics
 ```
 
-Do not create empty files merely to match this sketch. Gate 0 decides which components exist.
+Do not create empty files merely to match this sketch. Gate A/V0 decides which components exist.
 
 ## 4. Manifest responsibilities
 
@@ -77,7 +84,7 @@ Required categories:
 
 ### Model dimensions
 
-Only checkpoint/reference-verified dimensions belong here. The converter reads them; the runtime does not hard-code the README table.
+Only Gate A/V0 checkpoint/reference-verified dimensions belong here. The converter reads them; the runtime does not hard-code the README table.
 
 ### Resident tensor index
 
@@ -115,7 +122,7 @@ Uniform stride is preferable for O(1) addressing but is not mandatory if the rea
 
 ### Encoding/tokenizer
 
-The container or adjacent install must identify the exact tokenizer/encoding assets needed to reproduce official token sequences. A model directory should not depend on an ambiguous latest remote template.
+The container or adjacent install must identify the exact tokenizer/encoding assets needed to reproduce official token sequences. A model directory should not depend on an ambiguous latest remote template. Exact parity is later Gate J/V10.
 
 ## 5. Resident trunk
 
@@ -129,7 +136,7 @@ The first correct converter preserves the official non-expert quantization seman
 - router/hash/indexer/compressor data;
 - embeddings/head data according to the final memory/I/O design.
 
-The exact formats and tensor families are populated from `TENSOR_MAP.md` after Gate 0.
+The exact formats and tensor families are populated from `TENSOR_MAP.md` after Gate A/V0, with arithmetic conventions finalized by Gate B/V1 where applicable.
 
 ### Loader rule
 
@@ -137,7 +144,7 @@ A tensor descriptor names its format. Code should switch on the descriptor, not 
 
 ## 6. Routed expert record
 
-The payload is frozen only after Gate 0 proves the complete per-expert tensor set.
+The payload is frozen only after Gate A/V0 proves the complete per-expert tensor set and Gate B/V1 proves how the packed/scaled payload is interpreted.
 
 Conceptually:
 
@@ -155,7 +162,7 @@ Conceptually:
 +------------------------------+ aligned next record
 ```
 
-Likely matrices correspond to normalized `w1`, `w3`, `w2`, but **matrix order and names are TBD-GATE0**.
+Likely matrices correspond to normalized `w1`, `w3`, `w2`, but **matrix order and exact names remain Gate A/V0 pending**.
 
 The record must be sufficient for one expert apply after one cache miss. If official arithmetic needs an additional per-expert vector/bias/metadata tensor, include it in the record rather than adding another random read per expert.
 
@@ -186,19 +193,25 @@ Rules:
 - a short read is fatal for the current evaluation call;
 - unknown record format/version is refused.
 
-## 8. Quantization descriptors
+## 8. Quantization descriptors — Gate A/V0 + Gate B/V1
 
 The first format must describe the official native layouts exactly.
 
-For an FP4 expert descriptor, Gate 0/reference work must settle:
+For an FP4 expert descriptor, **Gate A/V0** must settle storage identity/geometry:
 
-- encoded element format (expected E2M1 from current handoff);
-- storage dtype/packing order;
+- storage dtype;
 - logical versus stored dimensions;
 - values per byte;
-- scale encoding (expected UE8M0 from current handoff);
-- scale block size/axis (currently expected K32);
-- scale tensor ordering/strides;
+- scale tensor identity/shape;
+- scale block size/axis as stored;
+- scale tensor ordering/strides.
+
+Then **Gate B/V1** must settle arithmetic convention:
+
+- encoded element format as used by official DeepSeek;
+- nibble/packing order;
+- scale encoding/application direction;
+- target E4M3/E2M1 convention where applicable;
 - accumulation/output dtype semantics required for parity.
 
 For resident FP8 tensors, settle equivalent fields including block scale shape/granularity.
@@ -275,7 +288,28 @@ per-file sizes/hashes as appropriate
 
 This allows two containers to be compared without guessing whether they came from the same checkpoint or converter.
 
-## 13. DSpark storage boundary
+## 13. Gate G — placement identity
+
+The same expert record served from disk and from cache must expose the same payload bytes to the same arithmetic path. Prefetch may change when the record arrives, not which record or what bytes are used.
+
+Required comparisons include:
+
+```text
+cache miss read -> expert apply
+cache hit       -> same expert apply
+```
+
+and, where supported:
+
+```text
+direct I/O      -> record bytes
+buffered fallback -> same record bytes
+prefetch off/on -> same authoritative routing/output
+```
+
+If these differ, Gate G fails and storage/cache benchmarks are invalid regardless of speed.
+
+## 14. DSpark storage boundary — Gate A/V0 prerequisite, Gate N later
 
 DSpark is optional phase 2. Its presence must not change the interpretation of base-model records.
 
@@ -290,13 +324,13 @@ If the official checkpoint shares tensors between base and DSpark, the DSpark ma
 
 The runtime must support opening a container with DSpark assets while explicitly disabling DSpark for validation.
 
-## 14. Self-contained tokenizer/encoding
+## 15. Self-contained tokenizer/encoding — Gate J/V10 later
 
 WASTE's Kimi container copies tokenizer assets so inference does not depend on a remote model repository. DeepSeek should aim for the same property, subject to the official encoder's license and runtime requirements.
 
-Do not convert the official code-based encoding into a lossy hand-written template simply to make it easy to package. `API.md`/`VALIDATION.md` define encoder parity as part of correctness.
+Do not convert the official code-based encoding into a lossy hand-written template simply to make it easy to package. `API.md`/`VALIDATION.md` define Gate J/V10 encoder parity as part of correctness.
 
-## 15. Parser hardening
+## 16. Parser hardening
 
 The manifest and record headers are untrusted inputs even when the model came from a trusted publisher because files can be truncated or corrupted.
 
@@ -317,16 +351,19 @@ Tests must include:
 
 Use the imported fuzzing pattern rather than assuming generated manifests are always well-formed.
 
-## 16. Format freeze gate
+## 17. Format freeze criteria
 
 Do **not** call the DeepSeek format stable until:
 
-- Gate 0 has exact tensor/scale mappings;
+- **Gate A / V0** has exact tensor/scale mappings and storage geometry;
+- **Gate B / V1** has official native packing/scale convention agreement;
 - at least one real expert record round-trips against the official reference;
+- a representative trunk projection satisfies **Gate C / V2**;
 - a synthetic complete container passes loader/fuzz/platform tests;
 - a real subset conversion can reopen and reproduce oracle outputs;
 - the memory planner uses manifest-derived rather than estimated sizes;
 - resuming an interrupted conversion has been tested;
-- the model-family/version discriminator prevents cross-family misreads.
+- the model-family/version discriminator prevents cross-family misreads;
+- **Gate G** disk/cache placement identity holds for the record path.
 
 Until then, format changes are expected and backward compatibility is not promised.
