@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0
  * Copyright 2026 The deepseek-v4-flash-wasted authors.
  *
- * E2M1 / UE8M0 scalar decode. See fp4_e2m1.h for the format and for the
- * two packing assumptions that Gate 0 still has to confirm.
+ * E2M1 / UE8M0 scalar decode. See fp4_e2m1.h for the format and the
+ * pinned official 0731 storage-convention provenance.
  */
 
 #include "fp4_e2m1.h"
