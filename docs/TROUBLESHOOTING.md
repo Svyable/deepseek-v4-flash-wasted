@@ -2,7 +2,9 @@
 
 This document starts with the known PR #1 environment failures, then orders future converter/runtime failures by the cheapest evidence that can disambiguate them.
 
-General rule: **fix the earliest failing gate, not the latest visible symptom.** Bad generated text is usually the end of a much earlier mismatch.
+General rule: **fix the earliest failing canonical gate, not the latest visible symptom.** Bad generated text is usually the end of a much earlier mismatch.
+
+Gate terminology follows `docs/VALIDATION.md` §4a: README §18 gates A–N are stable design identifiers, V0–V11 are operational validation levels, and ROADMAP phases are schedule only.
 
 ## 1. Hugging Face access returns CONNECT 403
 
@@ -27,7 +29,7 @@ Do not:
 - substitute a GGUF/third-party checkpoint and call it official;
 - reconstruct official source from memory.
 
-See `INVENTORY-0731.md` and `CONVERSION.md`.
+See `REFERENCE_ACCESS.md`, `INVENTORY-0731.md`, and `CONVERSION.md`.
 
 ## 2. GitHub Actions jobs fail in seconds with no step logs
 
@@ -44,7 +46,7 @@ Do not “fix” this by deleting macOS/Windows jobs from the upstream matrix. R
 
 Meanwhile run manual gates in `AGENTS.md`.
 
-## 3. `tools/inventory.py` reports unknown main tensors
+## 3. `tools/inventory.py` reports unknown main tensors — Gate A / V0
 
 Expected on the first real 0731 run. The current regex rules were inferred before the checkpoint was reachable.
 
@@ -60,7 +62,7 @@ Do not add a generic main-model catch-all.
 
 Unknown DSpark internals may remain in the explicit DSpark bucket only after their module boundary is independently proven.
 
-## 4. Inventory is `index-only` and byte totals are unresolved
+## 4. Inventory is `index-only` and byte totals are unresolved — Gate A / V0 incomplete
 
 This is not a bug. `model.safetensors.index.json` maps names to shards but does not provide all dtype/shape/data-offset information needed for exact stored bytes.
 
@@ -68,7 +70,7 @@ Fetch/make shard headers available, then run the strict header mode described in
 
 Do not turn unresolved bytes into zero or config-derived estimates.
 
-## 5. Gate 0 says an expert is missing w1/w2/w3 or scales
+## 5. Gate A / V0 says an expert is missing w1/w2/w3 or scales
 
 Possible causes:
 
@@ -87,13 +89,15 @@ Resolution order:
 
 Do not force the checkpoint into a three-matrix record if official arithmetic requires more.
 
+If storage identity is correct but nibble/scale arithmetic is wrong, that is **Gate B / V1**, not Gate A/V0.
+
 ## 6. DeepSeek license/source attribution file is still missing
 
 Do not copy/adapt official `inference/` or `encoding/` source until the exact license/notice has been retrieved from the pinned source.
 
 The placeholder under `LICENSES/` records this intentionally. A generic MIT template is not a substitute for the publisher's exact file/provenance.
 
-## 7. Converter dry run cannot account for all bytes
+## 7. Converter dry run cannot account for all bytes — Gate A/V0 or format-design failure
 
 Stop before conversion.
 
@@ -107,7 +111,7 @@ Check:
 - tokenizer/sidecar assets counted separately from tensors;
 - no transform changes stored size without an explicit formula.
 
-A dry run with unexplained output is a failed gate.
+A dry run with unexplained output is a failed prerequisite, not a warning.
 
 ## 8. Converter fails midway
 
@@ -168,7 +172,7 @@ Check:
 
 Treat this as a correctness defect in the hard-budget contract.
 
-## 12. Direct I/O/page-cache bypass is false
+## 12. Direct I/O/page-cache bypass is false — Gate L measurement context
 
 First determine whether correctness still works through the documented fallback.
 
@@ -181,7 +185,7 @@ Check:
 - Linux `O_DIRECT` constraints;
 - macOS bypass API return status.
 
-Do not benchmark the buffered fallback as though it were the intended streaming path without labeling it.
+Do not benchmark the buffered fallback as though it were the intended Gate L streaming path without labeling it.
 
 ## 13. Expert read returns short/bad record
 
@@ -197,7 +201,7 @@ Check error detail for:
 
 Then run the offline verifier on the bank/container. Do not continue with partially read or corrupted expert data.
 
-## 14. Cache-on output differs from cache-off
+## 14. Cache-on output differs from cache-off — README Gate G failure
 
 This violates a core invariant.
 
@@ -212,7 +216,9 @@ Likely causes:
 
 Reproduce single-threaded with a tiny synthetic container and compare payload bytes before debugging model arithmetic.
 
-## 15. Router selects different expert IDs from official reference
+Do not publish Gate M cache-performance results while Gate G fails.
+
+## 15. Router selects different expert IDs from official reference — V3 primitive / Gate F / V4
 
 Do not debug expert kernels yet.
 
@@ -227,25 +233,25 @@ Check in this order:
 7. normalization/scaling;
 8. bootstrap/hash mapping source for early layers.
 
-Selected expert IDs/order should be treated as exact semantic checks.
+Selected expert IDs/order should be treated as exact semantic checks. Small router primitive mismatches localize in V3; routing + one complete MoE layer is README Gate F / V4.
 
-## 16. One expert output differs
+## 16. One expert output differs — Gates B/C or V3/F-V4
 
 Check:
 
 - correct expert identity/record;
 - `w1/w3/w2` order;
 - logical versus stored dimensions;
-- FP4 packing order;
-- scale axis/block (`K32` only if proven);
+- FP4 packing order — Gate B/V1;
+- scale axis/block and scale direction — Gate B/V1;
 - matrix transpose/row-major assumptions;
-- activation/clamp order;
+- activation/clamp order — V3;
 - accumulation dtype;
 - down projection shape.
 
-Return to `VALIDATION.md` V1/V2/V3 fixtures. Do not loosen full-layer tolerances.
+Return to Gate B/V1, Gate C/V2, then V3/one-expert fixtures in that order. Do not loosen full-layer tolerances.
 
-## 17. Attention matches at short context but fails near a boundary
+## 17. Attention matches at short context but fails near a boundary — Gate E / V5
 
 Suspect state/indexing rather than general projection math.
 
@@ -261,7 +267,7 @@ Check:
 
 Maintain explicit boundary fixtures at `boundary-1`, `boundary`, `boundary+1`.
 
-## 18. Full layer fails but primitives pass
+## 18. Full layer fails but primitives pass — Gate H / V6
 
 Capture official and C intermediates at the composition boundaries:
 
@@ -278,13 +284,13 @@ layer output
 
 The first mismatch determines the next investigation. Do not refactor multiple components at once while diagnosing.
 
-## 19. Final logits differ but every sampled layer looked close
+## 19. Final logits differ but every sampled layer looked close — Gate I / V8
 
-Increase checkpoint density to find the first divergence.
+Increase checkpoint density to find the first divergence. Use extra operational rung V7 for multi-layer localization.
 
 Also check:
 
-- exact prompt token IDs;
+- exact prompt/token IDs;
 - embedding row;
 - hidden-state/state reset between runs;
 - final norm;
@@ -295,7 +301,7 @@ Also check:
 
 Logit max-relative error alone can be misleading near zero; use `VALIDATION.md`'s metric set.
 
-## 20. Greedy output diverges after several matching tokens
+## 20. Greedy output diverges after several matching tokens — Gate K / V9
 
 Capture logits at the first divergent position for both sides.
 
@@ -303,27 +309,27 @@ If argmax differs because two logits are extremely close, that is still a parity
 
 Check state updates after the last matching token, especially compressed attention and any session persistence.
 
-## 21. Server output differs from direct CLI/C generation
+## 21. Server output differs from direct CLI/C generation — Gate J/V10 or V11
 
-If underlying V9 passes, suspect the API/encoding layer:
+If underlying Gate K/V9 passes, suspect the API/encoding layer:
 
-- exact encoded prompt token sequence;
+- exact encoded prompt token sequence — Gate J/V10;
 - generation options/defaults;
 - stop/EOS configuration;
-- parser dropping/rewriting tokens;
-- streaming parser state;
-- model alias resolving a different container;
-- DSpark enabled in one path only.
+- parser dropping/rewriting tokens — Gate J/V10;
+- streaming parser state — Gate J/V10/V11 seam;
+- model alias resolving a different container — V11;
+- DSpark enabled in one path only — Gate N configuration.
 
 Compare token IDs, not rendered strings first.
 
-## 22. Streaming emits tokens later rejected by DSpark
+## 22. Streaming emits tokens later rejected by DSpark — Gate N critical failure
 
-Critical bug. Only committed tokens may leave the server.
+Only committed tokens may leave the server.
 
 Disable DSpark and reproduce. Then inspect speculative acceptance/commit boundary and parser feed location. See `DSPARK.md`.
 
-## 23. High cache hit rate but decode becomes dramatically slower
+## 23. High cache hit rate but decode becomes dramatically slower — Gate M analysis
 
 Suspect memory pressure/paging before assuming cache policy is good.
 
@@ -340,7 +346,9 @@ Record:
 
 Upstream WASTE measured this class of failure on Kimi: more cache can increase logical hit rate while paging destroys throughput. DeepSeek must be re-measured, but the diagnostic lesson transfers.
 
-## 24. Disk benchmark is fast but model is slow
+A high logical hit rate alone does not satisfy Gate M.
+
+## 24. Disk benchmark is fast but model is slow — Gate L is not tok/s
 
 Disk throughput is only a lower bound on token time.
 
@@ -358,7 +366,7 @@ Do not infer that storage is unused simply because total token time exceeds `byt
 
 ## 25. Optimized SIMD path fails while scalar passes
 
-Keep scalar as oracle.
+Keep scalar as local implementation oracle, but check whether the scalar baseline has itself passed the official gate.
 
 Check:
 
@@ -370,6 +378,8 @@ Check:
 - reduction order/tolerance;
 - runtime dispatch selecting the intended kernel;
 - multi-thread race versus pure kernel error.
+
+For native quantization, an optimized path matching a scalar implementation that has only passed V1a but not Gate B/V1b is still not official DeepSeek parity.
 
 Do not remove the scalar path to make binary size smaller while the port is still evolving.
 
@@ -383,10 +393,11 @@ OS/hardware/storage
 command
 RAM budget/context/threads/backend
 DSpark/prefetch/cache settings
-highest validation gate that passes
-first gate that fails
+README §18 gate letter(s) A-N involved
+highest operational V-level/system gate that passes
+first canonical gate that fails
 exact error detail
-smallest reproducible fixture if available
+smallest reproducible independent fixture if available
 ```
 
 That information is usually more useful than a screenshot of incorrect generated text.
