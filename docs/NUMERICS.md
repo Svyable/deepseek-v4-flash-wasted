@@ -1,6 +1,6 @@
 # Numerics — native DeepSeek quantization reference contract
 
-**Status: V1 FORMAT-CONFORMANCE HALF IS SYNTHETIC-VERIFIED. DeepSeek-specific packing/scale conventions remain TBD-GATE0.**
+**Status: README Gate B / V1 FORMAT-CONFORMANCE HALF IS SYNTHETIC-VERIFIED. DeepSeek-specific packing/scale conventions remain BLOCKED on Gate A / V0 reference truth and the V1b official-convention check.**
 
 This document is the arithmetic contract for the scalar native-quantization code introduced in PR #3 (`91c36b8f4168349e6893a9911a3f60075d62d973`). It exists so later SIMD, container, converter, and model work has one place to answer three different questions:
 
@@ -10,30 +10,36 @@ This document is the arithmetic contract for the scalar native-quantization code
 
 Those are not the same thing.
 
+Gate ownership:
+
+- **README Gate A / V0** establishes real checkpoint tensor/storage truth that constrains this document;
+- **README Gate B / V1** owns native decode + official DeepSeek packing/scale convention agreement;
+- **README Gate C / V2** owns one official quantized trunk projection.
+
 The scalar implementations are:
 
 - `src/quant/fp4_e2m1.{c,h}` — routed-expert E2M1 + UE8M0 K32 decode/matvec;
 - `src/quant/fp8_e4m3.{c,h}` — trunk E4M3FN + block-scale decode/matvec;
 - `tests/test_quant.c` — exhaustive public-format conformance and layout/indexing tests.
 
-See `docs/VALIDATION.md` Gate V1 for the project gate and `docs/FIXTURES.md` for the rule that expected values must not be generated through the convention being tested.
+See `docs/VALIDATION.md` §4a for the canonical A–N/V-level mapping and `docs/FIXTURES.md` for the rule that expected values must not be generated through the convention being tested.
 
 ---
 
 ## 1. Evidence split
 
-| Claim | Current state | Evidence |
-|---|---|---|
-| E2M1 code values | **SYNTHETIC-VERIFIED** | exhaustive 16-code test derived independently from sign/exponent/mantissa rules |
-| UE8M0 values | **SYNTHETIC-VERIFIED** | exhaustive 256-code test; `0xFF` NaN, `0x00..0xFE` powers of two |
-| E4M3 finite (`e4m3fn`) values | **SYNTHETIC-VERIFIED** | exhaustive 256-code test; top exponent remains finite except `S.1111.111` |
-| FP4 K32 scale indexing | **SYNTHETIC-VERIFIED** | boundary/row-stride tests on synthetic arrays |
-| FP8 128×128 scale-grid indexing | **SYNTHETIC-VERIFIED** | exact/ragged boundary tests including a 200×300 matrix |
-| scalar matvec implementation | **SYNTHETIC-VERIFIED** | decoded-row dot product agrees with direct scalar matvec |
-| FP4 nibble order used by DeepSeek | **TBD-GATE0 / BLOCKED** | current assumption: even logical column is low nibble |
-| meaning/direction of `weight_scale_inv` | **TBD-GATE0 / BLOCKED** | current assumption: stored value is multiplied into decoded E4M3 |
-| exact checkpoint tensor scale dtype/layout | **TBD-GATE0 / BLOCKED** | requires official metadata/reference |
-| one real DeepSeek quantized projection | **NOT VERIFIED** | Gate V2 requires official oracle/checkpoint |
+| Claim | Current state | Gate | Evidence |
+|---|---|---|---|
+| E2M1 code values | **SYNTHETIC-VERIFIED** | Gate B / V1a | exhaustive 16-code test derived independently from sign/exponent/mantissa rules |
+| UE8M0 values | **SYNTHETIC-VERIFIED** | Gate B / V1a | exhaustive 256-code test; `0xFF` NaN, `0x00..0xFE` powers of two |
+| E4M3 finite (`e4m3fn`) values | **SYNTHETIC-VERIFIED** | Gate B / V1a | exhaustive 256-code test; top exponent remains finite except `S.1111.111` |
+| FP4 K32 scale indexing | **SYNTHETIC-VERIFIED** | Gate B / V1a | boundary/row-stride tests on synthetic arrays |
+| FP8 128×128 scale-grid indexing | **SYNTHETIC-VERIFIED** | Gate B / V1a | exact/ragged boundary tests including a 200×300 matrix |
+| scalar matvec implementation | **SYNTHETIC-VERIFIED** | supports Gate B/C | decoded-row dot product agrees with direct scalar matvec |
+| FP4 nibble order used by DeepSeek | **BLOCKED / CHECKPOINT-UNVERIFIED** | Gate A/V0 + Gate B/V1b | current assumption: even logical column is low nibble |
+| meaning/direction of `weight_scale_inv` | **BLOCKED / CHECKPOINT-UNVERIFIED** | Gate A/V0 + Gate B/V1b | current assumption: stored value is multiplied into decoded E4M3 |
+| exact checkpoint tensor scale dtype/layout | **BLOCKED / CHECKPOINT-UNVERIFIED** | Gate A / V0 | requires official metadata/reference |
+| one real DeepSeek quantized projection | **NOT VERIFIED** | Gate C / V2 | requires official oracle/checkpoint |
 
 The first five rows are real results. They do not promote the last four rows.
 
@@ -59,7 +65,11 @@ independent scalar conformance tests
       ↓
 scalar C implementation
       ↓
-official DeepSeek convention/oracle reconciliation
+Gate A/V0 checkpoint convention truth
+      ↓
+Gate B/V1 official DeepSeek convention reconciliation
+      ↓
+Gate C/V2 official projection parity
       ↓
 optimized SIMD/backend implementation
 ```
@@ -139,7 +149,7 @@ scale plane:    [rows, cols / 32] bytes
 
 The dimensions must divide evenly into nibble pairs and K32 scale blocks. The scalar API refuses shapes that would require a ragged FP4 scale block rather than reading past the supplied scale plane.
 
-**This geometry is a current port contract, not yet checkpoint-verified.** Gate V0 must verify the exact official representation.
+**This geometry is a current port contract, not yet checkpoint-verified. README Gate A / V0 must verify the exact official representation; Gate B / V1b must verify the arithmetic convention used with it.**
 
 ---
 
@@ -171,7 +181,7 @@ This literal is load-bearing. Do not replace it with a value produced by the sam
 
 If the official DeepSeek reference proves high-nibble-first packing, the literal assertion is **supposed** to fail. The correct change is to update both the implementation and the explicit documented literal after citing the official reference, not to make the fixture adapt automatically.
 
-Why this deserves its own gate: the wrong nibble order does not crash. It swaps logical columns in pairs and produces plausible but invalid matrix arithmetic.
+Why this deserves Gate B/V1b attention: the wrong nibble order does not crash. It swaps logical columns in pairs and produces plausible but invalid matrix arithmetic.
 
 ---
 
@@ -226,7 +236,7 @@ Unlike the current FP4 path, the final FP8 block may be ragged in either dimensi
 
 The current implementation multiplies by the stored scale. The DeepSeek tensor naming described by the handoff includes `weight_scale_inv`, which suggests an inverse-scale convention, but the name alone is not an arithmetic proof.
 
-Gate V0/V1 reference reconciliation must answer exactly:
+Gate A/V0 plus Gate B/V1 reference reconciliation must answer exactly:
 
 ```text
 Does official inference compute:
@@ -236,7 +246,7 @@ or:
 or an equivalent transformed convention?
 ```
 
-A wrong answer can leave every value finite and plausible while shifting weights by a scale-squared factor relative to the intended representation. This must be settled before Gate V2.
+A wrong answer can leave every value finite and plausible while shifting weights by a scale-squared factor relative to the intended representation. This must be settled before **Gate C / V2**.
 
 ---
 
@@ -256,9 +266,9 @@ The current tests validate matvec by a second local path:
 2. dot that row with the input using a separate loop/double accumulator;
 3. compare with the direct quantized matvec result.
 
-This proves internal arithmetic/indexing consistency. It is **not** Gate V2, because both paths share the repository's current DeepSeek convention assumptions.
+This proves internal arithmetic/indexing consistency. It is **not Gate C / V2**, because both paths share the repository's current DeepSeek convention assumptions.
 
-Gate V2 requires one quantized projection against the official reference.
+Gate C/V2 requires one quantized projection against the official reference.
 
 ---
 
@@ -274,7 +284,7 @@ Block selection and nibble selection are discrete semantics and should be tested
 
 ### Projection output
 
-Official-reference projection comparisons in Gate V2 will use tolerances chosen only after observing the real reference's accumulation/dtype behavior. Do not pre-author a permissive threshold based on the scalar C path.
+Official-reference projection comparisons in Gate C/V2 will use tolerances chosen only after observing the real reference's accumulation/dtype behavior. Do not pre-author a permissive threshold based on the scalar C path.
 
 ### Optimized kernels
 
@@ -283,7 +293,7 @@ An optimized backend must be evaluated against both:
 - the scalar C reference for implementation regression/localization;
 - the official oracle fixture for model correctness.
 
-Matching the scalar path is necessary but not sufficient until the scalar path itself has passed reference agreement.
+Matching the scalar path is necessary but not sufficient until the scalar path itself has passed Gate B/V1 reference agreement.
 
 ---
 
@@ -309,9 +319,9 @@ See `docs/FIXTURES.md` for the general rule.
 
 ---
 
-## 11. Gate V1 completion checklist
+## 11. README Gate B / V1 completion checklist
 
-V1 is not complete until all of these are true:
+Gate B/V1 is not complete until all of these are true:
 
 - [x] E2M1 public format semantics are exhaustively tested.
 - [x] UE8M0 public format semantics are exhaustively tested.
@@ -326,17 +336,17 @@ V1 is not complete until all of these are true:
 - [ ] official DeepSeek reference confirms the expected native E4M3 variant/scale layout for the target tensors.
 - [ ] official oracle fixtures are committed with provenance and consumed by the C tests.
 
-Only then should `docs/VALIDATION.md` mark V1 passed without qualification.
+Only then should `docs/VALIDATION.md` mark Gate B/V1 passed without qualification.
 
 ---
 
-## 12. Gate V2 handoff
+## 12. README Gate C / V2 handoff
 
 Once official access is restored, the next arithmetic gate should stay intentionally small:
 
 1. obtain one real/reference quantized weight tile and its scale metadata;
 2. freeze raw encoded bytes and expected decoded values independently;
-3. verify nibble/scale conventions first;
+3. verify Gate B/V1 nibble/scale conventions first;
 4. choose a small projection crossing at least one scale boundary;
 5. dump the official output with dtype/device/provenance;
 6. run the scalar C matvec against exactly the same input;
