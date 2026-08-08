@@ -1,10 +1,16 @@
 # Tensor map — DeepSeek-V4-Flash-0731
 
-**Status: DESIGN + SYNTHETIC-VERIFIED inventory machinery. Real checkpoint names/shapes/bytes remain BLOCKED until Gate 0 can read the pinned 0731 artifact.**
+**Status: DESIGN + SYNTHETIC-VERIFIED inventory machinery. Real checkpoint names/shapes/bytes remain BLOCKED until README Gate A / V0 can read the pinned 0731 artifact.**
 
 This document is the human-readable companion to `tools/inventory.py`. It exists to make every checkpoint tensor accountable: what it means, whether it is resident or streamed, which container object owns it, and which runtime component consumes it.
 
 The final tensor map must be generated from the official checkpoint. Do not hand-maintain thousands of expert rows here.
+
+Gate terminology follows `docs/VALIDATION.md` §4a:
+
+- **Gate A / V0** owns checkpoint names, shapes, dtypes, bytes, tensor-family identity, and storage geometry;
+- **Gate B / V1** owns official DeepSeek native-quantization byte/scale semantics after Gate A exposes the real artifacts;
+- **Gate F / V4** owns routing + one MoE-layer behavior after the router/tensor inputs are mapped.
 
 ## 1. Source of truth
 
@@ -14,7 +20,7 @@ Precedence:
 2. official 0731 inference/config code;
 3. this map and `tools/inventory.py` rules.
 
-If a real tensor name does not match the current classifier, **the classifier is wrong or incomplete**. Unknown main-model tensors are a Gate 0 failure.
+If a real tensor name does not match the current classifier, **the classifier is wrong or incomplete**. Unknown main-model tensors are a Gate A/V0 failure.
 
 ## 2. Machine-readable inventory contract
 
@@ -53,18 +59,18 @@ The inventory currently recognizes these functional buckets by inferred naming p
 
 | Subsystem | Initial placement | Purpose | Evidence state |
 |---|---|---|---|
-| `routed_expert` | streamed | sparse MoE expert matrices + associated scales | classifier SYNTHETIC-VERIFIED; real names TBD-GATE0 |
-| `shared_expert` | resident | always-used expert path | TBD-GATE0 |
-| `router_hash` | resident | early token/expert mapping if present | TBD-GATE0 |
-| `router` | resident | learned expert scoring/correction | TBD-GATE0 |
-| `csa_indexer` | resident | compressed sparse-attention selection/indexing | TBD-GATE0 |
-| `compressor` | resident | compressed-attention projections/state transforms | TBD-GATE0 |
-| `mhc` | resident | manifold-constrained Hyper-Connection parameters | TBD-GATE0 |
-| `norm` | resident | normalization parameters | TBD-GATE0 |
-| `attention` | resident | Q/KV/O and related attention projections | TBD-GATE0 |
-| `embedding` | resident candidate | input embedding table | TBD-GATE0 |
-| `lm_head` | resident candidate | output projection/head | TBD-GATE0 |
-| `dspark_only` | separate optional module | speculative/draft-only parameters | TBD-GATE0 |
+| `routed_expert` | streamed | sparse MoE expert matrices + associated scales | classifier SYNTHETIC-VERIFIED; real names BLOCKED on Gate A/V0 |
+| `shared_expert` | resident | always-used expert path | Gate A/V0 pending |
+| `router_hash` | resident | early token/expert mapping if present | Gate A/V0 pending |
+| `router` | resident | learned expert scoring/correction | Gate A/V0 pending |
+| `csa_indexer` | resident | compressed sparse-attention selection/indexing | Gate A/V0 pending |
+| `compressor` | resident | compressed-attention projections/state transforms | Gate A/V0 pending |
+| `mhc` | resident | manifold-constrained Hyper-Connection parameters | Gate A/V0 pending |
+| `norm` | resident | normalization parameters | Gate A/V0 pending |
+| `attention` | resident | Q/KV/O and related attention projections | Gate A/V0 pending |
+| `embedding` | resident candidate | input embedding table | Gate A/V0 pending |
+| `lm_head` | resident candidate | output projection/head | Gate A/V0 pending |
+| `dspark_only` | separate optional module | speculative/draft-only parameters | Gate A/V0 pending |
 
 The placement column is a bootstrap policy, not a permanent storage law. Only routed experts are intentionally streamed in the first design.
 
@@ -74,34 +80,34 @@ This is the implementation checklist. Populate the checkpoint-name and shape col
 
 | Family | Exact checkpoint pattern | Exact stored shape/dtype | Container destination | Runtime consumer | Status |
 |---|---|---|---|---|---|
-| token embeddings | TBD-GATE0 | TBD-GATE0 | trunk | embedding lookup | BLOCKED |
-| final norm | TBD-GATE0 | TBD-GATE0 | trunk | final model stage | BLOCKED |
-| LM head | TBD-GATE0 | TBD-GATE0 | trunk or explicit on-disk-row strategy if later proven useful | logits | BLOCKED |
-| per-layer norms | TBD-GATE0 | TBD-GATE0 | trunk | layer pre/post ops | BLOCKED |
-| mHC params | TBD-GATE0 | TBD-GATE0 | trunk | `deepseek_v4/mhc` | BLOCKED |
-| attention Q path | TBD-GATE0 | TBD-GATE0 | trunk | attention | BLOCKED |
-| attention KV path | TBD-GATE0 | TBD-GATE0 | trunk | attention | BLOCKED |
-| attention O path | TBD-GATE0 | TBD-GATE0 | trunk | attention | BLOCKED |
-| compressors | TBD-GATE0 | TBD-GATE0 | trunk | compressed attention | BLOCKED |
-| CSA indexers | TBD-GATE0 | TBD-GATE0 | trunk | sparse position selection | BLOCKED |
-| learned routers | TBD-GATE0 | TBD-GATE0 | trunk | MoE router | BLOCKED |
-| route correction/bias | TBD-GATE0 | TBD-GATE0 | trunk | MoE router | BLOCKED |
-| hash/bootstrap route tables | TBD-GATE0 | TBD-GATE0 | trunk | early router/prefetch | BLOCKED |
-| shared expert w1/w2/w3 | TBD-GATE0 | TBD-GATE0 | trunk | shared MoE path | BLOCKED |
+| token embeddings | Gate A/V0 pending | Gate A/V0 pending | trunk | embedding lookup | BLOCKED |
+| final norm | Gate A/V0 pending | Gate A/V0 pending | trunk | final model stage | BLOCKED |
+| LM head | Gate A/V0 pending | Gate A/V0 pending | trunk or explicit on-disk-row strategy if later proven useful | logits | BLOCKED |
+| per-layer norms | Gate A/V0 pending | Gate A/V0 pending | trunk | layer pre/post ops | BLOCKED |
+| mHC params | Gate A/V0 pending | Gate A/V0 pending | trunk | `deepseek_v4/mhc` | BLOCKED |
+| attention Q path | Gate A/V0 pending | Gate A/V0 pending | trunk | attention | BLOCKED |
+| attention KV path | Gate A/V0 pending | Gate A/V0 pending | trunk | attention | BLOCKED |
+| attention O path | Gate A/V0 pending | Gate A/V0 pending | trunk | attention | BLOCKED |
+| compressors | Gate A/V0 pending | Gate A/V0 pending | trunk | compressed attention | BLOCKED |
+| CSA indexers | Gate A/V0 pending | Gate A/V0 pending | trunk | sparse position selection | BLOCKED |
+| learned routers | Gate A/V0 pending | Gate A/V0 pending | trunk | MoE router | BLOCKED |
+| route correction/bias | Gate A/V0 pending | Gate A/V0 pending | trunk | MoE router | BLOCKED |
+| hash/bootstrap route tables | Gate A/V0 pending | Gate A/V0 pending | trunk | early router/prefetch | BLOCKED |
+| shared expert w1/w2/w3 | Gate A/V0 pending | Gate A/V0 pending | trunk | shared MoE path | BLOCKED |
 | routed expert w1 | inferred aliases only | synthetic shape model only | expert bank record | streamed MoE | BLOCKED |
 | routed expert w3 | inferred aliases only | synthetic shape model only | expert bank record | streamed MoE | BLOCKED |
 | routed expert w2 | inferred aliases only | synthetic shape model only | expert bank record | streamed MoE | BLOCKED |
 | routed expert scales | inferred suffixes only | synthetic K32 model only | same expert record | native FP4 apply | BLOCKED |
-| resident FP8 scales | TBD-GATE0 | TBD-GATE0 | trunk beside owning tensor | native FP8 apply | BLOCKED |
-| DSpark tensors | inferred namespace/layer signals only | TBD-GATE0 | separate optional DSpark files/section | phase-2 DSpark path | BLOCKED |
+| resident FP8 scales | Gate A/V0 pending | Gate A/V0 pending | trunk beside owning tensor | native FP8 apply | BLOCKED |
+| DSpark tensors | inferred namespace/layer signals only | Gate A/V0 pending | separate optional DSpark files/section | phase-2 DSpark path | BLOCKED |
 
 No C field should be declared solely because this table predicts a tensor. Bind only after the official inventory/reference establishes it.
 
-## 5. Expert triplet invariant
+## 5. Expert triplet invariant — Gate A / V0
 
 The first proposed streamed unit is one complete routed expert.
 
-Gate 0 must prove, for every main routed `(layer, expert)` pair:
+Gate A/V0 must prove, for every main routed `(layer, expert)` pair:
 
 - exactly one gate/`w1` matrix;
 - exactly one up/`w3` matrix;
@@ -113,7 +119,7 @@ Gate 0 must prove, for every main routed `(layer, expert)` pair:
 
 If the real expert contains a fourth required tensor, the one-record format must change before conversion.
 
-## 6. Scale ownership invariant
+## 6. Scale ownership invariant — Gate A/V0 → Gate B/V1
 
 Scale tensors are attributed to the weight they scale. The generated map must make ownership unambiguous.
 
@@ -123,13 +129,15 @@ For each quantized weight:
 weight -> quantization format -> scale tensor(s) -> scale granularity/axis
 ```
 
+Gate A/V0 establishes the exact scale tensor identity/shape/storage. Gate B/V1 establishes how those bytes/values are applied by the official DeepSeek arithmetic.
+
 A converter must not discover scale ownership from a heuristic once the real mapping has been established. The finalized mapping belongs in normalized config/manifest metadata or converter code covered by exact-name tests.
 
-## 7. FP4 packing verification
+## 7. FP4 packing verification — Gate A/V0 + Gate B/V1
 
 Safetensors has no generic `FP4` dtype in the PR #1 inventory model. The current inventory therefore detects packing from stored dtype/shape/bytes rather than assuming `U8 == two FP4 values`.
 
-Gate 0 must record:
+Gate A/V0 must record:
 
 - stored dtype;
 - stored shape;
@@ -142,34 +150,28 @@ Only after those agree may `CONTAINER_V4.md` freeze the expert record payload.
 
 ### Two conventions the shapes cannot settle
 
-Shapes and byte counts establish *that* a tensor is packed two values per
-byte. They cannot establish which value goes where. `src/quant/` now
-implements a specific answer to each, and each is a guess until Gate 0:
+Shapes and byte counts establish *that* a tensor is packed two values per byte. They cannot establish which value goes where. `src/quant/` now implements a specific answer to each, and each is a guess until Gate B/V1 official convention reconciliation:
 
-| Convention | Implemented as | Where |
-|---|---|---|
-| FP4 nibble order | even column index → low nibble | `WASTE_FP4_LOW_NIBBLE_IS_EVEN` in `src/quant/fp4_e2m1.h` |
-| FP8 scale direction | stored `weight_scale_inv` is a multiplier | `waste_fp8_at` in `src/quant/fp8_e4m3.c` |
+| Convention | Implemented as | Where | Canonical gate |
+|---|---|---|---|
+| FP4 nibble order | even column index → low nibble | `WASTE_FP4_LOW_NIBBLE_IS_EVEN` in `src/quant/fp4_e2m1.h` | Gate B / V1b |
+| FP8 scale direction | stored `weight_scale_inv` is a multiplier | `waste_fp8_at` in `src/quant/fp8_e4m3.c` | Gate B / V1b |
 
-Neither fails loudly on its own. A swapped nibble order yields a matrix
-that is column-permuted in pairs — finite, plausibly scaled, and wrong;
-an inverted scale yields weights off by a squared factor. Both look like
-"the model is broken" several gates later, which is why they are written
-down here rather than left implicit in the kernel.
+Neither fails loudly on its own. A swapped nibble order yields a matrix that is column-permuted in pairs — finite, plausibly scaled, and wrong; an inverted scale yields weights off by a squared factor. Both look like “the model is broken” several gates later, which is why they are written down here rather than left implicit in the kernel.
 
-Gate 0 must therefore also record, from the official `inference/kernel.py`:
+Gate B/V1 must therefore record, from the official `inference/kernel.py` or equivalent pinned reference:
 
 - which nibble holds the lower-indexed element;
-- whether the reference multiplies or divides by the stored scale.
+- whether the reference multiplies or divides by the stored scale;
+- the exact scale layout used by the target tensor family.
 
-`tests/test_quant.c` pins both with literal-byte assertions, so correcting
-either is a deliberate one-line edit that the suite will demand.
+`tests/test_quant.c` pins current choices with literal-byte assertions, so correcting either is a deliberate edit that the suite will demand.
 
-## 8. DSpark separation
+## 8. DSpark separation — Gate A/V0 prerequisite to Gate N
 
 The base model must be loadable without executing DSpark.
 
-Gate 0 must identify DSpark using checkpoint evidence, not only the current heuristic (`dspark`, `spark`, `mtp`, `speculat`, `draft`, or layer index past the main stack).
+Gate A/V0 must identify DSpark using checkpoint evidence, not only the current heuristic (`dspark`, `spark`, `mtp`, `speculat`, `draft`, or layer index past the main stack).
 
 The finalized tensor map should assign every DSpark tensor to one of:
 
@@ -182,11 +184,11 @@ dspark.metadata
 
 Do not duplicate base tensors into DSpark storage merely because the draft code references them.
 
-## 9. Hash/bootstrap routing evidence
+## 9. Hash/bootstrap routing evidence — Gate A/V0 prerequisite to Gate F/V4
 
 The README currently expects the first three layers to expose token-ID-to-expert mapping information. This is an architectural opportunity, not yet checkpoint-verified in this environment.
 
-Gate 0/reference validation must answer:
+Gate A/V0/reference inspection must answer:
 
 1. Is the mapping stored as checkpoint tensors, generated from config, or encoded in reference code?
 2. Is it static for a pinned model revision?
@@ -194,9 +196,9 @@ Gate 0/reference validation must answer:
 4. Is any score/weight still input-dependent after expert IDs are known?
 5. Can the runtime prefetch selected records without performing model arithmetic first?
 
-If the answer differs from the README assumption, update the README/architecture and remove the prefetch claim.
+Gate F/V4 later proves the actual routing + MoE behavior. If the Gate A/V0 answer differs from the README assumption, update the README/architecture and remove the prefetch claim before implementation.
 
-## 10. Gate 0 completion checklist
+## 10. Gate A / V0 completion checklist
 
 Before declaring this map checkpoint-verified:
 
@@ -209,7 +211,7 @@ Before declaring this map checkpoint-verified:
 - [ ] exact main-layer count established from config + tensor namespaces;
 - [ ] exact expert count per MoE layer established;
 - [ ] expert triplets/scales complete;
-- [ ] native FP4 packing proven from storage/reference;
+- [ ] native FP4 packing/storage geometry proven from checkpoint/reference;
 - [ ] resident FP8 families/scales mapped;
 - [ ] mHC families mapped;
 - [ ] attention/compressor/indexer families mapped;
@@ -219,9 +221,11 @@ Before declaring this map checkpoint-verified:
 - [ ] `docs/INVENTORY-0731.md` replaced/updated with measured totals;
 - [ ] README estimates either replaced with checkpoint values or explicitly retained as historical estimates.
 
+Gate B/V1 still remains responsible for the official arithmetic meaning of packed/scaled values after this checklist establishes their storage identity.
+
 ## 11. Change control
 
-Once Gate 0 has passed, changes to a tensor mapping require one of:
+Once Gate A/V0 has passed, changes to a tensor mapping require one of:
 
 - a new pinned DeepSeek checkpoint revision;
 - a demonstrated inventory bug;
