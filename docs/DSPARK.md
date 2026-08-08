@@ -1,10 +1,18 @@
 # DSpark — phase-2 speculative decoding plan
 
-**Status: DESIGN / DEFERRED. Base DeepSeek V4 logits and greedy generation must pass before DSpark is implemented or enabled.**
+**Status: DESIGN / DEFERRED. README Gate N. Base DeepSeek V4 logits and greedy generation must pass Gate I / V8 and Gate K / V9 before DSpark is implemented or enabled.**
 
-The 0731 release track includes an attached speculative-decoding component referred to in the project handoff as DSpark. Its exact tensor namespace, dependencies and arithmetic remain subject to Gate 0 and official reference validation.
+The 0731 release track includes an attached speculative-decoding component referred to in the project handoff as DSpark. Its exact tensor namespace, dependencies and arithmetic remain subject to **Gate A / V0** checkpoint/reference validation before Gate N can begin.
 
 Current README-level architecture notes include target main layers `40, 41, 42`, block size `5`, and Markov rank `256`. Treat these as **OFFICIAL-SPEC/HANDOFF, CHECKPOINT-UNVERIFIED in this repo** until the pinned checkpoint/reference is read.
+
+Gate terminology follows `docs/VALIDATION.md` §4a:
+
+- **Gate A / V0** maps and separates DSpark assets;
+- **Gate I / V8** proves final base-model logits;
+- **Gate K / V9** proves deterministic base generation;
+- **Gate G** remains the placement-identity invariant if speculative execution changes cache/I/O behavior;
+- **Gate N** is the final DSpark correctness + performance gate and intentionally has no V-number of its own.
 
 ## 1. Why DSpark is isolated
 
@@ -16,15 +24,15 @@ Speculative decoding adds at least three new failure dimensions:
 
 Debugging those at the same time as the base attention/MoE port would make final-logit failures ambiguous. Therefore DSpark is not part of the minimum base-model loader/forward path.
 
-## 2. Entry gate
+## 2. Entry gate for README Gate N
 
 Do not begin DSpark integration until all are true:
 
-- Gate 0 maps and separates DSpark tensors from the base stack;
+- **Gate A / V0** maps and separates DSpark tensors from the base stack;
 - base converter can create a valid container without DSpark;
-- base V8 final-logit validation passes on real weights;
-- base V9 greedy generation passes on a deterministic prompt set;
-- cache-on/cache-off and prefetch-off/on do not change base output;
+- **Gate I / V8** final-logit validation passes on real weights;
+- **Gate K / V9** greedy generation passes on a deterministic prompt/token set;
+- **Gate G** cache-on/cache-off and prefetch-off/on do not change base output;
 - base performance/memory measurements exist so speculative speedup has a denominator.
 
 ## 3. Required loader modes
@@ -39,7 +47,7 @@ C. base + DSpark assets present, DSpark enabled
 
 Modes A and B must be numerically equivalent for the base decode path. Merely having DSpark files installed must not alter scheduling, RAM budget, prompt encoding, or base logits unless the user enables it.
 
-## 4. Gate 0 questions
+## 4. Gate A / V0 questions
 
 The real checkpoint/reference must answer:
 
@@ -87,17 +95,17 @@ DSpark scratch                  Z
 RAM floor with DSpark         X+Y+Z
 ```
 
-If enabling DSpark reduces available expert cache, the benchmark must include that cost. A speculative module can be compute-faster but end-to-end slower if its resident/scratch memory pushes the main expert cache into a worse region.
+If enabling DSpark reduces available expert cache, the Gate N benchmark must include that cost. A speculative module can be compute-faster but end-to-end slower if its resident/scratch memory pushes the main expert cache into a worse Gate M region.
 
 The user should be able to plan both modes before opening the full model.
 
-## 7. Correctness model
+## 7. Gate N correctness ladder
 
 Speculative decoding is an acceleration technique. With deterministic sampling settings, enabling it must preserve the output distribution/accepted final tokens according to the official algorithm.
 
-Validation levels:
+The D-levels below are **subchecks inside README Gate N**, not a fourth project-wide gate vocabulary.
 
-### D1 — draft module primitive parity
+### N-D1 — draft module primitive parity
 
 Compare official and C for the smallest DSpark operation(s):
 
@@ -105,7 +113,7 @@ Compare official and C for the smallest DSpark operation(s):
 - internal low-rank/Markov state if present;
 - draft hidden/logit outputs.
 
-### D2 — multi-token proposal parity
+### N-D2 — multi-token proposal parity
 
 Given a fixed base state, compare:
 
@@ -113,7 +121,7 @@ Given a fixed base state, compare:
 - proposal probabilities/logits required by verification;
 - updated DSpark state.
 
-### D3 — acceptance decision parity
+### N-D3 — acceptance decision parity
 
 Construct fixtures that force:
 
@@ -126,13 +134,15 @@ Construct fixtures that force:
 
 Acceptance/rejection indices and committed tokens must match official reference exactly.
 
-### D4 — base fallback parity
+### N-D4 — base fallback parity
 
 A rejection must continue from the correct authoritative base-model state. There must be no hidden mutation from unaccepted draft tokens.
 
-### D5 — end-to-end token parity
+### N-D5 — end-to-end committed-token parity
 
 For deterministic prompts, DSpark-on and official speculative reference should generate the same committed sequence. DSpark-off remains the diagnostic baseline.
+
+These `N-D*` labels are local subchecks owned by Gate N; they are written with the `N-` prefix so they cannot be mistaken for README Gates A–N or global V-levels.
 
 ## 8. State rollback is load-bearing
 
@@ -146,7 +156,7 @@ This includes any attention/compression/indexer state and DSpark's own Markov/dr
 
 Never commit state simply because a token was proposed.
 
-## 9. Interaction with streamed experts
+## 9. Interaction with streamed experts — Gate G must remain true
 
 Speculation can change expert I/O patterns substantially.
 
@@ -161,7 +171,9 @@ Measure:
 
 A higher raw evaluated-token rate is not the metric users experience.
 
-## 10. Performance metrics
+Speculative scheduling/prefetch may change timing and traffic, but it must not cause cache placement to change authoritative model meaning. If it does, Gate G has failed before Gate N performance can be discussed.
+
+## 10. Gate N performance metrics
 
 Report together:
 
@@ -180,6 +192,8 @@ TTFT delta
 
 A speedup without acceptance rate and memory/I/O cost is incomplete.
 
+Record Gate N results in `BENCHMARKS.md`; include the base model's Gate I/V8 and Gate K/V9 status in the same entry.
+
 ## 11. API/CLI controls
 
 DSpark should initially be explicit and easy to disable, for example conceptually:
@@ -196,7 +210,7 @@ For server use, a default may be considered only after correctness and stable po
 
 ## 12. Benchmark sequence
 
-Once D5 passes:
+Once N-D5 passes:
 
 1. base versus DSpark with same RAM budget;
 2. account for cache reduction from DSpark memory;
@@ -207,9 +221,16 @@ Once D5 passes:
 7. I/O/prefetch metrics;
 8. thermally stable repeated runs.
 
-Add results to `BENCHMARKS.md` and surprising/negative findings to `EXPERIMENTS.md`.
+Add results to `BENCHMARKS.md` as README Gate N and surprising/negative findings to `EXPERIMENTS.md`.
 
-## 13. Kill criteria
+## 13. Gate N pass / kill criteria
+
+Gate N passes only if:
+
+- committed output is provably equivalent to the official speculative algorithm;
+- state rollback/commit semantics are exact;
+- Gate G remains true;
+- positive wall-clock benefit is measured using committed tokens under comparable RAM/cache accounting.
 
 Keep DSpark optional or defer optimization if, on the target local hardware:
 
