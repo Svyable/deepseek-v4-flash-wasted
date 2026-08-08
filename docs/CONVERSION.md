@@ -4,6 +4,8 @@
 
 This runbook defines the order of operations so the project never discovers a basic checkpoint mismatch after committing to a full conversion.
 
+Gate terminology follows `docs/VALIDATION.md` §4a. Conversion depends first on **README Gate A / V0** checkpoint truth and **Gate B / V1** official native-quantization convention agreement; selected converted tensors then need **Gate C / V2** or later oracle validation. Storage/cache performance Gates L/M are not converter correctness gates.
+
 ## 1. Non-negotiable input rule
 
 The conversion source is the pinned official checkpoint:
@@ -59,7 +61,7 @@ PY
 
 If organizational policy denies the request, report it and stop. Do not route around an explicit egress control.
 
-## 4. Stage B — index-only inventory
+## 4. Stage B — index-only inventory — Gate A / V0 begins
 
 Run before downloading shard data:
 
@@ -113,7 +115,7 @@ Requirements:
 
 The converter should never rewrite the source checkpoint in place.
 
-## 7. Stage E — strict header inventory / Gate 0
+## 7. Stage E — strict header inventory — complete Gate A / V0 storage truth
 
 With shards present:
 
@@ -129,7 +131,9 @@ Before converter implementation proceeds, update:
 - `README.md` estimates that the checkpoint disproves;
 - `docs/MEMORY_AND_IO.md` only with checkpoint-derived storage facts, not throughput forecasts.
 
-A strict inventory failure is a blocker, not a warning to suppress.
+A strict inventory failure is a **Gate A/V0** blocker, not a warning to suppress.
+
+Passing Gate A/V0 establishes storage identity/geometry. It does not by itself prove the arithmetic meaning of nibble order or scale direction; **Gate B/V1** owns that official-convention agreement.
 
 ## 8. Stage F — converter dry run
 
@@ -153,17 +157,17 @@ minimum free output space
 conversion format/version
 ```
 
-All byte counts in this stage come from checkpoint headers + chosen deterministic storage transforms.
+All byte counts in this stage come from Gate A/V0 checkpoint headers + chosen deterministic storage transforms.
 
 If the dry run cannot explain an output byte, the real run should not start.
 
-## 9. Native-preserving baseline policy
+## 9. Native-preserving baseline policy — Gate B / V1 prerequisite
 
 The first converter exists to preserve the official model's semantics, not to minimize disk size.
 
 Initial policy:
 
-- retain official routed-expert FP4 representation/scale semantics as proven by Gate 0/reference code;
+- retain official routed-expert FP4 representation/scale semantics **as proven by Gate A/V0 storage mapping and Gate B/V1 official arithmetic conventions**;
 - retain official resident FP8 semantics where present;
 - preserve small sensitive tensors at their official storage/semantic precision unless the reference requires a normalized representation;
 - do not route through WASTE VQ3R/VQ4P merely because the upstream converter supports them;
@@ -180,7 +184,7 @@ A robust converter should process in recoverable units.
 ### Phase 1 — normalized metadata
 
 - parse config/index;
-- validate Gate 0 assumptions;
+- validate **Gate A/V0** assumptions;
 - normalize model-family config;
 - write temporary manifest/provenance data marked incomplete.
 
@@ -216,15 +220,15 @@ A completed verified bank should be skipped on resume if its provenance/format i
 
 ### Phase 4 — tokenizer/encoding/generation assets
 
-Package/copy only what is allowed and necessary for a reproducible local run. Record source hashes/revision.
+Package/copy only what is allowed and necessary for a reproducible local run. Record source hashes/revision. Exact encoding semantics are later validated by **Gate J / V10**.
 
 ### Phase 5 — optional DSpark
 
-Do not make DSpark conversion a prerequisite for a valid base container. Base conversion should complete and verify first.
+Do not make DSpark conversion a prerequisite for a valid base container. Base conversion should complete and verify first. DSpark is **Gate N** and depends on base Gate I/V8 and Gate K/V9.
 
 ### Phase 6 — final manifest
 
-Write the valid/runnable final manifest atomically only after all mandatory base components pass verification.
+Write the valid/runnable final manifest atomically only after all mandatory base components pass conversion verification.
 
 ## 11. Memory discipline during conversion
 
@@ -276,13 +280,13 @@ official checkpoint -> official reference operation
 converted bytes      -> scalar C/reference operation
 ```
 
-Compare under `VALIDATION.md`.
+Compare under `VALIDATION.md`. Native byte/scale interpretation must already satisfy Gate B/V1; a representative trunk projection should satisfy Gate C/V2 before converter output is trusted as model arithmetic.
 
 ### Model-subset verification
 
 Support conversion of selected layers/experts when possible so one real block can be validated before a complete model conversion.
 
-A subset mode is a major gate: it can expose wrong matrix order, scale interpretation, transpose, or container layout without writing the full model.
+A subset mode can expose wrong matrix order, scale interpretation, transpose, or container layout without writing the full model. It is a cheap guard before Gates H/I.
 
 ### Full verification
 
@@ -290,8 +294,9 @@ After full conversion:
 
 - all record checks pass;
 - loader inventory matches converter manifest;
-- final-logit and greedy-generation gates pass on real weights;
-- cache-on/off parity passes.
+- **Gate I / V8** final-logit parity passes;
+- **Gate K / V9** greedy-generation parity passes;
+- **Gate G** cache-on/off placement identity passes.
 
 Only then may the source checkpoint be considered disposable for this particular conversion environment.
 
@@ -329,10 +334,11 @@ Do not treat these exact flags as frozen API; the requirements are the dry run, 
 
 - [ ] official source revision pinned;
 - [ ] official license/attribution resolved before source adaptation;
-- [ ] Gate 0 strict inventory passes;
+- [ ] **Gate A / V0** strict inventory passes;
 - [ ] tensor map updated;
+- [ ] **Gate B / V1** official native packing/scale conventions pass;
+- [ ] **Gate C / V2** representative quantized trunk projection passes;
 - [ ] dry-run byte accounting complete;
-- [ ] native FP4/FP8 scalar parity tests pass;
 - [ ] format family/version cannot alias Kimi v0;
 - [ ] subset conversion works;
 - [ ] expert records round-trip against oracle;
@@ -340,6 +346,7 @@ Do not treat these exact flags as frozen API; the requirements are the dry run, 
 - [ ] final manifest is atomic;
 - [ ] offline verifier passes whole output;
 - [ ] real loader opens the container under a computed RAM budget;
-- [ ] final-logit parity passes before any lossy post-conversion experiment.
+- [ ] **Gate I / V8** final-logit parity passes before any lossy post-conversion experiment;
+- [ ] **Gate G** placement identity holds for cache/disk reads.
 
-The first successful full conversion is a correctness milestone, not automatically a performance result.
+The first successful full conversion is a correctness milestone, not automatically a Gate L/M performance result.
