@@ -4,6 +4,15 @@
 
 WASTE's core advantage comes from controlling where model bytes live. That makes memory and storage accounting part of correctness: an engine that “works” only because the OS swaps or page-caches hundreds of gigabytes has violated the design.
 
+Gate ownership follows `docs/VALIDATION.md` §4a:
+
+- **README Gate A / V0** supplies exact checkpoint storage truth used by the planner;
+- **README Gate G** proves disk/cache/prefetch placement identity — timing may change, numerics may not;
+- **README Gate L** proves real target-storage feasibility with the actual record access pattern;
+- **README Gate M** proves the real 0731 routing/cache curve used for RAM/cache recommendations.
+
+G/L/M are real README gates with no invented V-number.
+
 ## 1. Evidence boundary
 
 Upstream WASTE contains valuable measured Kimi evidence about:
@@ -43,25 +52,25 @@ If the configured budget is below the floor, fail before loading/allocating the 
 
 Do not “solve” an under-floor budget by letting the kernel swap the resident trunk.
 
-## 3. Resident model accounting
+## 3. Resident model accounting — Gate A / V0 input
 
-Gate 0 should produce exact stored bytes per subsystem from checkpoint headers. The runtime planner then needs exact **in-memory** bytes, which can differ from stored bytes depending on representation.
+Gate A/V0 should produce exact stored bytes per subsystem from checkpoint headers. The runtime planner then needs exact **in-memory** bytes, which can differ from stored bytes depending on representation.
 
 Track at least:
 
 | Subsystem | Stored bytes | In-memory representation | Planned RAM | Evidence |
 |---|---:|---|---:|---|
-| embeddings | TBD | TBD | TBD | Gate 0 |
-| LM head | TBD | TBD | TBD | Gate 0 |
-| norms | TBD | TBD | TBD | Gate 0 |
-| mHC | TBD | TBD | TBD | Gate 0/reference |
-| attention projections | TBD | native FP8 or proven representation | TBD | Gate 0 |
-| compressors | TBD | TBD | TBD | Gate 0 |
-| CSA indexers | TBD | TBD | TBD | Gate 0 |
-| routers/hash maps | TBD | TBD | TBD | Gate 0 |
-| shared experts | TBD | native/proven representation | TBD | Gate 0 |
+| embeddings | TBD | TBD | TBD | Gate A/V0 |
+| LM head | TBD | TBD | TBD | Gate A/V0 |
+| norms | TBD | TBD | TBD | Gate A/V0 |
+| mHC | TBD | TBD | TBD | Gate A/V0 + official reference |
+| attention projections | TBD | native FP8 or proven representation | TBD | Gate A/V0 |
+| compressors | TBD | TBD | TBD | Gate A/V0 |
+| CSA indexers | TBD | TBD | TBD | Gate A/V0 |
+| routers/hash maps | TBD | TBD | TBD | Gate A/V0 |
+| shared experts | TBD | native/proven representation | TBD | Gate A/V0 |
 | tokenizer/encoding runtime | n/a/small | host structures | TBD | implementation |
-| DSpark | excluded from base floor initially | optional | TBD | phase 2 |
+| DSpark | excluded from base floor initially | optional | TBD | Gate A/V0 prerequisite, Gate N later |
 
 Do not assume “stored FP8 byte == one RAM byte” if the first kernel expands weights or builds auxiliary lookup structures. Account for the actual runtime representation.
 
@@ -183,9 +192,9 @@ These values may be useful for testing `inventory.py`; they must not be used to 
 - NVMe requirement;
 - cache-size recommendation.
 
-Gate 0 replaces them.
+**Gate A / V0 replaces them.**
 
-## 9. Cache sizing method
+## 9. Cache sizing method — README Gate M
 
 Do not derive a “recommended cache” only from percent of total expert bytes.
 
@@ -204,7 +213,9 @@ Measure real routing traces and sweep cache sizes in one controlled implementati
 
 WASTE's upstream history shows why this matters: a larger logical cache can make throughput worse if it pushes the process into paging. The DeepSeek resolver must be based on DeepSeek working sets, not copied Kimi multipliers.
 
-## 10. Routing trace requirements
+Gate M is satisfied only by a real 0731 routing/cache curve (or a clearly defined real-model trace replay), not by the synthetic inventory fixture.
+
+## 10. Routing trace requirements — input to Gate M
 
 Once the official model can route tokens, add a trace tool that emits at minimum:
 
@@ -229,7 +240,7 @@ Derived statistics:
 
 Simulation predicts cache policy; only the real bounded cache validates it.
 
-## 11. Prefetch accounting
+## 11. Prefetch accounting — Gate G correctness, Gate M performance
 
 Prefetch metrics must distinguish:
 
@@ -244,9 +255,13 @@ cache entries displaced by prefetch
 
 A prefetch optimization can increase nominal hit rate while making total I/O or cache pollution worse. Benchmark end-to-end.
 
+**Gate G:** prefetch on/off must not change routing or model output.
+
+**Gate M:** once Gate G holds, measure whether prefetch improves the real cache/traffic/throughput curve.
+
 If bootstrap routing is confirmed deterministic, measure it separately from predictive lookahead because it has different risk characteristics.
 
-## 12. Disk benchmark methodology
+## 12. Disk benchmark methodology — README Gate L
 
 Before attributing inference speed to model code, benchmark the exact target volume with the engine's expected pattern:
 
@@ -267,6 +282,8 @@ filesystem/device/model
 ```
 
 Do not use a cached `dd` result as NVMe evidence.
+
+Gate L is a feasibility measurement, not a tok/s claim. Record results in `BENCHMARKS.md` under the Gate L storage table.
 
 ## 13. Throughput model
 
@@ -309,7 +326,20 @@ DSpark (disabled/enabled)          <separate>
 
 No hidden multi-gigabyte allocation may occur after this plan without being added to the planner.
 
-## 15. OOM/paging diagnostics
+## 15. Gate G — placement identity
+
+Before any cache/prefetch/direct-I/O performance conclusion is accepted, prove on the same input/container that placement changes only timing:
+
+| Mode A | Mode B | Requirement |
+|---|---|---|
+| cache off | cache on | same selected experts and model output |
+| direct I/O | page-cache fallback | same record bytes and numerics |
+| cold cache | preloaded/hot cache | same numerics |
+| prefetch off | prefetch on | same routing and output |
+
+`docs/VALIDATION.md` §5 carries the canonical correctness matrix. If a placement toggle changes output, stop: Gate G failed and the benchmark is invalid.
+
+## 16. OOM/paging diagnostics
 
 When throughput collapses, record before changing cache policy:
 
@@ -325,11 +355,11 @@ When throughput collapses, record before changing cache policy:
 
 A high cache hit rate with low speed may mean cache pages themselves are being faulted back from swap/page cache. `TROUBLESHOOTING.md` uses this order.
 
-## 16. Required result tables
+## 17. Required result tables
 
 Once measurements begin, keep three separate tables:
 
-### Storage inventory
+### Storage inventory — Gate A / V0
 
 Checkpoint/container bytes by subsystem — independent of hardware.
 
@@ -337,21 +367,22 @@ Checkpoint/container bytes by subsystem — independent of hardware.
 
 Context/thread/config-specific allocated bytes — dependent on runtime choices.
 
-### Runtime traffic/performance
+### Runtime traffic/performance — Gates L/M, with Gate G retained
 
 Prompt/cache/hardware-specific reads and timings.
 
 Do not merge them into one “model size” number.
 
-## 17. Completion criteria
+## 18. Completion criteria
 
 This document becomes a measured DeepSeek design only when:
 
-- Gate 0 exact stored bytes are recorded;
+- **Gate A / V0** exact stored bytes are recorded;
 - the runtime representation of every resident tensor is known;
 - attention/state formulas are validated against actual allocations;
 - planner sum agrees with measured process memory within explained allocator/OS overhead;
 - a real routing trace exists;
-- cache sweeps exist on at least one target system;
-- disk benchmarks use the real record size/pattern;
-- benchmark results are copied to `BENCHMARKS.md` with full provenance.
+- **Gate G** placement identity has been demonstrated for the relevant modes;
+- **Gate L** disk benchmarks use the real record size/pattern on target storage;
+- **Gate M** cache sweeps exist on at least one target system using real routing;
+- benchmark results are copied to `BENCHMARKS.md` with both README gate letters and the highest applicable V-level.
