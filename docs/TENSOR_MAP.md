@@ -140,6 +140,31 @@ Gate 0 must record:
 
 Only after those agree may `CONTAINER_V4.md` freeze the expert record payload.
 
+### Two conventions the shapes cannot settle
+
+Shapes and byte counts establish *that* a tensor is packed two values per
+byte. They cannot establish which value goes where. `src/quant/` now
+implements a specific answer to each, and each is a guess until Gate 0:
+
+| Convention | Implemented as | Where |
+|---|---|---|
+| FP4 nibble order | even column index → low nibble | `WASTE_FP4_LOW_NIBBLE_IS_EVEN` in `src/quant/fp4_e2m1.h` |
+| FP8 scale direction | stored `weight_scale_inv` is a multiplier | `waste_fp8_at` in `src/quant/fp8_e4m3.c` |
+
+Neither fails loudly on its own. A swapped nibble order yields a matrix
+that is column-permuted in pairs — finite, plausibly scaled, and wrong;
+an inverted scale yields weights off by a squared factor. Both look like
+"the model is broken" several gates later, which is why they are written
+down here rather than left implicit in the kernel.
+
+Gate 0 must therefore also record, from the official `inference/kernel.py`:
+
+- which nibble holds the lower-indexed element;
+- whether the reference multiplies or divides by the stored scale.
+
+`tests/test_quant.c` pins both with literal-byte assertions, so correcting
+either is a deliberate one-line edit that the suite will demand.
+
 ## 8. DSpark separation
 
 The base model must be loadable without executing DSpark.

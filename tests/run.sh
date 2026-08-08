@@ -4,6 +4,11 @@
 # tests/run.sh — every check we have, in one place, exiting non-zero on the
 # first real failure.
 #
+# MODIFIED from the upstream WASTE import (sqliteai/waste @ d9b919a) by the
+# deepseek-v4-flash-wasted authors, as Apache-2.0 §4(b) requires. Added the
+# "quantization decode" and "checkpoint inventory" sections and a recursive
+# SPDX check. See UPSTREAM.md.
+#
 # Written after losing time twice to checks that silently did not run: once
 # to objects compiled against a stale header, once to a stale test binary.
 # So this rebuilds first, states what it is about to do, and never treats a
@@ -1012,6 +1017,40 @@ elif [ -d "$MODEL" ] && command -v uv >/dev/null 2>&1 && [ -d "$SRC" ]; then
     fi
 else
     sk "tokenizer diff" "needs uv, a container and source weights"
+fi
+
+# ------------------------------------------------- quantization decode ----
+head_ "quantization decode (DeepSeek native formats)"
+
+# E2M1 has 16 codes and E4M3 has 256, so this enumerates both formats
+# exhaustively rather than sampling — decode is exact or it is wrong. Needs
+# no container and no weights. It is the cheap half of gate V1: it proves
+# conformance to the published format definitions, not agreement with
+# DeepSeek's reference, which has never been readable here.
+if out=$(./test_quant 2>&1); then
+    ok "E2M1/UE8M0/E4M3 decode and block-scale indexing"
+else
+    no "quantization decode"
+    printf '%s\n' "$out" | grep -E "FAIL" | head -5
+fi
+
+# The SPDX gate CI enforces globs src/*.c and misses subdirectories, so it
+# would not have seen src/quant/ at all. Check it here, recursively, while
+# CI is parked — and see .github/workflows-disabled/README.md for the glob
+# that needs widening before that workflow is restored.
+if command -v git >/dev/null 2>&1; then
+    missing=$(git ls-files 'src/**/*.c' 'src/**/*.h' 'src/*.c' 'src/*.h' \
+                           'src/*.m' 'cli/*.c' 'tests/*.c' 'tools/*.py' \
+                           'tools/*.sh' 2>/dev/null \
+              | xargs grep -L 'SPDX-License-Identifier' 2>/dev/null || true)
+    if [ -z "$missing" ]; then
+        ok "every source file carries an SPDX header (subdirectories too)"
+    else
+        no "SPDX headers"
+        printf '%s\n' "$missing" | head -5
+    fi
+else
+    sk "SPDX headers" "git not available to list tracked files"
 fi
 
 # --------------------------------------------------- checkpoint inventory ----

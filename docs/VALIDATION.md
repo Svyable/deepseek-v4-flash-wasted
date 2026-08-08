@@ -97,6 +97,40 @@ Pass:
 
 This gate protects every later layer test.
 
+#### Status: half satisfied
+
+V1 splits cleanly into a half that needs no checkpoint and a half that
+cannot proceed without one. Tracking them as one gate would have made the
+whole thing look blocked, when most of the risk is in the reachable half.
+
+**Done — format conformance.** `src/quant/fp4_e2m1.*` and
+`src/quant/fp8_e4m3.*` implement scalar E2M1, UE8M0 and E4M3 (finite
+variant) decode plus block-scale indexing. `tests/test_quant.c` enumerates
+**every** code of both formats — 16 for E2M1, 256 for E4M3, 255 scale
+exponents — rather than sampling, since the formats are small enough that
+"representative fixtures" would be a needless approximation. Expected
+values are derived from the format rules independently of the
+implementation. Scale indexing is checked across K-block transitions, row
+strides, and a deliberately ragged 200×300 FP8 grid. Clean under
+ASan/UBSan. Ten single-line mutations of the decoders are each caught
+(`EXPERIMENTS.md` entry 3).
+
+**Not done — reference agreement.** Everything above proves conformance to
+the *published* OCP Microscaling definitions. It does not prove DeepSeek's
+reference agrees, because that reference has never been readable here. Two
+conventions a specification cannot settle remain open:
+
+| Open question | Current choice | Fails how, if wrong |
+|---|---|---|
+| FP4 nibble order | even column → low nibble | every matrix column-swapped in pairs — plausible garbage, not an obvious crash |
+| FP8 scale direction | stored value is a multiplier | every trunk weight off by a squared factor |
+
+Both are pinned by literal-byte assertions rather than by shared
+constants, so if the official reference disagrees the test fails loudly and
+the fix is one deliberate edit. Until official fixtures exist, do not
+describe V1 as passed without the qualifier — a decode that is
+self-consistent and wrong is precisely what this gate exists to catch.
+
 ### Gate V2 — one quantized linear projection
 
 Test representative matrix shapes small enough for fixtures, including rows/columns that cross packing and scale-block boundaries.

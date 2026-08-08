@@ -15,10 +15,14 @@ in a PR, and use the phase only to say *when* the work happens.
 | Phase | Status | Evidence |
 |---|---|---|
 | PR #1 — WASTE bootstrap + attribution + inventory tool | **DONE** | merged as `edd2a41b66332e5a54ed54bcbb196fec19664079` |
-| Documentation foundation | **IN PROGRESS** | `agent/docs-foundation-pr1` |
+| Documentation foundation | **DONE** | merged as `7c5c8d95fa7e1a9588b744aba4a6389bf77e98f7` |
+| Phase 3 — scalar quantization decoders | **PARTIALLY DONE** | `src/quant/`, exhaustive spec conformance; reference agreement blocked |
 | Real 0731 metadata/header inventory | **BLOCKED** in bootstrap environment | Hugging Face CONNECT 403; see `docs/INVENTORY-0731.md` |
 | DeepSeek inference implementation | **NOT STARTED** | no ported forward code exists |
 | DSpark | **LATER** | base model must pass first |
+
+The model-free suite is **34 passed, 0 failed, 12 skipped** as of the
+quantization work; it was 32/0/12 after PR #1.
 
 The last verified model-free suite from PR #1 is **32 passed, 0 failed, 12 skipped**.
 
@@ -110,20 +114,35 @@ Exit gate: fixtures are deterministic and can be regenerated from official code 
 
 ## Phase 3 — scalar quantization kernels
 
-**Status: NOT STARTED.**
+**Status: PARTIALLY DONE.** The number formats are public specifications, so
+the decoders were implementable and exhaustively verifiable without the
+checkpoint. Only the DeepSeek-specific conventions are still blocked.
 
 Deliverables:
 
-- scalar E2M1 FP4 unpack/reference matvec path;
-- UE8M0 K32 scale handling exactly matching the official reference;
-- scalar FP8 E4M3/block-scale path for non-expert quantized tensors;
-- C tests driven by oracle-generated fixtures;
-- explicit NaN/Inf/subnormal/rounding behavior where relevant.
+- [x] scalar E2M1 FP4 unpack/reference matvec path — `src/quant/fp4_e2m1.*`;
+- [x] UE8M0 K32 scale handling — decode and block indexing done; **"exactly
+      matching the official reference" is unverified**, see below;
+- [x] scalar FP8 E4M3/block-scale path for non-expert quantized tensors —
+      `src/quant/fp8_e4m3.*`, finite (`e4m3fn`) variant, ragged grids;
+- [ ] C tests driven by oracle-generated fixtures — **BLOCKED**. The
+      standing tests are spec-derived and exhaustive, not oracle-derived;
+- [x] explicit NaN/Inf/subnormal/rounding behavior — every code of both
+      formats enumerated, including both E4M3 NaN encodings, subnormals at
+      each end, and UE8M0's 2^-127 which is subnormal in binary32.
 
 Exit gate:
 
-- decoded values and projection outputs meet tolerances in `docs/VALIDATION.md`;
-- optimized SIMD is still optional/off.
+- [x] scalar path lands before any SIMD, and SIMD is still absent;
+- [x] clean under ASan/UBSan; ten mutations of the decoders each caught
+      (`docs/EXPERIMENTS.md` entry 3);
+- [ ] decoded values compared against official reference decode semantics —
+      **BLOCKED** on checkpoint/reference access.
+
+Two conventions stay open because no specification settles them: FP4 nibble
+order and FP8 scale direction. Both are pinned by literal-byte assertions
+that will fail loudly if the official reference disagrees. See
+`docs/VALIDATION.md` V1 "Status: half satisfied".
 
 ---
 

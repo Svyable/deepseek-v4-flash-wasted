@@ -3,6 +3,10 @@
 #   make            library + cli
 #   make test       the validation binaries
 #   make WASTE_ENABLE_METAL=1     (accelerators are build-time options)
+#
+# MODIFIED from the upstream WASTE import (sqliteai/waste @ d9b919a) by the
+# deepseek-v4-flash-wasted authors, as Apache-2.0 §4(b) requires. Changes:
+# src/quant/ added to SRC, and the test_quant target added. See UPSTREAM.md.
 
 # Explicit, because per-object rules below would otherwise make the first
 # of them the default goal.
@@ -102,7 +106,8 @@ CFLAGS  += -MMD -MP
 
 SRC := src/model.c src/kda.c src/backend.c src/ecache.c src/version.c \
        src/tokenizer.c src/waste.c src/vq.c src/vision.c src/image.c \
-       src/crc32.c src/memory.c
+       src/crc32.c src/memory.c \
+       src/quant/fp4_e2m1.c src/quant/fp8_e4m3.c
 # Match what backend.c tests for. Linux/aarch64 reports "aarch64", which
 # does not contain "arm" — the old findstring left kda_neon.c out of the
 # build while backend.c still emitted the call to it, so the link failed
@@ -228,7 +233,8 @@ waste$(EXE): cli/main.o libwaste.a
 # the two failures tests/run.sh was written to catch, so a binary that
 # `test` builds and `clean` forgets defeats the check meant to notice it.
 TESTNAMES := test_kda test_container test_forward test_tokenizer test_k3parts \
-             test_state test_vision test_image test_memory test_cpus sweep
+             test_state test_vision test_image test_memory test_cpus sweep \
+             test_quant
 TESTBINS  := $(addsuffix $(EXE),$(TESTNAMES))
 
 test: $(TESTBINS)
@@ -272,6 +278,13 @@ test_memory$(EXE): tests/test_memory.o src/memory.o
 # it can check placement without a container, and the parse half of it runs
 # on the platforms that cannot bind a thread.
 test_cpus$(EXE): tests/test_cpus.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The quantization decoders link alone, no engine and no container: E2M1
+# has 16 codes and E4M3 has 256, so the whole format surface is checkable
+# exhaustively in milliseconds. Keeping it independent of libwaste means
+# it still runs when the model path is mid-surgery, which is exactly when
+# a decode regression is easiest to misattribute.
+test_quant$(EXE): tests/test_quant.o src/quant/fp4_e2m1.o src/quant/fp8_e4m3.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c

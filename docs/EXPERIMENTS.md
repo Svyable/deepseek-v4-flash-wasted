@@ -129,6 +129,30 @@ This is recorded as an experiment because it is exactly the kind of self-confirm
 
 ---
 
+## 3 — 2026-08-08 — A test that shares a constant with the code cannot detect that constant being wrong
+
+**Question:** Do the new `tests/test_quant.c` checks actually detect faults in `src/quant/`, or do they only confirm that the code agrees with itself?
+
+**Protects:** every later gate. V1 is the seam that all model arithmetic is debugged through — a decode bug that survives its own test surfaces as "the model is wrong" at V6 or V8, with 43 layers of candidates in between.
+
+**Evidence state:** SYNTHETIC-VERIFIED (format conformance). Not checkpoint evidence.
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64.
+
+**Method:** ten single-line mutations were applied to the decoders one at a time — wrong E2M1 table entry, dropped sign on negative zero, UE8M0 bias off by one, wrong NaN code, E4M3 treated as IEEE (top exponent reserved) instead of the finite variant, subnormal given an implicit leading one, E4M3 exponent bias off by one, FP8 scale grid floored instead of ceiled, FP4 scale-plane row stride dropped, and FP4 nibble order flipped. Each was rebuilt and the suite re-run.
+
+**Result:** **nine of ten were caught. The tenth was the nibble order** — the single assumption the header itself flags as the highest-risk unverified choice.
+
+**Cause:** the test packed its fixtures through a helper compiled from the same `WASTE_FP4_LOW_NIBBLE_IS_EVEN` macro as the decoder. Flipping the macro flipped the packer and the unpacker together, so the round trip stayed consistent and every assertion still passed.
+
+**Verdict:** the suite was strong everywhere it derived expected values independently, and blind exactly where it shared a definition with the code under test. Exhaustive enumeration did not help: all 16 E2M1 codes were checked, and all 16 were checked through the same wrong lens.
+
+**Consequence:** the byte layout is now pinned with a literal — byte `0x21` must decode to `0.5` at column 0 and `1.0` at column 1 — which is independent of the macro. Re-running the mutation set gives ten of ten. Generalizing: a fixture generator must not import the convention it is meant to prove. The same trap applies to `tools/make_inventory_fixture.py`, which shares its architecture assumptions with `README.md` §1 (entry 2), and it will apply to any golden-fixture writer built from our own encoder rather than the official one.
+
+**Follow-up:** when Gate 0 makes the official reference readable, the pinned literal is the assertion expected to fail if DeepSeek packs the other way. That failure is the designed outcome, not a regression — changing the convention should cost a deliberate edit to a stated constant.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the gate that makes the result interpretable.
