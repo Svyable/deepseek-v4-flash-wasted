@@ -10,6 +10,8 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 
 Use `docs/REFERENCE_ACCESS.md` for the acquisition sequence and `docs/FIXTURES.md` for turning official outputs into small committed test fixtures.
 
+The staged artifacts primarily feed **README Gate A / V0**, **Gate B / V1**, and **Gate C / V2**. `docs/VALIDATION.md` §4a is the canonical gate concordance.
+
 ## Intended local layout
 
 ```text
@@ -74,9 +76,10 @@ A local uncommitted snapshot may be used for inspection in an authorized environ
 Once official access is available:
 
 1. retrieve Tier 0/1 material from `docs/REFERENCE_ACCESS.md`;
-2. run `tools/inventory.py reference/deepseek-v4-flash-0731` in index-only mode;
-3. answer the FP4 nibble-order and scale-direction questions from official inference code;
-4. generate small independent oracle fixtures;
-5. only then consider full checkpoint acquisition.
+2. run `tools/inventory.py reference/deepseek-v4-flash-0731` in index-only mode — **Gate A / V0**;
+3. answer the FP4 nibble-order and scale-direction questions from official inference code — **Gate B / V1**;
+4. generate small independent oracle fixtures and close Gate B/V1;
+5. run one official quantized projection — **Gate C / V2**;
+6. only then consider full checkpoint acquisition.
 
-This directory is staging, not evidence by itself. Evidence becomes durable when its revision, hashes, generator, and expected outputs are recorded in the relevant docs/fixtures.
+This directory is staging, not evidence by itself. Evidence becomes durable when its revision, hashes, generator, canonical gate, and expected outputs are recorded in the relevant docs/fixtures.
