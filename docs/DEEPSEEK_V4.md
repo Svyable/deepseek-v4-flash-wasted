@@ -2,9 +2,11 @@
 
 **Status: HANDOFF/OFFICIAL-SPEC summary, not yet CHECKPOINT-VERIFIED by this repository.**
 
-This document collects the DeepSeek-specific concepts an implementer needs without requiring them to reverse-engineer the 44k-line project README every time. It is intentionally subordinate to the pinned official checkpoint and official `inference/` / `encoding/` code.
+This document collects the DeepSeek-specific concepts an implementer needs without requiring them to reverse-engineer the project README every time. It is intentionally subordinate to the pinned official checkpoint and official `inference/` / `encoding/` code.
 
-The bootstrap environment used for PR #1 could not reach Hugging Face, so the exact tensor names, stored shapes and byte totals remain pending Gate 0.
+The bootstrap environment used for PR #1 could not reach Hugging Face, so the exact tensor names, stored shapes and byte totals remain pending **README Gate A / V0**.
+
+Gate terminology follows `docs/VALIDATION.md` §4a. In particular: Gate A/V0 is checkpoint truth, Gate B/V1 native quantization semantics, Gate D/V3 mHC/primitives, Gate F/V4 routing+MoE, Gate E/V5 attention, Gate I/V8 final logits, Gate K/V9 greedy generation, Gate J/V10 encoding, and Gate N DSpark.
 
 ## 1. Target
 
@@ -24,9 +26,9 @@ Do not silently switch to:
 
 A target revision change is a project event: inventory, tensor mapping, oracle fixtures and conversion provenance all need to move together.
 
-## 2. Current architecture snapshot
+## 2. Current architecture snapshot — Gate A / V0 pending
 
-The existing README records the following release/config values from the research handoff. Treat them as **OFFICIAL-SPEC pending local Gate 0 verification**:
+The existing README records the following release/config values from the research handoff. Treat them as **OFFICIAL-SPEC pending local Gate A/V0 verification**:
 
 | Property | Current handoff value |
 |---|---:|
@@ -77,7 +79,7 @@ If each selected expert can be addressed as one independent disk record, WASTE c
 
 The fit is about sparse access, not shared attention architecture. DeepSeek's trunk needs a new forward path.
 
-## 4. Manifold-Constrained Hyper-Connections (mHC)
+## 4. Manifold-Constrained Hyper-Connections (mHC) — Gate D / V3
 
 DeepSeek V4's residual/connectivity mechanism is not Kimi AttnRes and must be implemented from the official reference.
 
@@ -91,11 +93,11 @@ Porting questions the oracle must settle:
 - which state is persistent versus per-layer temporary;
 - where DSpark taps layer state, if applicable.
 
-Validation requirement: isolate mHC with official intermediate fixtures before testing a full block.
+Validation requirement: isolate mHC with official intermediate fixtures under Gate D/V3 before testing a full block.
 
 Do not translate mHC into WASTE's K3 residual structures because both “mix residual streams.” Similar purpose is not equivalent math.
 
-## 5. Hybrid attention
+## 5. Hybrid attention — Gate E / V5
 
 The current handoff describes a schedule containing:
 
@@ -134,7 +136,7 @@ Boundary tests must cover:
 - reset/session restore if the public API supports it;
 - context-full behavior.
 
-## 7. MoE structure
+## 7. MoE structure — Gate F / V4
 
 The current handoff models each routed expert as a conventional SwiGLU triplet with normalized matrix roles:
 
@@ -146,11 +148,11 @@ w2 / down projection
 
 `tools/inventory.py` accepts both `w1/w2/w3` and common `gate_proj/up_proj/down_proj` aliases for classification. This is only a classifier convenience until the real checkpoint is read.
 
-Gate 0 must prove every routed expert contains the complete tensor set and scale metadata required for one apply.
+**Gate A / V0** must first prove every routed expert contains the complete tensor set and scale metadata required for one apply. **Gate F / V4** later proves routing + shared/routed expert behavior for one MoE block.
 
 The shared expert is always-used and belongs in the resident trunk for the first implementation unless measurement later gives a compelling reason otherwise.
 
-## 8. Routing
+## 8. Routing — Gate A/V0 prerequisite, Gate F/V4 parity
 
 The current handoff distinguishes two routing regimes:
 
@@ -158,7 +160,7 @@ The current handoff distinguishes two routing regimes:
 
 The first three layers are described as hash/deterministic token-ID-to-expert routing. If the official reference confirms expert IDs are known as soon as the input token is known, WASTE can prefetch those expert records without prediction risk.
 
-Gate 0/reference must determine whether the mapping is:
+Gate A/V0/reference inspection must determine whether the mapping is:
 
 - stored as checkpoint tensor(s);
 - generated from config;
@@ -171,7 +173,7 @@ Do not write a deterministic prefetch path until this is proven.
 
 Later routing is described in the README as involving `sqrt(softplus(logit))`, top-6 selection, correction/bias behavior, renormalization and a routed scaling factor.
 
-Every step must be copied from official semantics and tested separately:
+Every step must be copied from official semantics and tested separately before Gate F/V4 can pass:
 
 ```text
 raw router projection
@@ -184,7 +186,7 @@ final route scaling
 
 Selected expert IDs/order are exact validation targets.
 
-## 9. Native routed-expert FP4
+## 9. Native routed-expert FP4 — Gate B / V1
 
 The first correct engine preserves the official expert representation rather than requantizing it.
 
@@ -196,21 +198,23 @@ UE8M0 scale values
 a scale per 32 logical values along K
 ```
 
-Gate 0/reference must prove:
+PR #3 proves the public-format half. Gate A/V0 establishes actual checkpoint storage geometry; Gate B/V1 must still prove:
 
 - packing nibble/bit order;
-- signed/zero/exponent semantics;
+- target E2M1 convention as used by official code;
 - stored versus logical matrix shape;
-- scale encoding;
+- scale encoding/application direction;
 - scale axis/block size;
-- scale indexing;
-- multiplication/accumulation semantics.
+- scale indexing/layout;
+- arithmetic semantics required for official parity.
 
-Implement a scalar decoder/matvec first. SIMD is a later optimization.
+Keep the scalar decoder/matvec. SIMD is a later optimization after Gate B/V1 and Gate C/V2.
 
-## 10. Resident FP8
+## 10. Resident FP8 — Gate B/V1 then Gate C/V2
 
 Most non-expert quantized weights are described as FP8 E4M3 with block scales in the handoff.
+
+PR #3 implements a finite E4M3 (`e4m3fn`) scalar path. Gate B/V1 must confirm the official target tensor-family convention and scale application. Gate C/V2 then proves one official quantized trunk projection.
 
 The runtime needs to know whether it:
 
@@ -220,9 +224,7 @@ The runtime needs to know whether it:
 
 That choice affects both the RAM floor and performance and must be recorded in `MEMORY_AND_IO.md`.
 
-Again, scalar parity precedes optimized kernels.
-
-## 11. SwiGLU/clamp semantics
+## 11. SwiGLU/clamp semantics — V3 primitive, Gate F/V4 composition
 
 The current handoff records a SwiGLU clamp of `10.0`. The exact order matters:
 
@@ -231,9 +233,9 @@ The current handoff records a SwiGLU clamp of `10.0`. The exact order matters:
 - whether both gate/up values are affected;
 - accumulation dtype.
 
-Do not implement “standard SwiGLU + clamp somewhere.” Generate a one-expert oracle fixture that crosses negative, zero and clamp-boundary values.
+Do not implement “standard SwiGLU + clamp somewhere.” Generate a one-expert oracle fixture that crosses negative, zero and clamp-boundary values. The primitive belongs in V3; one-MoE-layer composition belongs in Gate F/V4.
 
-## 12. Encoder and response parsing
+## 12. Encoder and response parsing — Gate J / V10
 
 The release supplies code under `encoding/` rather than relying only on a Jinja chat template. That makes encoding code part of the model contract.
 
@@ -247,50 +249,49 @@ The port should:
 
 Do not reuse Kimi XTML simply because WASTE's server already implements it.
 
-## 13. DSpark
+## 13. DSpark — Gate N
 
 DSpark is an optional speculative layer on top of the base model. Its current handoff parameters are not enough to implement it correctly.
 
-See `DSPARK.md` for the phase boundary. The base 43-layer path must work with DSpark absent/disabled.
+See `DSPARK.md` for Gate N. The base path must already pass Gate I/V8 final logits and Gate K/V9 generation with DSpark absent/disabled.
 
 ## 14. Model component implementation order
 
-After Gate 0/oracle availability:
+After Gate A/V0/oracle availability, the maintained operational order is:
 
-1. config + canonical tensor binding;
-2. scalar FP4/FP8 primitives;
-3. normalization and mHC;
-4. RoPE;
-5. attention projections;
-6. sliding-window mode;
-7. compression;
-8. CSA indexer/sparse selection;
-9. routing modes;
-10. shared expert;
-11. routed expert + cache interface;
-12. full block;
-13. multi-layer state;
-14. final norm/head/logits;
-15. encoder/parser;
-16. optimized kernels;
-17. DSpark.
+1. config + canonical tensor binding — Gate A/V0;
+2. finish native convention agreement — Gate B/V1;
+3. one quantized trunk projection — Gate C/V2;
+4. normalization, mHC, RoPE, and other primitives — Gate D/V3;
+5. routing/shared/routed MoE — Gate F/V4;
+6. attention projections/modes/compression/indexer — Gate E/V5;
+7. full block — Gate H/V6;
+8. multi-layer localization — V7;
+9. final norm/head/logits — Gate I/V8;
+10. greedy generation — Gate K/V9;
+11. encoder/parser — Gate J/V10;
+12. API parity — V11;
+13. Gate G/L/M systems/performance work;
+14. optimized kernels where justified;
+15. DSpark — Gate N.
 
-This follows `VALIDATION.md` so each step has a tractable oracle seam.
+This follows `VALIDATION.md` §4a. The fact that Gate F/V4 appears before Gate E/V5 is intentional operational ordering; the README letters remain stable identifiers.
 
 ## 15. Facts this document intentionally does not claim
 
-Until Gate 0/end-to-end work, this document does not establish:
+Until the relevant canonical gates pass, this document does not establish:
 
-- exact checkpoint tensor names;
-- exact stored checkpoint bytes;
+- exact checkpoint tensor names — Gate A/V0;
+- exact stored checkpoint bytes — Gate A/V0;
+- official packed/scaled quantization conventions — Gate B/V1;
 - final `.waste` container size;
 - RAM floor at any context;
 - real expert-record size;
 - real bytes read/token;
-- cache hit rate;
+- cache hit rate — Gate M;
 - local tok/s;
 - routing locality;
-- DSpark acceptance or speedup;
+- DSpark acceptance or speedup — Gate N;
 - numerical tolerance values.
 
 Those results belong to the inventory, validation, memory and benchmark documents after they are measured.

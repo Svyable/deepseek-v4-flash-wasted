@@ -1,12 +1,22 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: DESIGN. Inventory tooling is SYNTHETIC-VERIFIED; DeepSeek numerical parity is NOT STARTED.**
+**Status: V0 inventory tooling is SYNTHETIC-VERIFIED. V1 public-format conformance is satisfied; DeepSeek-specific V1 reference agreement and V2 remain BLOCKED on official reference/checkpoint access.**
 
 This project should never debug model correctness from generated prose. Validation proceeds from the smallest exact seam to final logits, and each expensive phase is protected by a cheaper test.
 
+PR #3 (`91c36b8f4168349e6893a9911a3f60075d62d973`) is the first DeepSeek arithmetic milestone: scalar E2M1/UE8M0/E4M3FN paths exist and their public-format semantics are exhaustively tested. That is meaningful progress, but it does not mean official DeepSeek byte conventions or model numerics have been verified.
+
+See:
+
+- `docs/NUMERICS.md` for the native-quantization arithmetic contract;
+- `docs/FIXTURES.md` for fixture independence and mutation-testing rules;
+- `docs/REFERENCE_ACCESS.md` for the smallest official-reference acquisition sequence.
+
 ## 1. Correctness oracle
 
-The primary oracle is the pinned official `DeepSeek-V4-Flash-0731` reference implementation and checkpoint.
+The primary model oracle is the pinned official `DeepSeek-V4-Flash-0731` reference implementation and checkpoint.
+
+Public numeric-format specifications are authoritative for E2M1/UE8M0/E4M3 semantics they actually define. They are not authoritative for DeepSeek-specific packing, tensor orientation, scale direction, scale layout, routing, or model operations.
 
 Third-party runtimes are useful smoke tests but are not the numerical authority. WASTE's Kimi tests demonstrate a methodology, not DeepSeek expected values.
 
@@ -16,6 +26,7 @@ Every golden fixture generated from official code must record:
 model repository
 resolved model revision
 reference source revision/path
+reference source hash
 config hash or exact file
 input token ids / positions
 random seed if any
@@ -24,9 +35,25 @@ reference dtype/autocast settings
 operation name
 output tensor shape/dtype
 fixture format version
+generator commit
 ```
 
 If a fixture cannot answer where it came from, do not commit it.
+
+### 1a. Fixture independence is part of the oracle
+
+Expected fixture values must not be generated through the same convention/helper being tested.
+
+PR #3 proved why: the original FP4 layout test packed fixtures through the same nibble-order macro used by the decoder. Reversing that macro reversed producer and consumer together, so exhaustive code-space coverage still passed a wrong convention. The repaired test pins raw byte `0x21` independently.
+
+Therefore:
+
+- round-trip equality proves self-consistency, not necessarily correctness;
+- silent conventions need literal or official-derived inputs/expected outputs;
+- oracle generators must be independent of WASTE implementation helpers;
+- high-risk semantics should be mutation-tested when practical.
+
+`docs/FIXTURES.md` is the detailed policy.
 
 ## 2. Tolerance policy
 
@@ -43,17 +70,23 @@ Each validation seam defines:
 
 A tolerance becomes fixed only after:
 
-1. the scalar C implementation matches the official reference on several deterministic fixtures;
+1. the scalar C implementation matches the official reference on several deterministic independent fixtures;
 2. the observed error is explained by expected precision/accumulation differences;
-3. the threshold is set above normal numerical noise but below a known wrong implementation.
+3. the threshold is set above normal numerical noise but below a known wrong implementation/mutation.
 
 Never loosen a tolerance merely to make a failing optimization pass. Diagnose the mismatch first.
+
+### Exact public-format tables
+
+E2M1, UE8M0 and E4M3FN code-value tables are tested exactly, not with epsilon. Their values are dyadic and representable for the tested scalar decode contract.
+
+This exactness does **not** determine DeepSeek nibble order or scale direction.
 
 ## 3. Exact-equality requirements
 
 Unless the official reference proves otherwise, these should be exact:
 
-- tensor shapes and configured dimensions;
+- tensor names/shapes and configured dimensions;
 - tokenizer output token IDs;
 - special/control-token IDs;
 - router-selected expert IDs and ordering;
@@ -61,15 +94,23 @@ Unless the official reference proves otherwise, these should be exact:
 - cache-on versus cache-off bytes supplied to the arithmetic path;
 - container record identity `(layer, expert)`;
 - parser structure for official encoder/parser test cases;
-- greedy output token IDs once final-logit parity is established closely enough to preserve argmax.
+- discrete packing/block-index semantics once reconciled with the official reference;
+- greedy output token IDs once final-logit parity is close enough to preserve argmax.
 
-Routing weights themselves are floating-point and use numerical tolerances, but the selected set/order is a hard semantic check.
+Routing weights and projection outputs are floating-point and use documented numerical tolerances; selected sets/order remain hard semantic checks.
 
-## 4. Gate ladder
+## 4. Operational V-level ladder
 
-### Gate V0 — checkpoint inventory
+The `V` labels below are operational validation levels. They are **not a replacement for README §18 Gates A–N**. §4a maps the two vocabularies completely.
 
-Owner: `tools/inventory.py`, `docs/INVENTORY-0731.md`, `docs/TENSOR_MAP.md`.
+### V0 — checkpoint inventory
+
+Owners:
+
+- `tools/inventory.py`;
+- `docs/INVENTORY-0731.md`;
+- `docs/TENSOR_MAP.md`;
+- `docs/REFERENCE_ACCESS.md`.
 
 Pass criteria:
 
@@ -78,62 +119,99 @@ Pass criteria:
 - shapes/config agree;
 - expert records are fully understood;
 - quantization scales are associated with their owners;
+- DeepSeek-specific packing/scale conventions are located in official reference/artifacts;
 - DSpark can be separated from the base path.
 
-No numerical porting should rely on an unresolved tensor family.
+Current status: **tooling SYNTHETIC-VERIFIED; real official input BLOCKED in the original environment.**
 
-### Gate V1 — bit-level native quantization decode
+No downstream model binding/storage claim should rely on an unresolved tensor family.
 
-Test:
+### V1 — bit-level native quantization decode
 
-- construct small official-reference FP4/FP8 encoded fixtures that exercise sign, exponent/mantissa extremes, zeros and scale boundaries;
-- decode them in scalar C;
-- compare element-by-element with official reference decode semantics.
+V1 has two halves.
 
-Pass:
+#### V1a — public format conformance — PASSED
 
-- exact decoded bit-pattern agreement where the reference representation permits it, otherwise an explicitly justified numerical threshold;
-- scale indexing/granularity proven at boundary sizes (including K-block transitions and nontrivial row strides).
+`src/quant/fp4_e2m1.*` and `src/quant/fp8_e4m3.*` implement scalar:
 
-This gate protects every later layer test.
+- E2M1 decode;
+- UE8M0 decode;
+- FP4 K32 scale indexing;
+- finite E4M3 (`e4m3fn`) decode;
+- FP8 128×128 scale-grid indexing with ragged final blocks;
+- decode-row helpers;
+- double-accumulating scalar matvec reference paths.
 
-#### Status: half satisfied
+`tests/test_quant.c` checks:
 
-V1 splits cleanly into a half that needs no checkpoint and a half that
-cannot proceed without one. Tracking them as one gate would have made the
-whole thing look blocked, when most of the risk is in the reachable half.
+- all 16 E2M1 codes;
+- all 256 E4M3 byte encodings;
+- all UE8M0 exponent states, including `0xFF` NaN;
+- negative zero/subnormal/endpoints;
+- E4M3FN maximum `448` distinction;
+- FP4 K-block/row-stride boundaries;
+- ragged `200 × 300` FP8 scale grid;
+- scalar matvec vs separately decoded-row dot product;
+- a literal raw-byte nibble-order assertion.
 
-**Done — format conformance.** `src/quant/fp4_e2m1.*` and
-`src/quant/fp8_e4m3.*` implement scalar E2M1, UE8M0 and E4M3 (finite
-variant) decode plus block-scale indexing. `tests/test_quant.c` enumerates
-**every** code of both formats — 16 for E2M1, 256 for E4M3, 255 scale
-exponents — rather than sampling, since the formats are small enough that
-"representative fixtures" would be a needless approximation. Expected
-values are derived from the format rules independently of the
-implementation. Scale indexing is checked across K-block transitions, row
-strides, and a deliberately ragged 200×300 FP8 grid. Clean under
-ASan/UBSan. Ten single-line mutations of the decoders are each caught
-(`EXPERIMENTS.md` entry 3).
+PR #3 reported:
 
-**Not done — reference agreement.** Everything above proves conformance to
-the *published* OCP Microscaling definitions. It does not prove DeepSeek's
-reference agrees, because that reference has never been readable here. Two
-conventions a specification cannot settle remain open:
+```text
+make check -> 34 passed, 0 failed, 12 skipped
+make asan  -> 33 passed, 0 failed
+```
 
-| Open question | Current choice | Fails how, if wrong |
+and a clean warning-free build.
+
+Mutation testing injected ten one-line decoder faults. The initial suite caught nine. The surviving FP4 nibble-order mutation revealed a shared-assumption fixture; after adding the literal raw-byte pin, the final suite catches all ten. See `docs/EXPERIMENTS.md` entry 3 and `docs/FIXTURES.md`.
+
+Evidence state: **SYNTHETIC-VERIFIED / public-format conformance**.
+
+#### V1b — official DeepSeek convention agreement — BLOCKED
+
+The public format spec does not settle at least these current choices:
+
+| Open question | Current local choice | Failure if wrong |
 |---|---|---|
-| FP4 nibble order | even column → low nibble | every matrix column-swapped in pairs — plausible garbage, not an obvious crash |
-| FP8 scale direction | stored value is a multiplier | every trunk weight off by a squared factor |
+| FP4 nibble order | even logical column → low nibble | every pair of matrix columns is swapped while values remain plausible |
+| FP8 scale direction | stored scale multiplies decoded E4M3 | weights can be scaled by the wrong reciprocal/squared factor without a crash |
+| exact scale tensor layout/dtype | current handoff-derived geometry | wrong block/orientation silently corrupts weights |
+| target E4M3 tensor-family convention | finite `e4m3fn` path implemented | wrong target convention changes large weight decode |
 
-Both are pinned by literal-byte assertions rather than by shared
-constants, so if the official reference disagrees the test fails loudly and
-the fix is one deliberate edit. Until official fixtures exist, do not
-describe V1 as passed without the qualifier — a decode that is
-self-consistent and wrong is precisely what this gate exists to catch.
+V1b test procedure:
 
-### Gate V2 — one quantized linear projection
+1. acquire pinned official reference assets per `docs/REFERENCE_ACCESS.md`;
+2. identify exact packed-byte and scale-application code;
+3. create small official-derived fixtures whose expected side is independent of WASTE helpers;
+4. run scalar C decode against them;
+5. let current literal assertions fail if the official convention differs;
+6. update implementation/docs deliberately.
 
-Test representative matrix shapes small enough for fixtures, including rows/columns that cross packing and scale-block boundaries.
+V1 pass criteria:
+
+- public-format code values pass exactly;
+- scale indexing/granularity pass boundary tests;
+- nibble order/scale application/layout agree with official reference;
+- official fixtures replay offline with pinned provenance.
+
+Until V1b passes, describe README Gate B / V1 only as **half satisfied**.
+
+### V2 — one quantized linear projection
+
+**Status: BLOCKED on official oracle/checkpoint material.**
+
+Use a deliberately small official-derived projection fixture crossing relevant packing/scale boundaries.
+
+Fixture should contain:
+
+```text
+raw encoded weight bytes
+raw scale bytes/values
+input x
+selected decoded weight values
+expected output y
+provenance
+```
 
 Compare:
 
@@ -142,16 +220,23 @@ Compare:
 - accumulation behavior;
 - bias if the official op has one.
 
-Pass before adding SIMD.
+Pass criteria:
 
-### Gate V3 — model primitives
+- V1 is complete;
+- observed output error is explained and a fixed tolerance is documented;
+- at least one known wrong scale/layout/accumulation mutation falls outside the threshold;
+- scalar path passes before adding SIMD.
 
-Separate oracle tests for:
+V2 is the next arithmetic rung after reference access. Do not jump from V1a straight to a transformer layer.
+
+### V3 — model primitives
+
+Separate official-oracle tests for:
 
 - normalization;
 - mHC transforms/residual path;
 - RoPE;
-- activation/SwiGLU and any clamp semantics;
+- activation/SwiGLU and clamp semantics;
 - attention projection substeps;
 - compressor;
 - CSA indexer score/selection;
@@ -163,7 +248,7 @@ Separate oracle tests for:
 
 No primitive should be tested only through a full layer.
 
-### Gate V4 — one MoE block
+### V4 — one MoE block
 
 Use a fixture containing:
 
@@ -183,7 +268,7 @@ expert bytes fetched through WASTE cache/disk abstraction
 
 The two C paths must agree. Placement cannot change numerics.
 
-### Gate V5 — one attention block
+### V5 — one attention block
 
 Create separate fixtures for each distinct attention mode found in the official config/reference, rather than assuming one implementation covers all layers.
 
@@ -196,7 +281,7 @@ Capture enough intermediates to localize errors:
 - attention probabilities/accumulated output where practical;
 - final projected attention result.
 
-Context-boundary fixtures must include:
+Context-boundary fixtures should include:
 
 - position 0;
 - sliding-window boundary - 1 / boundary / +1;
@@ -204,7 +289,7 @@ Context-boundary fixtures must include:
 - short prompt versus longer history;
 - final supported context edge when feasible with synthetic shapes.
 
-### Gate V6 — one full transformer layer
+### V6 — one full transformer layer
 
 Compare official and C:
 
@@ -214,9 +299,9 @@ Compare official and C:
 - MoE output;
 - layer output.
 
-Run at least one example of every structurally distinct layer class proven by config/reference (e.g. bootstrap-routing versus learned-routing; attention-mode variants).
+Run at least one example of every structurally distinct layer class proven by config/reference (for example bootstrap-routing versus learned-routing and attention-mode variants).
 
-### Gate V7 — multi-layer hidden states
+### V7 — multi-layer hidden states
 
 Run a short token sequence through multiple real layers and checkpoint hidden states at selected layer boundaries.
 
@@ -224,7 +309,7 @@ A mismatch must be attributed to the first divergent layer before continuing.
 
 This catches state-update/order errors that isolated block fixtures miss.
 
-### Gate V8 — final logits
+### V8 — final logits
 
 Compare the final hidden state, final norm, and logits for deterministic input tokens.
 
@@ -236,17 +321,17 @@ Record:
 - top-1 token and top-N ordering for a small N;
 - logit magnitude range.
 
-The project may not claim model correctness without this gate on real weights.
+The project may not claim model correctness without this level on real weights.
 
-### Gate V9 — greedy generation
+### V9 — greedy generation
 
 With sampling disabled and the same stopping rules:
 
-- prompt tokens must match official encoding exactly;
+- prompt tokens must match the relevant official/known-token input contract;
 - generated token IDs should match token-for-token for a meaningful short sequence;
 - if they diverge, return to final-logit diagnostics rather than declaring sampling noise.
 
-### Gate V10 — encoding and parser
+### V10 — encoding and parser
 
 Port official `encoding/` behavior separately from model arithmetic.
 
@@ -261,7 +346,7 @@ Required:
 
 Do not flatten a code-based encoder into a guessed Jinja template.
 
-### Gate V11 — OpenAI-compatible API
+### V11 — OpenAI-compatible API
 
 Test the existing WASTE server architecture with the DeepSeek encoder/model path:
 
@@ -274,63 +359,49 @@ Test the existing WASTE server architecture with the DeepSeek encoder/model path
 
 API success is not a substitute for V8/V9.
 
-## 4a. Concordance with the handoff plan's gates
+## 4a. Canonical concordance: README gates A–N, V-levels, and ROADMAP phases
 
-`README.md` predates this document and names its own gates (§18, Gates A–N)
-and its own PR sequence (§20, PR 1–13). `ROADMAP.md` groups the same work
-into Phases 0–9. Three vocabularies for one ladder is how a project ends up
-unable to answer "which gate does this PR pass?" — the question
-`.github/pull_request_template.md` asks on every PR.
+`README.md` §18 defines **14 stable design gates, A through N**. This table maps **every one of those 14 gates** to the operational validation level or systems/performance owner used by the maintained docs. `ROADMAP.md` phases are schedule only.
 
-**This table is the answer. Cite the `V`-level.** The other columns exist so
-a reader arriving from `README.md` or `ROADMAP.md` lands in the right place.
+Use both identifiers when a README gate has a V-level:
 
-| This doc | README §18 | ROADMAP | Owning document |
-|---|---|---|---|
-| **V0** checkpoint inventory | Gate A | Phase 1 | [`INVENTORY-0731.md`](INVENTORY-0731.md), [`TENSOR_MAP.md`](TENSOR_MAP.md) |
-| **V1** native quantization decode | Gate B | Phase 3 | this document |
-| **V2** one quantized linear | Gate C | Phase 3 | this document |
-| **V3** model primitives (mHC) | Gate D | Phase 5 | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| **V4** one MoE block | Gate F | Phase 5 | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| **V5** one attention block | Gate E | Phase 5 | [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) |
-| **V6** one full transformer layer | Gate H | Phase 5 | this document |
-| **V7** multi-layer hidden states | *(no README gate)* | Phase 5 | this document |
-| **V8** final logits | Gate I | Phase 5 | this document |
-| **V9** greedy generation | Gate K | Phase 5 | this document |
-| **V10** encoding and parser | Gate J | Phase 7 | [`API.md`](API.md) |
-| **V11** OpenAI-compatible API | *(no README gate)* | Phase 7 | [`API.md`](API.md) |
+```text
+Gate B / V1
+Gate H / V6
+Gate K / V9
+```
 
-Note that README's Gate E (attention) and Gate F (MoE) are **swapped**
-relative to V4/V5. That is deliberate, not a transcription error: a MoE block
-is reachable with hash routing alone, so it can be validated before the
-compressed-attention machinery exists. Bring them up in `V` order.
+For README systems/performance gates that intentionally have no V-number, cite the letter directly (`Gate G`, `Gate L`, `Gate M`, `Gate N`). Do not invent a fake V-level merely to make the table rectangular.
 
-### Gates that are not numerical
+Conversely, this maintained ladder has two operational rungs that README §18 never gave letters: `V7` multi-layer localization and `V11` API parity. They are listed after A–N so the asymmetry is explicit rather than silently dropping either vocabulary.
 
-Four README gates have no `V`-level because they are systems or performance
-properties, not oracle comparisons. They are graded elsewhere and are **not**
-optional:
+| README gate | This doc / operational level | Handoff concept | ROADMAP | Owning documents |
+|---|---|---|---|---|
+| **A** — checkpoint inventory | **V0** | checkpoint inventory / storage truth | Phase 1 | `INVENTORY-0731.md`, `TENSOR_MAP.md`, `REFERENCE_ACCESS.md` |
+| **B** — native FP4 decode | **V1** | native quantization decode + DeepSeek byte/scale convention agreement | Phase 3 | `NUMERICS.md`, `FIXTURES.md`, this document |
+| **C** — FP8 trunk linear | **V2** | one official quantized trunk projection | Phase 3 | `NUMERICS.md`, this document |
+| **D** — mHC | **V3** | mHC and model-primitive parity | Phase 5 | `ARCHITECTURE.md`, `DEEPSEEK_V4.md`, this document |
+| **E** — attention by type | **V5** | attention-mode parity (ratio 0 / 128 / 4 + incremental state) | Phase 5 | `DEEPSEEK_V4.md`, this document |
+| **F** — routing + one MoE layer | **V4** | routing/shared/routed MoE parity | Phase 5 | `ARCHITECTURE.md`, this document |
+| **G** — disk vs cache identity | **Gate G systems correctness** | placement changes timing, never bytes/numerics | Phase 6 | §5 below, `MEMORY_AND_IO.md` |
+| **H** — one complete transformer block | **V6** | complete block/layer parity | Phase 5 | this document |
+| **I** — 43-layer base forward | **V8** | final base-model hidden/logit parity | Phase 5 | this document |
+| **J** — tokenizer/encoding | **V10** | exact official prompt/token/parser semantics | Phase 7 | `API.md`, this document |
+| **K** — generation | **V9** | deterministic greedy token parity | Phase 5 / 7 | this document, `API.md` |
+| **L** — real storage | **Gate L performance feasibility** | real aligned expert-record I/O on target storage | Phase 6 / 8 | `MEMORY_AND_IO.md`, `BENCHMARKS.md` |
+| **M** — cache curve | **Gate M performance feasibility** | routing-derived cache hit/traffic/throughput curve | Phase 6 / 8 | `MEMORY_AND_IO.md`, `BENCHMARKS.md` |
+| **N** — DSpark | **Gate N speculative correctness + performance** | official speculative acceptance parity + measured wall-clock benefit | Phase 9 | `DSPARK.md`, `BENCHMARKS.md` |
+| — | **V7** | multi-layer hidden-state localization | Phase 5 | this document |
+| — | **V11** | OpenAI-compatible API parity | Phase 7 | `API.md`, this document |
 
-| README §18 | What grades it |
-|---|---|
-| Gate G — disk vs cache identity | §5 below, the cache and I/O correctness matrix |
-| Gate L — real storage | [`BENCHMARKS.md`](BENCHMARKS.md), [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) |
-| Gate M — cache curve | [`BENCHMARKS.md`](BENCHMARKS.md), [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) |
-| Gate N — DSpark | [`DSPARK.md`](DSPARK.md), behind V8/V9 |
+Two ordering details are deliberate:
 
-Gate G is the one worth stating twice, because it is the invariant the whole
-port rests on and it is easy to mistake for a performance concern: **placement
-changes latency, never numerics.** README §26 puts it as "the real router
-chooses the real experts; RAM versus NVMe only decides when those bytes
-arrive." A build where enabling the cache changes a logit has failed Gate G no
-matter how fast it runs.
+1. README **Gate E** (attention) maps to `V5`, while README **Gate F** (MoE) maps to `V4`. The maintained V-ladder brings up one MoE block before the full compressed-attention machinery because that seam can be isolated earlier. The README letters remain stable design identifiers; the V-order remains the operational test order.
+2. README **Gate J** (encoding) maps to `V10`, while **Gate K** (generation) maps to `V9`. Raw/known-token greedy generation can establish model arithmetic before the full chat encoder/parser surface is complete; user-facing chat generation ultimately requires both.
 
-When this document and `README.md` §18/§20 disagree about the *order* or
-*content* of the ladder, this document wins — it is maintained alongside the
-tests. `README.md` remains authoritative for the port's design intent and
-rationale. Neither overrides the checkpoint.
+When this document and older handoff ordering disagree about the *operational order* of validation, this document wins because it is maintained with the tests. The README letters still identify the original design gate and rationale. Neither overrides the official checkpoint/reference.
 
-## 5. Cache and I/O correctness matrix
+## 5. Cache and I/O correctness matrix — README Gate G
 
 For the same token sequence/container, compare:
 
@@ -353,7 +424,8 @@ Any optimization whose enable flag changes model meaning is not an optimization.
 - expert record offsets/alignment;
 - checksum/header corruption;
 - cache identity and eviction behavior;
-- FP4/FP8 bit operations using tiny fixtures;
+- exhaustive public FP4/FP8 format semantics;
+- literal packing/block convention cases;
 - memory-plan arithmetic;
 - model-family dispatch;
 - tokenizer/encoder unit behavior where fixtures can be legally/self-containedly included;
@@ -361,31 +433,41 @@ Any optimization whose enable flag changes model meaning is not an optimization.
 
 These run in ordinary CI once Actions is restored.
 
-### Real-model tests should cover
+### Real-checkpoint/reference tests should cover
 
 - exact tensor binding;
+- DeepSeek-specific native quantization conventions;
 - official intermediate activations;
 - final logits;
 - generation;
 - routing traces;
 - performance and RAM behavior.
 
-These may remain separate/manual because the model is too large for normal CI.
+These may remain separate/manual because the model is too large for normal CI, but small frozen oracle fixtures should replay offline in ordinary tests.
 
 ## 7. Golden fixture format
 
-Prefer a simple auditable format over Python pickles. One option:
+Follow `docs/FIXTURES.md`.
+
+Prefer a simple auditable format over Python pickles. One possible layout:
 
 ```text
-reference/golden/<operation>/<case>/
-  meta.json
+tests/fixtures/deepseek_v4/<operation>/<case>/
+  provenance.json
   input-*.bin
-  output-*.bin
+  expected-*.bin
+  expected.json
 ```
 
-`meta.json` declares dtype, shape, endianness and provenance. Raw binary arrays are deterministic and readable from C/Python without a dependency-heavy loader.
+`provenance.json` declares source revision/path/hash, dtype/device policy, generator commit, shapes and endianness.
 
-Do not commit large portions of model weights as fixtures. Choose tiny slices or synthetic matrices that exercise the exact format/semantics while respecting license/distribution constraints.
+Important constraints:
+
+- expected values are generated independently of WASTE implementation helpers;
+- fixtures are frozen and replayed offline;
+- convention cases include human-reviewable literal bytes/values;
+- do not commit large portions of model weights;
+- a synthetic fixture is never promoted to checkpoint evidence.
 
 ## 8. Failure triage order
 
@@ -393,8 +475,8 @@ When final logits are wrong, investigate in this order:
 
 1. wrong prompt/token IDs;
 2. wrong tensor mapping/shape/transpose;
-3. quantization decode/scale indexing;
-4. primitive arithmetic;
+3. wrong quantization byte convention/scale direction/indexing;
+4. primitive arithmetic/accumulation;
 5. attention state/position update;
 6. router selected IDs/order/weights;
 7. expert record identity/data;
@@ -404,16 +486,23 @@ When final logits are wrong, investigate in this order:
 
 Do not begin by changing tolerances.
 
+When a level fails, first ask whether its expected fixture is truly independent. A self-confirming fixture can turn a local convention bug into a much later “model is broken” symptom.
+
 ## 9. Optimization acceptance rule
 
 An optimized kernel/path lands only when:
 
-- the scalar/reference path remains available at least for tests/debug builds;
-- it passes the same fixture suite;
-- real-model V8/V9 do not regress;
+- the scalar/reference path remains available at least for tests/debugging;
+- it passes the same independent fixture suite;
+- the scalar baseline being matched has itself passed the relevant official-reference level;
+- real-model V8/V9 do not regress once available;
+- README Gate G remains true for placement/cache changes;
+- relevant Gate L/M storage/cache measurements remain valid for performance claims;
 - the benchmark records the hardware/configuration where the speedup exists;
 - memory usage does not silently violate the planner;
 - failures fall back safely where a backend is optional.
+
+A SIMD path matching a scalar implementation that is still wrong about nibble order is not model correctness. This is why Gate B/V1 and Gate C/V2 precede SIMD.
 
 ## 10. Result recording template
 
@@ -423,18 +512,23 @@ Add a result to the relevant PR and `BENCHMARKS.md`/`EXPERIMENTS.md` with:
 Date:
 Port commit:
 Model revision:
+Reference source path/hash:
 Container/converter revision:
 Hardware / OS:
-Operation/gate:
+README gate letter(s):
+Operational V-level / systems gate:
+Operation:
 Reference command:
 C command:
 Input fixture/prompt:
+Fixture provenance:
 max_abs:
 max_rel:
 RMS:
 exact semantic checks:
+mutations/known-wrong cases tested:
 Verdict:
 Notes:
 ```
 
-A naked statement like “matches PyTorch” is not sufficient evidence.
+A naked statement like “matches PyTorch” or “round trips correctly” is not sufficient evidence.
