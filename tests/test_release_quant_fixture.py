@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Replay the pinned DeepSeek 0731 FP4 convention fixture through scalar C.
+"""Replay pinned 0731 quantization evidence through the scalar C seams.
 
-This is deliberately separate from tests/test_quant.c's generated/random
-cases. The expected values come from a small F3 fixture derived from the pinned
-official release source, while the implementation under test is the actual
-src/quant/fp4_e2m1.c compiled from this checkout.
+The FP4 expected values come from a small F3 fixture derived from the pinned
+official release source. After that source-convention check passes, the driver
+runs the model-free Gate C/V2 scalar-linear preflight. The latter is a
+source-derived arithmetic check only; it does not claim a real projection gate.
 """
 
 import json
@@ -17,6 +17,12 @@ import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TESTS = os.path.join(REPO, "tests")
+if TESTS not in sys.path:
+    sys.path.insert(0, TESTS)
+
+import test_v2_linear_ref  # noqa: E402
+
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
 
@@ -56,7 +62,6 @@ def main():
 
     program = f'''\
 #include "fp4_e2m1.h"
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -104,6 +109,13 @@ int main(void) {{
             return 1
 
     print("PASS pinned 0731 FP4 nibble order + E8M0 scale application")
+
+    v2 = test_v2_linear_ref.main()
+    if v2 != 0:
+        if v2 == 77:
+            print("SKIP Gate C scalar preflight: no compiler")
+            return 77
+        return 1
     return 0
 
 
