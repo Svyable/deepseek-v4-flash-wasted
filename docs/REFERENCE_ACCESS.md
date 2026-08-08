@@ -1,35 +1,30 @@
-# Official reference access — unblock README Gates A–C / V0–V2 without over-downloading
+# Official reference access — README Gates A–C / V0–V2 without over-downloading
 
-**Status: BLOCKED in the original bootstrap environment by Hugging Face CONNECT 403. Highest-leverage external dependency.**
+**Status: Tier 0 is resolved; pinned official source is accessible and the high-risk Gate B conventions are source-verified. The original bootstrap/current shell still cannot perform the real Hugging Face artifact fetch, so Gate A's 48-shard header run and Gate C's real projection fixture remain environment-dependent next steps.**
 
-PR #3 narrowed the project blocker considerably. The public E2M1, UE8M0 and E4M3FN number formats are already implemented and exhaustively tested. What remains blocked is now mostly **DeepSeek-specific convention and checkpoint truth**:
+The repository no longer needs to treat “official reference access” as one binary blocker. Separate what is already established from what still requires an artifact-capable checkout:
 
-- actual tensor names/shapes/storage — **Gate A / V0**;
-- FP4 nibble ordering — **Gate B / V1**;
-- scale direction/application — **Gate B / V1**;
-- exact native scale tensor layout/dtype — **Gate A/V0 + Gate B/V1**;
-- official one-projection oracle output — **Gate C / V2**;
-- later model-specific arithmetic and encoding.
+- exact release SHA + official license — **resolved**;
+- official `inference/` operation semantics — **source-verified**;
+- FP4 nibble order / scale direction / scale geometry — **source-verified for Gate B/V1**;
+- real exported tensor names/shapes/dtypes/bytes — **Gate A/V0 still open**;
+- one real official quantized projection — **Gate C/V2 still open**;
+- full checkpoint payload — deliberately deferred until cheaper gates justify it.
 
-This document defines the smallest useful acquisition sequence. The goal is to unlock the most gates before committing to a multi-hundred-GB checkpoint download.
-
-Gate terminology follows `docs/VALIDATION.md` §4a. README letters A–N are stable design gates; V-levels are the operational numerical/semantic ladder. This document primarily owns the external-artifact side of **Gate A/V0, Gate B/V1, and Gate C/V2**.
-
-Do not bypass an organization/network policy. Run these steps from an authorized environment that can access the official repository.
-
----
-
-## 1. Pin first, download second
-
-Target repository:
+Canonical release:
 
 ```text
 deepseek-ai/DeepSeek-V4-Flash-0731
+9e165c30e2704aec5d9d593cce3eebd58bbef1cb
 ```
 
-The handoff currently records `9e165c3` as the release revision seen during research. Before generating any durable fixture, resolve the full immutable commit SHA and record it.
+Do not bypass an organization/network policy. Run network steps from an authorized environment. Do not silently switch to a later model-card-only repository tip or a third-party conversion.
 
-Every fetched artifact or generated fixture should be attributable to:
+---
+
+## 1. Pin first, download second — DONE
+
+All durable fixtures/conversions should record:
 
 ```text
 model repository
@@ -37,41 +32,38 @@ resolved commit SHA
 artifact path
 artifact SHA-256
 retrieval/generator command
+generator/port commit
 ```
 
-Do not generate golden fixtures from an unpinned moving branch.
+The baseline above is the immutable 0731 release used by PR #5 source evidence. Moving it is an explicit project event.
 
 ---
 
-## 2. Acquisition tier 0 — legal/provenance files
+## 2. Acquisition tier 0 — legal/provenance — DONE
 
-Before copying or adapting official source into this repository, retrieve the official license/notice material exactly as published.
-
-PR #1 deliberately left:
+PR #5 vendors the exact official release `LICENSE` as:
 
 ```text
-LICENSES/DEEPSEEK-MIT.txt.MISSING
+LICENSES/DEEPSEEK-MIT.txt
 ```
 
-rather than fabricating legal text from memory.
+and removes the old `DEEPSEEK-MIT.txt.MISSING` marker.
 
-Resolve that marker before importing/adapting official DeepSeek source.
-
-At minimum fetch whatever official repository paths provide:
+Recorded upstream facts:
 
 ```text
-LICENSE / LICENSE-MODEL / NOTICE / README licensing section
+license: MIT
+copyright: Copyright (c) 2023 DeepSeek
+release SHA: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
 ```
 
-Preserve the exact file and its source revision.
+Before adapting a particular official source file, still record its source path/revision and preserve required attribution. The license blocker itself is closed.
 
 ---
 
-## 3. Acquisition tier 1 — tiny metadata/reference snapshot
+## 3. Tier 1 — metadata/reference source
 
-This tier should be the first network operation because it can unlock names, semantics, encoding and convention review without weight shards.
-
-Recommended allow-list:
+Useful small assets remain:
 
 ```text
 config.json
@@ -83,19 +75,17 @@ inference/**
 encoding/**
 tokenizer*
 *.model
-*.json used by tokenizer/processor
 ```
 
-Example with `huggingface_hub`:
+Where `huggingface_hub` is available, a normal metadata/source snapshot is fine as long as the full immutable SHA is used:
 
 ```bash
 python -m pip install 'huggingface_hub>=0.34'
 python - <<'PY'
 from huggingface_hub import snapshot_download
-
 snapshot_download(
     'deepseek-ai/DeepSeek-V4-Flash-0731',
-    revision='<FULL_RESOLVED_SHA>',
+    revision='9e165c30e2704aec5d9d593cce3eebd58bbef1cb',
     local_dir='reference/deepseek-v4-flash-0731',
     allow_patterns=[
         'config.json',
@@ -104,246 +94,279 @@ snapshot_download(
         'README.md',
         'LICENSE*',
         'NOTICE*',
-        'inference/*',
-        'inference/**/*',
-        'encoding/*',
-        'encoding/**/*',
-        'tokenizer*',
-        '*.model',
+        'inference/*', 'inference/**/*',
+        'encoding/*', 'encoding/**/*',
+        'tokenizer*', '*.model',
     ],
 )
 PY
 ```
 
-Do not change the pinned revision between metadata and later weight retrieval.
+PR #5's source review already records the release-level findings needed for the current quantization handoff in `OFFICIAL-0731-SOURCE.md`.
 
 ---
 
-## 4. Immediate tier-1 questions to answer
+## 4. Gate B / V1 source questions — ANSWERED for the pinned release
 
-Before downloading any tensor payloads, read the official reference and answer the conventions that PR #3 deliberately left unresolved.
+### FP4 nibble order
 
-### Q1 — FP4 nibble order — Gate B / V1
-
-Find the exact code that extracts/expands packed E2M1 values.
-
-Determine whether logical columns map as:
+Official converter behavior expands each packed byte along K as:
 
 ```text
-even -> low nibble, odd -> high nibble
+low  = byte & 0x0f
+high = (byte >> 4) & 0x0f
+stack([low, high])
 ```
 
-or the reverse.
-
-Record:
-
-- official path/function;
-- resolved revision;
-- exact shift/mask ordering;
-- a small official-reference fixture using raw literal bytes.
-
-Then reconcile the literal `0x21` assertion in `tests/test_quant.c`.
-
-### Q2 — FP8 scale direction — Gate B / V1
-
-Find the exact operation applied to the checkpoint tensor convention currently described as `weight_scale_inv`.
-
-Determine whether reference arithmetic is equivalent to:
+Therefore:
 
 ```text
-e4m3(raw) * stored_scale
+lower/even logical K index -> low nibble
+next/odd logical K index   -> high nibble
 ```
 
-or
+### Routed FP4 scale storage
+
+Official model binding:
 
 ```text
-e4m3(raw) / stored_scale
+logical weight: [out, in]
+stored weight:  [out, in/2]  float4_e2m1fn_x2
+scale:          [out, in/32] float8_e8m0fnu
 ```
 
-or another transformation.
+### Scale direction
 
-Record the actual reference expression. Tensor naming is not enough.
+Official quantized GEMM multiplies block partials by activation scale × weight scale. The converter renames `weight_scale_inv` to `scale` without computing a reciprocal. The scale is a multiplier for the pinned operation.
 
-### Q3 — exact scale storage — Gate A/V0 + Gate B/V1
+### Resident FP8
 
-Confirm for relevant tensor families:
+The release uses finite `torch.float8_e4m3fn` with one weight scale per 128x128 block. The scale is again applied multiplicatively in the official GEMM.
 
-- scale tensor name;
-- scale dtype;
-- scale shape;
-- block dimensions;
-- row/column orientation;
-- whether scales are stored transposed/reordered;
-- whether expert FP4 and trunk FP8 use different scale conventions.
+### Independent fixture
 
-### Q4 — E4M3 variant — Gate B / V1
+PR #5 freezes:
 
-Confirm the target path actually uses finite `e4m3fn` semantics (max finite `448`, only `S.1111.111` NaN) for the checkpoint tensors being ported.
+```text
+tests/fixtures/deepseek_v4/fp4_release_convention.json
+```
 
-PR #3 has a correct public-format implementation of that variant, but the target tensor-family convention still belongs in the official-reference reconciliation.
+with literal:
 
-### Q5 — expert matrix orientation/naming — Gate A / V0
+```text
+packed byte 0x21
+E8M0 scale 0x80 = 2.0
+expected logical values [1.0, 2.0]
+```
 
-Confirm real checkpoint names and logical orientation for routed-expert `w1/w2/w3` (or aliases). Do not assume the synthetic fixture's names prove the official export.
-
-### Q6 — bootstrap/hash routing representation — Gate A/V0, then Gate F/V4
-
-Confirm whether the first three layers' deterministic routing data exists as checkpoint tensors, constants, code logic, or another representation.
-
-This can materially change both `tools/inventory.py` rules and the proposed prefetch design.
+`tests/test_release_quant_fixture.py` compiles the actual scalar FP4 source against it. This removes the previous “nibble order and scale direction are unknown” blocker. A fresh full branch test run is still required before merge.
 
 ---
 
-## 5. Run README Gate A / V0 index-only inventory immediately
+## 5. Gate A / V0 index-only inventory
 
-Once `config.json` and `model.safetensors.index.json` exist locally:
+Once `config.json` and `model.safetensors.index.json` are available locally:
 
 ```bash
 python3 tools/inventory.py reference/deepseek-v4-flash-0731
 ```
 
-Expected mode:
+Index-only mode can establish real names/shard assignment and immediately expose classifier mistakes. It cannot establish exact dtype/shape/bytes without headers.
+
+Unknown main names remain failures. PR #5 has already added narrow source-verified bootstrap-route spellings:
 
 ```text
-index-only
+tid2eid   # official runtime field
+tie2eid   # converter source spelling
 ```
 
-This run cannot produce exact tensor bytes/shapes without shard headers, but it can immediately expose:
-
-- real tensor names;
-- main-vs-DSpark namespace assumptions;
-- unknown classifier rules;
-- routed-expert naming patterns;
-- scale partner naming;
-- whether README/TENSOR_MAP assumptions need correction before weight acquisition.
-
-**Unknown names should fail.** Do not weaken the classifier to make the first real run green.
-
-Update `tools/inventory.py` rules against the official names and record corrections in `docs/INVENTORY-0731.md` / `docs/TENSOR_MAP.md`.
+Do not turn that into a generic router catch-all.
 
 ---
 
-## 6. Header-only checkpoint truth is the next Gate A / V0 storage target
+## 6. Gate A / V0 header-only checkpoint truth — TOOL IMPLEMENTED
 
-Full Gate A/V0 needs safetensors header metadata (dtype, shape, offsets) for all shards. The current local `HeaderOnlyIndex` reads only the 8-byte header length plus JSON header **after a shard file exists locally**, but obtaining an entire shard only to read its header is wasteful.
-
-A high-leverage future tooling improvement is a remote/range header fetcher:
+PR #5 adds:
 
 ```text
-GET first 8 bytes -> header length
-GET next header_length bytes -> safetensors JSON header
+tools/fetch_hf_headers.py
 ```
 
-against the official pinned shard URL, without downloading tensor payloads.
+It implements the high-leverage Range strategy that this document previously described as future work.
 
-If the hosting path supports authenticated HTTP Range reliably, this could make Gate A/V0 checkpoint-header verification a tiny metadata operation rather than a full model download.
-
-Until such tooling exists, use an authorized environment and the smallest supported retrieval mechanism that preserves official bytes and provenance. Do not reconstruct headers from config arithmetic.
-
----
-
-## 7. Acquisition tier 2 — tiny real tensor/oracle sample
-
-Before full conversion, acquire only enough real material to close Gate B/V1 and Gate C/V2 if the repository/hosting tooling permits selective shard retrieval.
-
-Desired sample:
-
-- one routed-expert FP4 matrix (or a small slice that includes raw packed bytes and scale bytes);
-- its scale tensor;
-- one representative FP8 trunk matrix/scale tile;
-- deterministic input vector;
-- official decoded values;
-- official projection output.
-
-Because safetensors shards may interleave many tensors, selective physical download may not be convenient. The important principle is to **close convention and one-projection gates before full conversion**, not necessarily to force a particular transport mechanism.
-
-Generate frozen oracle fixtures per `docs/FIXTURES.md`.
-
----
-
-## 8. README Gate B / V1 closeout procedure
-
-After official reference access:
-
-1. cite official nibble extraction code;
-2. cite official scale application code;
-3. create literal official-derived convention fixtures;
-4. run them against `src/quant/fp4_e2m1.*` and `src/quant/fp8_e4m3.*`;
-5. if current assumptions disagree, let the tests fail;
-6. change the implementation only after the official fixture exists;
-7. update `docs/NUMERICS.md`, `docs/TENSOR_MAP.md`, `docs/VALIDATION.md`;
-8. mark Gate B/V1 passed only when public-format conformance **and** official convention agreement both hold.
-
-Do not combine this with SIMD work.
-
----
-
-## 9. README Gate C / V2 minimal oracle
-
-The next gate should remain one quantized linear projection.
-
-Recommended fixture design:
+For every indexed safetensors shard:
 
 ```text
-raw encoded weight bytes
-raw scale bytes/values
-input x
-expected decoded weight subset
-expected y
-provenance
+GET bytes 0-7                  -> little-endian JSON-header length
+GET bytes 8 .. 7+header_length -> exact safetensors JSON header
 ```
 
-Choose dimensions that cross at least one relevant scale boundary.
+Safety properties:
 
-The official generator and the C test must be separated as described in `docs/FIXTURES.md`; the C suite should replay the frozen fixture offline.
+- full immutable 40-hex revision required by default;
+- `Accept-Encoding: identity`;
+- HTTP **206 Partial Content required**;
+- `Content-Range` validated;
+- a server/proxy that returns HTTP 200 to a Range request is refused;
+- header metadata/data offsets are validated;
+- index↔header tensor agreement is checked;
+- optional Hub token is never written to provenance.
 
-Once Gate C/V2 passes, the native quantized arithmetic becomes usable as a proven model primitive rather than only a format decoder.
+The tool writes each shard as a native **header-only stub**:
+
+```text
+8-byte header length
+original JSON header
+(no tensor payload)
+```
+
+so the existing `HeaderOnlyIndex` is reused unchanged conceptually: the acquisition layer does transport/provenance, and `inventory.py` owns tensor accounting.
+
+### Exact next commands
+
+```bash
+python3 tools/fetch_hf_headers.py \
+  --model deepseek-ai/DeepSeek-V4-Flash-0731 \
+  --revision 9e165c30e2704aec5d9d593cce3eebd58bbef1cb \
+  --out reference/deepseek-v4-flash-0731
+
+python3 tools/inventory.py reference/deepseek-v4-flash-0731 \
+  --strict --by-layer --json docs/inventory-0731.json
+```
+
+The first real strict run is allowed to fail. Correct `RULES` only against actual official names, add regression cases, and rerun until every main tensor/byte is explained.
+
+Gate A/V0 is passed only when all 48 headers and all exported main-model tensor families are reconciled. Source/config reasoning alone cannot substitute for that.
 
 ---
 
-## 10. Acquisition tier 3 — full checkpoint
+## 7. Tier 2 — tiny real tensor/oracle sample
 
-Only after metadata/schema/convention questions are understood should the project commit to full source-weight acquisition for conversion and end-to-end work.
+After Gate A identifies exact resident tensor names/shards, acquire only enough payload/oracle material for Gate C/V2 before committing to full conversion.
+
+Preferred first target: one representative resident quantized linear whose K dimension crosses a 128-wide activation/weight scale boundary.
+
+Fixture should preserve:
+
+```text
+source tensor name
+source shard/header identity
+raw E4M3 weight bytes for bounded rows/tile
+raw or decoded official weight scales
+input activation
+reference activation-quantized bytes/scales where practical
+official expected output
+reference source/device/dtype/kernel provenance
+```
+
+Physical selective retrieval may be inconvenient when many tensors share one shard. The principle is to keep the **oracle scope** tiny even if transport requires a larger shard download.
+
+---
+
+## 8. Gate C / V2 official-linear handoff
+
+PR #5 now implements a source-derived scalar preflight in:
+
+```text
+src/quant/deepseek_v4_linear_ref.c
+src/quant/deepseek_v4_linear_ref.h
+tests/test_v2_linear_ref.py
+```
+
+Pinned source operation:
+
+```text
+for each activation row / K128 block:
+  amax = max(max(abs(x)), 1e-4)
+  scale = next_power_of_two(amax / 448)
+  q = E4M3FN(clamp(x / scale, -448, 448))
+
+for each FP8 K128 dot:
+  accum += dot(qx, qw) * activation_scale * weight_scale
+
+reference output -> BF16
+```
+
+The closed-form preflight intentionally chooses exact normalized values and expects `320`. It proves the scalar seam is executable; it is **not** a real V2 oracle.
+
+To pass Gate C/V2:
+
+1. select the real projection after Gate A name/header mapping;
+2. generate the expected result from pinned official code without importing WASTE helpers;
+3. freeze raw inputs/scales/expected output with provenance;
+4. replay with `deepseek_v4_linear_ref`;
+5. explain error and set a fixed tolerance;
+6. verify known-wrong activation-scale, weight-scale, block-index and rounding mutations fail.
+
+No SIMD or transformer integration before this gate.
+
+---
+
+## 9. Routing/source facts unlocked before real payloads
+
+The pinned runtime uses a bootstrap token-to-expert table named:
+
+```text
+tid2eid
+```
+
+with logical shape:
+
+```text
+[vocab_size, num_experts_per_tok]
+```
+
+for `layer_id < n_hash_layers`. The converter also contains the spelling `tie2eid`.
+
+Learned routing source semantics are recorded in `OFFICIAL-0731-SOURCE.md` and remain future Gate F/V4 implementation material. Source knowledge is useful for classifier/oracle design; exact exported tensor binding still belongs to Gate A.
+
+---
+
+## 10. Tier 3 — full checkpoint
+
+Only after Gate A and Gate C have killed basic storage/numerical mistakes should the project commit to full source-weight acquisition/conversion.
 
 Before starting:
 
-- calculate source download size from official repository metadata;
-- calculate destination/staging requirements;
-- verify internal-NVMe target placement;
-- verify resumable download behavior;
-- pin revision;
-- verify available disk space with margin;
-- decide whether source shards can be reclaimed only after converter verification.
+- calculate official source download size;
+- calculate output/staging free-space requirements;
+- pin the same immutable revision;
+- verify resumability;
+- verify target NVMe/filesystem suitability;
+- decide source-reclamation policy only after converter verification.
 
-Then follow `docs/CONVERSION.md`.
+Then follow `CONVERSION.md`.
 
 ---
 
 ## 11. What each acquisition tier unlocks
 
-| Tier | Artifacts | Unlocks |
-|---|---|---|
-| 0 | license/notice | legal ability to copy/adapt official source with correct attribution |
-| 1 | config/index/inference/encoding/tokenizer | real tensor names, convention review, encoder/oracle harness development, much of **Gate A/V0** name mapping |
-| header metadata | safetensors headers | exact dtype/shape/offset/byte totals; full **Gate A/V0** storage truth |
-| 2 | selected real tensor/oracle material | close **Gate B/V1**, pass **Gate C/V2**, establish projection tolerance |
-| 3 | full checkpoint | converter, real container, Gates D–K and later systems/performance gates |
+| Tier | State | Artifacts | Unlocks |
+|---|---|---|---|
+| 0 | **DONE** | exact release license/provenance | legal/source provenance |
+| official source/config | **DONE enough for current quant work** | pinned inference/config source | Gate B operation conventions; Gate C scalar design; routing design facts |
+| index | **NEXT in artifact-capable checkout** | config + safetensors index | real tensor names/shard assignment; partial Gate A |
+| header metadata | **NEXT** | all safetensors headers via Range stubs | exact dtype/shape/offset/byte totals; Gate A storage truth |
+| selected payload/oracle | **NEXT after Gate A** | one real quantized projection + expected output | Gate C/V2 |
+| full checkpoint | **DEFERRED** | all payloads | converter, real container, transformer/end-to-end gates |
 
-The project should not treat “full checkpoint unavailable” as equivalent to “no useful progress possible.” PR #3 already demonstrated why.
+The project has already demonstrated why “full checkpoint unavailable” does not mean “no useful work possible.”
 
 ---
 
-## 12. Record the resolution
+## 12. Evidence update rule
 
-When access is restored, update all of the following in the same PR that first consumes the official artifacts:
+When the first real header run lands, update in the same PR:
 
-- `docs/INVENTORY-0731.md` — remove/qualify the blocker and record commands/results;
-- `docs/TENSOR_MAP.md` — real names/shapes/conventions;
-- `docs/NUMERICS.md` — nibble/scale/reference agreement;
-- `docs/VALIDATION.md` — Gate A/V0 and Gate B/V1 status/concordance if assumptions change;
-- `README.md` §18 and `ROADMAP.md` if a gate definition/status changes;
-- `UPSTREAM.md` / `LICENSES/` — official source provenance/license where applicable;
-- `reference/README.md` or machine-readable provenance artifact — resolved revision/hashes;
-- `docs/EXPERIMENTS.md` — any significant handoff assumption the official release disproves.
+- `INVENTORY-0731.md` — exact commands/results and measured totals;
+- `TENSOR_MAP.md` — exact exported names/shapes/layouts;
+- `NUMERICS.md` — only if real storage contradicts the pinned source contract;
+- `VALIDATION.md` — Gate A status and any downstream consequence;
+- `ROADMAP.md` — Phase 1 status;
+- `MEMORY_AND_IO.md` — checkpoint-derived storage facts only;
+- `reference/` provenance metadata — resolved hashes;
+- `EXPERIMENTS.md` — meaningful corrected assumptions.
 
-The first official-reference PR is expected to correct assumptions. A correction is progress, not a failure of the plan.
+When the real Gate C projection lands, update `NUMERICS.md` and `VALIDATION.md` with the fixture, error metrics/tolerance and mutation results.
+
+Corrections are progress. The official artifact wins over the handoff, synthetic fixture, or source-level inference about how a tensor was ultimately exported.
