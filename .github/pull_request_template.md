@@ -12,8 +12,8 @@
 - README §18 gate letter(s) A–N:
 - Operational V-level / systems gate:
 - ROADMAP phase:
-- Highest gate passing before this PR:
-- Gate this PR adds/passes:
+- Highest canonical gate/level passing before this PR:
+- Gate/level this PR adds or passes:
 
 ## Source of truth
 
