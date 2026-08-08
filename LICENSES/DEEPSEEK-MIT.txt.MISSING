@@ -1,0 +1,18 @@
+THIS FILE IS NOT A LICENSE.
+
+It is a placeholder marking a license text that must be vendored before this
+repository redistributes anything derived from DeepSeek material.
+
+  Required:  the LICENSE file(s) shipped with
+             deepseek-ai/DeepSeek-V4-Flash-0731 at revision 9e165c3
+  Source:    https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731
+  Blocked by: huggingface.co is denied by this environment's egress policy
+             (the agent proxy answered 403 to CONNECT), so the authoritative
+             text could not be fetched at bootstrap time.
+
+No MIT template was written into this repository from memory. Doing so would
+commit a fabricated legal document attributed to a real party, with a
+copyright line and year that nobody verified against the source.
+
+See LICENSES/README.md for the exact commands to resolve this, then delete
+this file.
