@@ -95,13 +95,15 @@ source tree.
 
 Files/paths in this tree that are **not** verbatim upstream WASTE include:
 
-### Project handoff and provenance
+### Project handoff, collaboration, and provenance
 
 - `README.md` — DeepSeek V4 Flash port plan and handoff.
 - `links.md` — curated source pack and source-of-truth hierarchy.
 - `UPSTREAM.md` — this file.
 - `AGENTS.md` — agent/contributor operating rules for this port.
 - `ROADMAP.md` — gated implementation/PR sequence.
+- `CONTRIBUTING.md` — contribution scope, tests, evidence and documentation rules.
+- `.github/pull_request_template.md` — project-specific gate/evidence PR checklist.
 - `LICENSES/` — collected license/attribution material and the unresolved
   DeepSeek-license marker.
 - `.github/workflows-disabled/README.md` — local explanation for parking the
