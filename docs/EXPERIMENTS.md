@@ -2,6 +2,8 @@
 
 This is the DeepSeek-specific append-only experiment log. Imported `docs/LEARNED.md` remains WASTE's Kimi history and should not be edited to make it look like DeepSeek evidence.
 
+> **Gate vocabulary note:** this is an append-only historical record, so older entries below deliberately retain the wording they had when written, including “Gate 0” and standalone `V1`. Read those through the current canonical concordance in `docs/VALIDATION.md` §4a: historical inventory “Gate 0” means **README Gate A / V0**; the PR #3 quantization entry protects **README Gate B / V1**. New entries must use the current A–N/V-level terminology and must not introduce new local gate numbering.
+
 ## Rules
 
 1. **Append; do not rewrite history.** If a result is later disproved, append a correction and link the old entry to it.
@@ -10,6 +12,7 @@ This is the DeepSeek-specific append-only experiment log. Imported `docs/LEARNED
 4. Negative results are first-class output.
 5. Do not promote an upstream Kimi result to a DeepSeek result without re-running it.
 6. Distinguish a failed hypothesis from a broken/invalid experiment.
+7. Name the current README gate letter(s) and V/system gate separately when adding a new entry.
 
 Entry template:
 
@@ -18,6 +21,8 @@ Entry template:
 
 Question:
 Protects / why run it:
+README gate letter(s):
+Operational V-level / systems gate:
 Evidence state:
 Port commit:
 Model revision:
