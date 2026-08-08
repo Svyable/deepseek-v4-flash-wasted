@@ -41,6 +41,7 @@ A later, stronger state supersedes an earlier one. Never silently promote a clai
 These documents are authoritative for this port unless the official checkpoint/reference code proves them wrong:
 
 - [`INVENTORY-0731.md`](INVENTORY-0731.md) — exact checkpoint inventory status and Gate 0 procedure.
+- [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) — compact DeepSeek-specific architecture/porting reference and the assumptions Gate 0 must verify.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system decomposition and what is reused versus rewritten.
 - [`TENSOR_MAP.md`](TENSOR_MAP.md) — tensor-family mapping contract and checklist populated by `tools/inventory.py`.
 - [`VALIDATION.md`](VALIDATION.md) — numerical correctness ladder and merge gates.
@@ -83,6 +84,7 @@ When adapting a generic lesson from these documents, cite the upstream result an
 Every implementation PR should update the smallest relevant local document in the same PR. In particular:
 
 - checkpoint inventory changes -> `INVENTORY-0731.md` and `TENSOR_MAP.md`;
+- model-semantics changes -> `DEEPSEEK_V4.md` and `ARCHITECTURE.md` when applicable;
 - container/converter changes -> `CONTAINER_V4.md` and `CONVERSION.md`;
 - numerical tolerances/results -> `VALIDATION.md`;
 - memory or disk observations -> `MEMORY_AND_IO.md`;
