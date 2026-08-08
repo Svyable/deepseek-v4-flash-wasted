@@ -99,9 +99,11 @@ Unless the official reference proves otherwise, these should be exact:
 
 Routing weights and projection outputs are floating-point and use documented numerical tolerances; selected sets/order remain hard semantic checks.
 
-## 4. Gate ladder
+## 4. Operational V-level ladder
 
-### Gate V0 — checkpoint inventory
+The `V` labels below are operational validation levels. They are **not a replacement for README §18 Gates A–N**. §4a maps the two vocabularies completely.
+
+### V0 — checkpoint inventory
 
 Owners:
 
@@ -124,7 +126,7 @@ Current status: **tooling SYNTHETIC-VERIFIED; real official input BLOCKED in the
 
 No downstream model binding/storage claim should rely on an unresolved tensor family.
 
-### Gate V1 — bit-level native quantization decode
+### V1 — bit-level native quantization decode
 
 V1 has two halves.
 
@@ -192,9 +194,9 @@ V1 pass criteria:
 - nibble order/scale application/layout agree with official reference;
 - official fixtures replay offline with pinned provenance.
 
-Until V1b passes, describe V1 only as **half satisfied**.
+Until V1b passes, describe README Gate B / V1 only as **half satisfied**.
 
-### Gate V2 — one quantized linear projection
+### V2 — one quantized linear projection
 
 **Status: BLOCKED on official oracle/checkpoint material.**
 
@@ -227,7 +229,7 @@ Pass criteria:
 
 V2 is the next arithmetic rung after reference access. Do not jump from V1a straight to a transformer layer.
 
-### Gate V3 — model primitives
+### V3 — model primitives
 
 Separate official-oracle tests for:
 
@@ -246,7 +248,7 @@ Separate official-oracle tests for:
 
 No primitive should be tested only through a full layer.
 
-### Gate V4 — one MoE block
+### V4 — one MoE block
 
 Use a fixture containing:
 
@@ -266,7 +268,7 @@ expert bytes fetched through WASTE cache/disk abstraction
 
 The two C paths must agree. Placement cannot change numerics.
 
-### Gate V5 — one attention block
+### V5 — one attention block
 
 Create separate fixtures for each distinct attention mode found in the official config/reference, rather than assuming one implementation covers all layers.
 
@@ -287,7 +289,7 @@ Context-boundary fixtures should include:
 - short prompt versus longer history;
 - final supported context edge when feasible with synthetic shapes.
 
-### Gate V6 — one full transformer layer
+### V6 — one full transformer layer
 
 Compare official and C:
 
@@ -299,7 +301,7 @@ Compare official and C:
 
 Run at least one example of every structurally distinct layer class proven by config/reference (for example bootstrap-routing versus learned-routing and attention-mode variants).
 
-### Gate V7 — multi-layer hidden states
+### V7 — multi-layer hidden states
 
 Run a short token sequence through multiple real layers and checkpoint hidden states at selected layer boundaries.
 
@@ -307,7 +309,7 @@ A mismatch must be attributed to the first divergent layer before continuing.
 
 This catches state-update/order errors that isolated block fixtures miss.
 
-### Gate V8 — final logits
+### V8 — final logits
 
 Compare the final hidden state, final norm, and logits for deterministic input tokens.
 
@@ -319,17 +321,17 @@ Record:
 - top-1 token and top-N ordering for a small N;
 - logit magnitude range.
 
-The project may not claim model correctness without this gate on real weights.
+The project may not claim model correctness without this level on real weights.
 
-### Gate V9 — greedy generation
+### V9 — greedy generation
 
 With sampling disabled and the same stopping rules:
 
-- prompt tokens must match official encoding exactly;
+- prompt tokens must match the relevant official/known-token input contract;
 - generated token IDs should match token-for-token for a meaningful short sequence;
 - if they diverge, return to final-logit diagnostics rather than declaring sampling noise.
 
-### Gate V10 — encoding and parser
+### V10 — encoding and parser
 
 Port official `encoding/` behavior separately from model arithmetic.
 
@@ -344,7 +346,7 @@ Required:
 
 Do not flatten a code-based encoder into a guessed Jinja template.
 
-### Gate V11 — OpenAI-compatible API
+### V11 — OpenAI-compatible API
 
 Test the existing WASTE server architecture with the DeepSeek encoder/model path:
 
@@ -373,7 +375,7 @@ For README systems/performance gates that intentionally have no V-number, cite t
 
 Conversely, this maintained ladder has two operational rungs that README §18 never gave letters: `V7` multi-layer localization and `V11` API parity. They are listed after A–N so the asymmetry is explicit rather than silently dropping either vocabulary.
 
-| README gate | This doc / operational gate | Handoff concept | ROADMAP | Owning documents |
+| README gate | This doc / operational level | Handoff concept | ROADMAP | Owning documents |
 |---|---|---|---|---|
 | **A** — checkpoint inventory | **V0** | checkpoint inventory / storage truth | Phase 1 | `INVENTORY-0731.md`, `TENSOR_MAP.md`, `REFERENCE_ACCESS.md` |
 | **B** — native FP4 decode | **V1** | native quantization decode + DeepSeek byte/scale convention agreement | Phase 3 | `NUMERICS.md`, `FIXTURES.md`, this document |
@@ -484,7 +486,7 @@ When final logits are wrong, investigate in this order:
 
 Do not begin by changing tolerances.
 
-When a gate fails, first ask whether its expected fixture is truly independent. A self-confirming fixture can turn a local convention bug into a much later “model is broken” symptom.
+When a level fails, first ask whether its expected fixture is truly independent. A self-confirming fixture can turn a local convention bug into a much later “model is broken” symptom.
 
 ## 9. Optimization acceptance rule
 
@@ -492,7 +494,7 @@ An optimized kernel/path lands only when:
 
 - the scalar/reference path remains available at least for tests/debugging;
 - it passes the same independent fixture suite;
-- the scalar baseline being matched has itself passed the relevant official-reference gate;
+- the scalar baseline being matched has itself passed the relevant official-reference level;
 - real-model V8/V9 do not regress once available;
 - README Gate G remains true for placement/cache changes;
 - relevant Gate L/M storage/cache measurements remain valid for performance claims;
@@ -515,7 +517,7 @@ Container/converter revision:
 Hardware / OS:
 README gate letter(s):
 Operational V-level / systems gate:
-Operation/gate:
+Operation:
 Reference command:
 C command:
 Input fixture/prompt:
