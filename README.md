@@ -910,6 +910,13 @@ Do not choose one global tolerance before seeing the reference behavior. Record 
 
 Follow WASTE's rule: **before an expensive operation, run the cheapest real test that could kill the idea.**
 
+> The gates below are the design rationale. `docs/VALIDATION.md` is the
+> operational instance of the same ladder, with tolerances, fixture rules and
+> triage order, and its §4a maps every gate here to a `V`-level and a roadmap
+> phase. **Cite the `V`-level in a PR.** Where the two disagree on the order or
+> content of a rung, `docs/VALIDATION.md` wins — it is maintained alongside the
+> tests. This section stays authoritative for *why* each gate exists.
+
 ### Gate A — checkpoint inventory
 
 Protects: full download/conversion assumptions.
@@ -1035,6 +1042,17 @@ Never report a cache hit-rate improvement as a speed improvement without wall-cl
 ## 20. Suggested PR / commit sequence
 
 Keep each milestone reviewable and oracle-backed.
+
+> `ROADMAP.md` tracks live status against this sequence and is where a phase
+> gets marked done. Read it for *what is actually finished*; read this section
+> for the intended shape of each step.
+>
+> **"PR 1" below is not GitHub PR #1.** These are planned units of work, and
+> they have already diverged from the numbering on GitHub: PR 1 (bootstrap) and
+> PR 2 (checkpoint inventory) both shipped in GitHub PR #1, and GitHub PR #2
+> was the documentation foundation, which has no entry in this list at all.
+> When referring to merged work, cite the commit — the two numbering schemes
+> will keep drifting apart.
 
 ### PR 1 — bootstrap upstream
 

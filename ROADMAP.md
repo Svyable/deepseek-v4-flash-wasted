@@ -4,6 +4,12 @@ This roadmap converts the implementation plan in `README.md` into gated PR-sized
 
 Status values: **DONE**, **IN PROGRESS**, **BLOCKED**, **NEXT**, **LATER**.
 
+The phases below are a *schedule*. They are not a fourth gate vocabulary
+alongside `README.md` §18's Gates A–N, `README.md` §20's PR 1–13, and
+`docs/VALIDATION.md`'s `V`-levels. [`docs/VALIDATION.md`
+§4a](docs/VALIDATION.md) maps all of them to each other — cite the `V`-level
+in a PR, and use the phase only to say *when* the work happens.
+
 ## Current snapshot
 
 | Phase | Status | Evidence |

@@ -44,7 +44,7 @@ These documents are authoritative for this port unless the official checkpoint/r
 - [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) — compact DeepSeek-specific architecture/porting reference and the assumptions Gate 0 must verify.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system decomposition and what is reused versus rewritten.
 - [`TENSOR_MAP.md`](TENSOR_MAP.md) — tensor-family mapping contract and checklist populated by `tools/inventory.py`.
-- [`VALIDATION.md`](VALIDATION.md) — numerical correctness ladder and merge gates.
+- [`VALIDATION.md`](VALIDATION.md) — numerical correctness ladder and merge gates. Its §4a is the **gate concordance**: one table mapping this project's `V`-levels to `README.md` §18's Gates A–N and to `ROADMAP.md` phases. Start there whenever a document, a PR template or an issue names a gate, so the same rung is not tracked under three names.
 - [`CONTAINER_V4.md`](CONTAINER_V4.md) — proposed DeepSeek-specific WASTE container contract.
 - [`CONVERSION.md`](CONVERSION.md) — download, inventory, conversion, verification, and recovery runbook.
 - [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) — RAM-floor and storage/I/O accounting methodology.

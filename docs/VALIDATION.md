@@ -240,6 +240,62 @@ Test the existing WASTE server architecture with the DeepSeek encoder/model path
 
 API success is not a substitute for V8/V9.
 
+## 4a. Concordance with the handoff plan's gates
+
+`README.md` predates this document and names its own gates (§18, Gates A–N)
+and its own PR sequence (§20, PR 1–13). `ROADMAP.md` groups the same work
+into Phases 0–9. Three vocabularies for one ladder is how a project ends up
+unable to answer "which gate does this PR pass?" — the question
+`.github/pull_request_template.md` asks on every PR.
+
+**This table is the answer. Cite the `V`-level.** The other columns exist so
+a reader arriving from `README.md` or `ROADMAP.md` lands in the right place.
+
+| This doc | README §18 | ROADMAP | Owning document |
+|---|---|---|---|
+| **V0** checkpoint inventory | Gate A | Phase 1 | [`INVENTORY-0731.md`](INVENTORY-0731.md), [`TENSOR_MAP.md`](TENSOR_MAP.md) |
+| **V1** native quantization decode | Gate B | Phase 3 | this document |
+| **V2** one quantized linear | Gate C | Phase 3 | this document |
+| **V3** model primitives (mHC) | Gate D | Phase 5 | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| **V4** one MoE block | Gate F | Phase 5 | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| **V5** one attention block | Gate E | Phase 5 | [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) |
+| **V6** one full transformer layer | Gate H | Phase 5 | this document |
+| **V7** multi-layer hidden states | *(no README gate)* | Phase 5 | this document |
+| **V8** final logits | Gate I | Phase 5 | this document |
+| **V9** greedy generation | Gate K | Phase 5 | this document |
+| **V10** encoding and parser | Gate J | Phase 7 | [`API.md`](API.md) |
+| **V11** OpenAI-compatible API | *(no README gate)* | Phase 7 | [`API.md`](API.md) |
+
+Note that README's Gate E (attention) and Gate F (MoE) are **swapped**
+relative to V4/V5. That is deliberate, not a transcription error: a MoE block
+is reachable with hash routing alone, so it can be validated before the
+compressed-attention machinery exists. Bring them up in `V` order.
+
+### Gates that are not numerical
+
+Four README gates have no `V`-level because they are systems or performance
+properties, not oracle comparisons. They are graded elsewhere and are **not**
+optional:
+
+| README §18 | What grades it |
+|---|---|
+| Gate G — disk vs cache identity | §5 below, the cache and I/O correctness matrix |
+| Gate L — real storage | [`BENCHMARKS.md`](BENCHMARKS.md), [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) |
+| Gate M — cache curve | [`BENCHMARKS.md`](BENCHMARKS.md), [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) |
+| Gate N — DSpark | [`DSPARK.md`](DSPARK.md), behind V8/V9 |
+
+Gate G is the one worth stating twice, because it is the invariant the whole
+port rests on and it is easy to mistake for a performance concern: **placement
+changes latency, never numerics.** README §26 puts it as "the real router
+chooses the real experts; RAM versus NVMe only decides when those bytes
+arrive." A build where enabling the cache changes a logit has failed Gate G no
+matter how fast it runs.
+
+When this document and `README.md` §18/§20 disagree about the *order* or
+*content* of the ladder, this document wins — it is maintained alongside the
+tests. `README.md` remains authoritative for the port's design intent and
+rationale. Neither overrides the checkpoint.
+
 ## 5. Cache and I/O correctness matrix
 
 For the same token sequence/container, compare:

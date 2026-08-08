@@ -4,6 +4,11 @@
 
 ## Roadmap / gate
 
+<!-- Cite the V-level from docs/VALIDATION.md §4a. That table maps V-levels to
+     README §18's Gates A–N and to ROADMAP phases, so one answer covers all
+     three. Gates G/L/M/N are systems/performance gates with no V-level —
+     name them directly if that is what this PR moves. -->
+
 - Roadmap phase:
 - Highest gate passing before this PR:
 - Gate this PR adds/passes:
