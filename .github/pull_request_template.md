@@ -2,11 +2,16 @@
 
 <!-- Keep the scope narrow enough that a failing gate can localize the problem. -->
 
-## Roadmap / gate
+## Gate / roadmap
 
-<!-- Cite the V-level from docs/VALIDATION.md. Use ROADMAP phase only for schedule. -->
+<!-- Canonical map: docs/VALIDATION.md §4a.
+     README §18 has 14 stable design gates A-N.
+     V0-V11 are operational validation levels; G/L/M/N intentionally have no V-number.
+     ROADMAP phase is schedule only. Do not invent local Gate 0/1/2 numbering. -->
 
-- Roadmap phase:
+- README §18 gate letter(s) A–N:
+- Operational V-level / systems gate:
+- ROADMAP phase:
 - Highest gate passing before this PR:
 - Gate this PR adds/passes:
 
@@ -46,6 +51,15 @@ argmax/greedy parity:
 - Known-wrong mutation(s) tested? Which ones survived/failed?
 - Official fixture provenance recorded, if applicable?
 
+## Systems/performance gates
+
+<!-- Fill when applicable. These are README gates with no V-number. -->
+
+- Gate G cache/disk/prefetch identity revalidated?
+- Gate L real-storage measurement affected?
+- Gate M cache-curve/recommendation affected?
+- Gate N DSpark correctness/performance affected?
+
 ## Memory / storage / API impact
 
 - RAM planner changed? If yes, which allocation is newly accounted for?
@@ -58,6 +72,7 @@ argmax/greedy parity:
 
 Updated as applicable:
 
+- [ ] `README.md` §18 / gate concordance
 - [ ] `docs/INVENTORY-0731.md` / `docs/TENSOR_MAP.md`
 - [ ] `docs/REFERENCE_ACCESS.md` / `reference/README.md`
 - [ ] `docs/NUMERICS.md`
@@ -72,6 +87,7 @@ Updated as applicable:
 - [ ] `docs/API.md`
 - [ ] `docs/PLATFORM.md`
 - [ ] `ROADMAP.md`
+- [ ] `AGENTS.md` / `CONTRIBUTING.md` if process vocabulary changed
 - [ ] none needed — explain why below
 
 ## Licensing / provenance
