@@ -20,7 +20,7 @@ As of merged PR #3 (`91c36b8f4168349e6893a9911a3f60075d62d973`):
 - `tools/inventory.py` remains tested against a synthetic safetensors fixture, but the official `DeepSeek-V4-Flash-0731` checkpoint/reference has **not** been read in the original bootstrap environment because the proxy denied `huggingface.co:443` with CONNECT 403;
 - therefore no checkpoint-derived byte totals, exact tensor-name/shape map, RAM floor, disk footprint, routing trace, quality result, full projection oracle, or throughput result exists yet;
 - no DeepSeek transformer forward path has been ported yet;
-- CI remains parked under `.github/workflows-disabled/`; manual `make check`/sanitizer gates remain authoritative until Actions can actually start jobs.
+- CI remains parked under `.github/workflows-disabled/`; manual `make check`/sanitizer validation remains authoritative until Actions can actually start jobs.
 
 The checkpoint/reference-access limitation and the smallest useful acquisition sequence are documented in [`REFERENCE_ACCESS.md`](REFERENCE_ACCESS.md). Do not convert synthetic arithmetic or public-format conformance into claims about the official checkpoint.
 
@@ -37,7 +37,7 @@ The canonical mapping is [`VALIDATION.md` §4a](VALIDATION.md), which maps **all
 Important asymmetries are intentional:
 
 - README **G/L/M/N** are real systems/performance gates with no invented V-number;
-- **V7** (multi-layer localization) and **V11** (API parity) are maintained operational rungs with no README letter;
+- **V7** (multi-layer localization) and **V11** (API parity) are maintained operational levels with no README letter;
 - README **E** maps to `V5` while **F** maps to `V4` because operational bring-up order differs from the original handoff ordering;
 - README **J** maps to `V10` while **K** maps to `V9` because raw deterministic generation can be validated before the full chat encoder/parser surface.
 
@@ -67,20 +67,20 @@ These documents are authoritative for this port unless the official checkpoint/r
 
 - [`INVENTORY-0731.md`](INVENTORY-0731.md) — exact checkpoint inventory status and README **Gate A / V0** procedure.
 - [`REFERENCE_ACCESS.md`](REFERENCE_ACCESS.md) — smallest official-reference acquisition sequence; primarily unblocks **Gate A / V0**, **Gate B / V1**, and **Gate C / V2** before full-weight download.
-- [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) — compact DeepSeek-specific architecture/porting reference and assumptions Gate A/V0 must verify.
+- [`DEEPSEEK_V4.md`](DEEPSEEK_V4.md) — compact DeepSeek-specific architecture/porting reference and the assumptions Gate A/V0 must verify.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system decomposition and what is reused versus rewritten; owns major model-seam rationale for Gates D/E/F/H/I.
 - [`TENSOR_MAP.md`](TENSOR_MAP.md) — tensor-family mapping contract and the open nibble/scale/tensor-layout questions.
 - [`NUMERICS.md`](NUMERICS.md) — scalar E2M1/UE8M0/E4M3FN arithmetic contract, exactness rules, unresolved DeepSeek conventions, and **Gate B/V1 → Gate C/V2** handoff.
 - [`FIXTURES.md`](FIXTURES.md) — independent-fixture and mutation-testing rules; prevents producer/consumer tests from sharing the convention they are supposed to prove.
-- [`VALIDATION.md`](VALIDATION.md) — canonical operational ladder. Its §4a maps every README Gate A–N to V-level/system owner, concept, roadmap phase, and owning docs.
+- [`VALIDATION.md`](VALIDATION.md) — canonical operational ladder. Its §4a maps every README Gate A–N to a V-level/system owner, concept, roadmap phase, and owning docs.
 - [`CONTAINER_V4.md`](CONTAINER_V4.md) — proposed DeepSeek-specific WASTE container contract.
 - [`CONVERSION.md`](CONVERSION.md) — download, inventory, conversion, verification, and recovery runbook.
 - [`MEMORY_AND_IO.md`](MEMORY_AND_IO.md) — RAM-floor and storage/I/O accounting methodology; owns README **Gate G**, **Gate L**, and **Gate M** alongside validation/benchmarks.
 - [`BENCHMARKS.md`](BENCHMARKS.md) — benchmark schema and results ledger; records README gate letters and V-levels separately.
-- [`EXPERIMENTS.md`](EXPERIMENTS.md) — append-only experiment and negative-result log for this port.
+- [`EXPERIMENTS.md`](EXPERIMENTS.md) — append-only experiment and negative-result log for this port; historical gate wording is preserved with a translation note.
 - [`DSPARK.md`](DSPARK.md) — README **Gate N** speculative-decoding boundary and validation plan.
-- [`API.md`](API.md) — library/CLI/OpenAI-compatible server integration contract; owns **Gate J/V10**, contributes to **Gate K/V9**, and owns extra operational rung `V11`.
-- [`PLATFORM.md`](PLATFORM.md) — macOS/Linux/Windows I/O and backend requirements.
+- [`API.md`](API.md) — library/CLI/OpenAI-compatible server integration contract; owns **Gate J/V10**, contributes to **Gate K/V9**, and owns extra operational level `V11`.
+- [`PLATFORM.md`](PLATFORM.md) — macOS/Linux/Windows I/O and backend requirements; supports Gates G/L/M.
 - [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — failure diagnosis ordered by the project's canonical gates.
 
 Root/local companion documents:
