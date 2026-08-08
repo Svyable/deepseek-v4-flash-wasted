@@ -61,6 +61,7 @@ Root-level companion documents:
 - [`../links.md`](../links.md) — curated source pack and source-of-truth hierarchy.
 - [`../AGENTS.md`](../AGENTS.md) — instructions for coding agents and contributors.
 - [`../ROADMAP.md`](../ROADMAP.md) — PR/gate sequence and current project status.
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution scope, testing, documentation and evidence requirements.
 - [`../UPSTREAM.md`](../UPSTREAM.md) — import provenance and local-vs-upstream ownership.
 
 ## Imported WASTE documents
