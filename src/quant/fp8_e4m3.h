@@ -6,24 +6,33 @@
  *
  * Scalar reference only, same contract as fp4_e2m1.h.
  *
- * A trunk matrix is [rows, cols] E4M3 bytes plus an f32 scale grid of
+ * A trunk matrix is [rows, cols] E4M3 bytes plus a scale grid of
  * [ceil(rows/128), ceil(cols/128)]:
  *
  *     value(r, c) = e4m3(w[r][c]) * scale[r/128][c/128]
  *
  * FINITE VARIANT. This implements `e4m3fn` — the variant with no
  * infinities, where the all-ones exponent still carries normal values and
- * only mantissa 0b111 is NaN. That is what torch's `float8_e4m3fn` and
- * DeepSeek's reference use, and it is why the maximum is 448 rather than
- * 240: an IEEE-style E4M3 reserving the top exponent for Inf/NaN would
- * top out lower. Getting this wrong silently rescales the largest weights
- * in every trunk matrix.
+ * only mantissa 0b111 is NaN. That is what torch's `float8_e4m3fn` and the
+ * pinned DeepSeek 0731 reference use, and it is why the maximum is 448
+ * rather than 240.
  *
- * SCALE DIRECTION, unverified. DeepSeek names these tensors
- * `weight_scale_inv`, and the reference multiplies by them. This file
- * treats the stored value as a multiplier to match. If Gate 0 shows the
- * reference divides, this is the one line to change — but the name is
- * evidence, not proof, so it stays TBD-GATE0 in docs/TENSOR_MAP.md.
+ * OFFICIAL 0731 SCALE SEMANTICS — SOURCE VERIFIED
+ *
+ * Pinned release:
+ *   deepseek-ai/DeepSeek-V4-Flash-0731
+ *   9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+ *
+ * inference/convert.py renames checkpoint `weight_scale_inv` tensors to
+ * `scale` without taking a reciprocal. inference/kernel.py's FP8 GEMM then
+ * multiplies the GEMM partial by the activation scale and weight scale.
+ * inference/model.py binds FP8 weights as torch.float8_e4m3fn with one
+ * scale per 128x128 block; the release uses UE8M0 scale storage when
+ * `scale_dtype == fp8`.
+ *
+ * The scalar API currently accepts the scale grid as f32 values after scale
+ * decode. Gate C/V2 still needs one pinned official quantized projection to
+ * validate the complete weight+activation+accumulation path.
  *
  * Unlike FP4, the block grid here is allowed to be ragged: the last row
  * and column block may be partial, which is why the scale stride is
@@ -51,7 +60,7 @@ size_t waste_fp8_scale_rows(size_t rows);
 size_t waste_fp8_scale_cols(size_t cols);
 size_t waste_fp8_scale_count(size_t rows, size_t cols);
 
-/* One element. `s` is the scale grid in row-major order. */
+/* One element. `s` is the decoded scale grid in row-major order. */
 float waste_fp8_at(const uint8_t *w, const float *s,
                    size_t cols, size_t r, size_t c);
 
