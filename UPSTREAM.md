@@ -39,6 +39,18 @@ of them indicate a broken bootstrap.
 Re-run that baseline before blaming the DeepSeek port for a failure in
 imported code.
 
+## CI is parked, not deleted
+
+`.github/workflows/ci.yml` was moved to `.github/workflows-disabled/ci.yml`.
+The file is unmodified — GitHub simply only reads `.github/workflows/`. Its
+first run here failed all eight jobs in seconds with no log output, an
+account-level Actions condition rather than a code failure. See
+`.github/workflows-disabled/README.md` for the evidence and the one-line
+restore.
+
+While it is parked, `make check` is the gate and nothing runs it
+automatically. Run it, and the SPDX check, before pushing.
+
 ## Licensing
 
 WASTE is Apache-2.0. The upstream `LICENSE` and `NOTICE` are preserved at the
