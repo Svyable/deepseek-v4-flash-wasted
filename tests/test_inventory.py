@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""test_inventory.py — tools/inventory.py must measure, not estimate.
+"""Gate A/V0 inventory + acquisition checks.
 
-Every RAM and bytes-per-token claim in this port is supposed to descend
-from the checkpoint. That only holds if the inventory tool reports what it
-actually read and refuses to fill gaps with plausible numbers, so these
-checks are mostly about the *absence* of guessing:
+Every RAM and bytes-per-token claim in this port is supposed to descend from
+the checkpoint. That only holds if the inventory tool reports what it actually
+read and refuses to fill gaps with plausible numbers. This driver also runs the
+header-only Hugging Face acquisition test and the pinned 0731 FP4 convention
+fixture so `make check` covers the cheap Gate A -> Gate B handoff.
 
-  - a checkpoint whose shards are missing yields SKIPs and unresolved
-    counts, never a confident zero;
-  - a tensor name nobody has a rule for fails Gate 0 instead of landing in
-    a catch-all;
-  - the header-only promise is enforced by giving the tool shards that
-    contain no tensor data at all, so a stray read hits EOF rather than
-    quietly succeeding.
-
-The fixture is synthetic (tools/make_inventory_fixture.py) and its tensor
-names are *not* DeepSeek's — huggingface.co was unreachable when this was
-written. So these checks prove the tool's arithmetic and its gates, not
-that the name table matches the real 0731 checkpoint. Gate 0 failing on
-real weights is the designed outcome if it does not, and README §5 says
-which side wins: the checkpoint.
+The synthetic inventory fixture proves tooling mechanics, not checkpoint truth.
+The release-convention fixture is separately sourced from the immutable
+DeepSeek 0731 release and is replayed through the actual scalar C FP4 path.
 
   python3 tests/test_inventory.py
 """
@@ -35,9 +25,12 @@ import contextlib
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
+sys.path.insert(0, os.path.join(REPO, "tests"))
 
 import inventory                      # noqa: E402
 import make_inventory_fixture as fx   # noqa: E402
+import test_fetch_hf_headers as fetch_headers_test  # noqa: E402
+import test_release_quant_fixture as release_quant_test  # noqa: E402
 
 # Small enough to be fast, big enough that every rule fires: hash-routed
 # layers 0-2, a ratio-0 layer without compressor/indexer, and one attached
@@ -80,7 +73,7 @@ def status(gate, substr):
 
 
 def rewrite_index(model_dir, fn):
-    """Apply fn to the {name: shard} weight map and to every shard header."""
+    """Apply fn to the {name: shard} weight map."""
     ip = os.path.join(model_dir, "model.safetensors.index.json")
     with open(ip) as f:
         idx = json.load(f)
@@ -116,16 +109,13 @@ def main():
         gate, rows, idx = run(good)
 
         ck(all(st == "PASS" for st, _ in gate.values()),
-           f"a well-formed checkpoint passes every Gate 0 check: "
+           f"a well-formed checkpoint passes every Gate A/V0 check: "
            f"{[(n, s) for n, (s, _) in gate.items() if s != 'PASS']}")
         ck(idx.have_headers, "headers mode is reached when shards are present")
         ck(not any(r["subsystem"] == "unclassified" for r in rows),
            "no tensor lands in the unclassified bucket")
 
         # ------------------------------------------- header-only promise --
-        # The fixture's shards stop after the header, so every tensor's
-        # data_offsets point past EOF. A tool that read tensor data would
-        # raise here rather than produce a report.
         shard = os.path.join(good, only_shard(good))
         described = max(
             m["data_offsets"][1]
@@ -135,8 +125,6 @@ def main():
            f"disk describes {described} B of tensors")
 
         # ---------------------------------------------- exact arithmetic --
-        # FP4 experts: [out, in/2] packed + [out, in/32] scales. This is the
-        # per-record size the container design in README §6 has to carry.
         w1 = [r for r in rows if r["subsystem"] == "routed_expert"
               and r["matrix"] == "w1" and not r["is_scale"]][0]
         ck(w1["packing"] == 2.0,
@@ -158,15 +146,12 @@ def main():
                           for r in scales),
            "every scale tensor is attributed to the weight it scales")
 
-        # A resident tensor must never be reported as streamed.
         ck(all(r["placement"] == "resident" for r in rows
                if r["subsystem"] in ("attention", "mhc", "norm", "embedding",
                                      "lm_head", "shared_expert")),
            "trunk subsystems are resident")
 
         # ------------------------------------------------- index-only mode --
-        # README §22 runs the inventory before downloading weights. That must
-        # degrade to SKIP, and must not report zero bytes.
         lonely = make(tmp, "lonely")
         for f in os.listdir(lonely):
             if f.endswith(".safetensors"):
@@ -182,12 +167,9 @@ def main():
         tot = inventory.totals(rows2)
         ck(all(v[2] > 0 for v in tot.values()),
            "every bucket reports its unresolved count")
-        # Name-only checks still work, which is the point of running early.
         ck(status(gate2, "all tensor names classified") == "PASS",
            "classification still runs without weights")
 
-        # A checkpoint missing only *some* shards is the dangerous case: the
-        # totals are partial and must say so.
         partial = make(tmp, "partial", layers=9)
         shards = sorted(x for x in os.listdir(partial)
                         if x.endswith(".safetensors"))
@@ -198,20 +180,13 @@ def main():
             ck(any(r["stored_bytes"] is None for r in rows3)
                and any(r["stored_bytes"] is not None for r in rows3),
                "partial data stays partial")
-            # The headline traffic figure must refuse to print rather than
-            # extrapolate from the experts that happen to be readable.
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
-                inventory._report_expert_math(inventory.load_config(partial),
-                                              rows3)
+                inventory._report_expert_math(inventory.load_config(partial), rows3)
             ck(buf.getvalue() == "",
                "per-token traffic is withheld when any expert byte is unknown")
 
         # ------------------------------------------------- injected faults --
-        # Each of these is a real way a checkpoint can surprise us, and each
-        # must fail loudly instead of being absorbed.
-
-        # 1. A main-stack tensor nobody has a rule for.
         unk = make(tmp, "unknown")
         edit_header(unk, only_shard(unk),
                     lambda h: h.__setitem__(
@@ -222,11 +197,10 @@ def main():
             "model.layers.0.mystery_module.weight", only_shard(unk)))
         g, _, _ = run(unk)
         ck(status(g, "all tensor names classified") == "FAIL",
-           "an unrecognised main-stack tensor fails Gate 0")
+           "an unrecognised main-stack tensor fails Gate A/V0")
         ck(status(g, "unexplained bucket") == "FAIL",
            "its bytes are reported as stray")
 
-        # 2. An expert missing a matrix.
         miss = make(tmp, "missing-w3")
         victim = "model.layers.0.mlp.experts.0.w3.weight"
         edit_header(miss, only_shard(miss), lambda h: h.pop(victim, None))
@@ -235,28 +209,22 @@ def main():
         ck(status(g, "one w1/w2/w3") == "FAIL",
            "an expert missing w3 fails the record check")
 
-        # 3. An expert weight whose shape contradicts config.json.
         bad = make(tmp, "bad-shape")
         edit_header(bad, only_shard(bad), lambda h: h.__setitem__(
             "model.layers.1.mlp.experts.0.w1.weight",
             {"dtype": "U8", "shape": [999, 64], "data_offsets": [0, 999 * 64]}))
         g, _, _ = run(bad)
         ck(status(g, "dimensions agree") == "FAIL",
-           "a shape that contradicts config.json fails Gate 0")
+           "a shape that contradicts config.json fails Gate A/V0")
 
-        # 4. Hash-routing tables absent from a bootstrap layer. README §11
-        #    depends on layers 0-2 being deterministically routable.
         nohash = make(tmp, "no-hash")
         gone = "model.layers.1.mlp.gate.hash_table"
         edit_header(nohash, only_shard(nohash), lambda h: h.pop(gone, None))
         rewrite_index(nohash, lambda wm: wm.pop(gone, None))
         g, _, _ = run(nohash)
         ck(status(g, "token-id") == "FAIL",
-           "a bootstrap layer without a mapping tensor fails Gate 0")
+           "a bootstrap layer without a mapping tensor fails Gate A/V0")
 
-        # 5. A DSpark tensor sharing the main stack's namespace at a layer
-        #    inside the main range. A loader walking model.layers.0..N would
-        #    sweep it into the 43-layer path.
         amb = make(tmp, "ambiguous")
         collide = "model.layers.2.dspark_head.weight"
         edit_header(amb, only_shard(amb), lambda h: h.__setitem__(
@@ -266,14 +234,9 @@ def main():
         g, _, _ = run(amb)
         ck(status(g, "DSpark") == "FAIL",
            "a DSpark tensor in the main namespace fails separability")
-
-        # ...while the fixture's own `dspark.layers.N` root, which is past the
-        # end of the main stack, stays unambiguous. Separability is about
-        # namespace, not about which layer numbers happen to be reused.
         ck(status(gate, "DSpark") == "PASS",
            "an attached module under its own root is not flagged")
 
-        # 6. Experts with no scale tensors contradict README §1.
         noscale = make(tmp, "no-scale")
         def drop_scales(h):
             for k in [k for k in h if k.endswith(".weight_scale")]:
@@ -283,14 +246,13 @@ def main():
             wm.pop(k) for k in list(wm) if k.endswith(".weight_scale")])
         g, _, _ = run(noscale)
         ck(status(g, "one w1/w2/w3") == "FAIL",
-           "routed experts without scale tensors fail Gate 0")
+           "routed experts without scale tensors fail Gate A/V0")
 
         # ------------------------------------------------------ interface --
-        # --strict is what lets CI gate on this.
         rc_good = inventory.main([good, "--strict"])
         rc_bad = inventory.main([unk, "--strict"])
         ck(rc_good == 0, f"--strict exits 0 on a clean checkpoint ({rc_good})")
-        ck(rc_bad == 1, f"--strict exits 1 when Gate 0 fails ({rc_bad})")
+        ck(rc_bad == 1, f"--strict exits 1 when Gate A/V0 fails ({rc_bad})")
 
         jp = os.path.join(tmp, "inv.json")
         inventory.main([good, "--json", jp])
@@ -303,18 +265,26 @@ def main():
         rc_missing = inventory.main([os.path.join(tmp, "nope")])
         ck(rc_missing == 2, f"a missing checkpoint exits 2 ({rc_missing})")
 
-        # A shard that is not safetensors at all must be refused, not parsed
-        # into nonsense: containers and checkpoints are untrusted input.
         junk = make(tmp, "junk")
         with open(os.path.join(junk, only_shard(junk)), "wb") as f:
             f.write(b"\xff" * 64)
         rc_junk = inventory.main([junk])
         ck(rc_junk == 2, f"a corrupt shard is refused, not guessed ({rc_junk})")
 
+        # ------------------------------------------- acquisition + V1b --
+        # These are separate evidence classes from the synthetic inventory:
+        # fake HTTP validates transport/safety, while the F3 release fixture
+        # validates the actual scalar C path against pinned official source.
+        ck(fetch_headers_test.main() == 0,
+           "header-only Hugging Face fetcher passes its offline Range suite")
+        release_rc = release_quant_test.main()
+        ck(release_rc == 0,
+           "scalar FP4 path matches pinned 0731 nibble/scale convention fixture")
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    print("INVENTORY FAILED" if fails else "INVENTORY OK")
+    print("INVENTORY/REFERENCE FAILED" if fails else "INVENTORY/REFERENCE OK")
     return 1 if fails else 0
 
 
