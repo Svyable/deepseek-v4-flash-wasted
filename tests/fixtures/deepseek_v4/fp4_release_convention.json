@@ -1,0 +1,36 @@
+{
+  "fixture_version": 1,
+  "fixture_class": "F3-official-oracle",
+  "model_repo": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "model_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "source_files": [
+    "inference/convert.py",
+    "inference/kernel.py",
+    "inference/model.py"
+  ],
+  "operation": "native_fp4_storage_convention",
+  "claims": {
+    "packed_dtype": "float4_e2m1fn_x2",
+    "logical_weight_shape": "[out, in]",
+    "stored_weight_shape": "[out, in/2]",
+    "packing_axis": "K/last dimension",
+    "nibble_order": "lower logical K index is the low nibble; next K index is the high nibble",
+    "weight_scale_dtype": "float8_e8m0fnu",
+    "weight_scale_shape": "[out, in/32]",
+    "weight_scale_application": "multiply decoded FP4 value by the stored scale"
+  },
+  "literal_case": {
+    "packed_byte_hex": "21",
+    "ue8m0_scale_hex": "80",
+    "ue8m0_scale_value": 2.0,
+    "expected_logical_values": [1.0, 2.0],
+    "derivation": "0x21 -> low code 1 (0.5), high code 2 (1.0); official kernel multiplies by E8M0 scale 0x80 (=2.0)"
+  },
+  "source_evidence": [
+    "convert.py casts packed int8 bytes to uint8, extracts low=x&0x0F and high=(x>>4)&0x0F, then stacks [low, high] along K",
+    "kernel.py fp4_gemm uses one weight scale per 32 K values and multiplies GEMM partials by activation_scale * weight_scale",
+    "model.py allocates FP4 weights as [out, in//2] and FP4 scales as [out, in//32] in float8_e8m0fnu",
+    "convert.py renames weight_scale_inv to scale without reciprocating it"
+  ],
+  "evidence_state": "OFFICIAL-SPEC/SOURCE-VERIFIED; does not claim real checkpoint header bytes have been fetched"
+}
