@@ -125,6 +125,12 @@ cold routed bytes / decode token ≈ 3.45 GB ≈ 3.21 GiB
 
 This is **only a design estimate**. It deliberately excludes record headers/alignment and says nothing about cache hit rate. `tools/inventory.py` must replace estimates with exact checkpoint-derived numbers before we make any RAM, disk-size, or tokens/sec claim.
 
+> `tools/inventory.py` now exists and reproduces every figure above from a
+> synthetic checkpoint built to this section's spec — which confirms the
+> packing arithmetic and nothing about DeepSeek's actual weights. The
+> checkpoint has still never been read. `docs/INVENTORY-0731.md` tracks
+> what is blocking that and what to run when it clears.
+
 The important takeaway is architectural: at top-6, a token needs a tiny fraction of each layer's 256 routed experts. That is exactly the access pattern WASTE was designed to exploit.
 
 ---
@@ -1133,10 +1139,20 @@ Each experiment needs a kill criterion and a permanent negative-result entry if 
 
 Do these in order:
 
-- [ ] Bootstrap pinned WASTE source and prove `make check` still passes.
-- [ ] Add WASTE Apache-2.0 + DeepSeek MIT attribution files.
-- [ ] Implement `tools/inventory.py` using safetensors headers only.
-- [ ] Produce `docs/INVENTORY-0731.md` with exact byte totals.
+- [x] Bootstrap pinned WASTE source and prove `make check` still passes.
+      Imported `d9b919a` verbatim; baseline was 31 passed / 0 failed / 12
+      skipped before any change. See `UPSTREAM.md`.
+- [x] Add WASTE Apache-2.0 + DeepSeek MIT attribution files. **WASTE only.**
+      The DeepSeek license text could not be fetched — `huggingface.co` is
+      denied by the egress policy of the environment this was bootstrapped
+      in — and was not written from memory. See `LICENSES/README.md`.
+- [x] Implement `tools/inventory.py` using safetensors headers only.
+      Tested against a synthetic checkpoint by `tests/test_inventory.py`,
+      wired into `make check`.
+- [ ] Produce `docs/INVENTORY-0731.md` with exact byte totals. **Blocked on
+      checkpoint access, not on code.** The tool is ready; `docs/INVENTORY-0731.md`
+      records the blocker and the exact commands to run. Every number in §1
+      remains an unverified estimate until this is done.
 - [ ] Build a Python oracle fixture generator around official `inference/model.py`.
 - [ ] Implement scalar E2M1 FP4 unpack + UE8M0 K32 scale in C.
 - [ ] Differential-test one `w1`, `w3`, and `w2` matrix tile.

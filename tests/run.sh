@@ -1014,6 +1014,22 @@ else
     sk "tokenizer diff" "needs uv, a container and source weights"
 fi
 
+# --------------------------------------------------- checkpoint inventory ----
+head_ "checkpoint inventory"
+
+# tools/inventory.py is what turns README §1's estimates into measurements,
+# so the thing worth testing is that it never invents one: absent shards
+# have to become SKIPs and unresolved counts, not confident zeros. Runs
+# against a synthetic header-only checkpoint, so it needs no weights.
+if ! command -v python3 >/dev/null 2>&1; then
+    sk "inventory.py" "python3 not installed"
+elif out=$(python3 tests/test_inventory.py 2>&1); then
+    ok "inventory measures what it read and refuses to guess the rest"
+else
+    no "inventory.py"
+    printf '%s\n' "$out" | grep -E "FAIL|Error|Traceback" | head -5
+fi
+
 # ------------------------------------------------------------ converter ----
 head_ "converter"
 
