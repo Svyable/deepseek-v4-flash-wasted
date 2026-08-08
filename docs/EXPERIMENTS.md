@@ -160,19 +160,19 @@ This is recorded as an experiment because it is exactly the kind of self-confirm
 
 ## Candidate experiments after base correctness
 
-These are hypotheses, not planned conclusions. Run only after the gate that makes the result interpretable.
+These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.
 
-- Native FP4 versus WASTE VQ3R/VQ4P quality/footprint/performance.
-- LFRU versus LRU versus other bounded-cache policies on real V4 routing traces.
-- Deterministic early-layer prefetch if official routing confirms it.
-- Predictive lookahead for learned routers.
-- Chunked prefill distinct-expert reduction.
-- Expert-parallel versus row-parallel CPU execution.
-- FP4 SIMD variants and activation quantization.
-- Resident embedding/head versus row-on-demand strategies if the RAM floor requires it.
-- Direct I/O versus page-cache behavior by OS/filesystem.
-- CPU placement/thread counts.
-- Metal/CUDA offload only after profiling identifies a movable bottleneck.
-- DSpark acceptance/speed/memory tradeoff after base V9 correctness.
+- Native FP4 versus WASTE VQ3R/VQ4P quality/footprint/performance — after Gate I/V8 + Gate K/V9 native baseline.
+- LFRU versus LRU versus other bounded-cache policies on real V4 routing traces — Gate M, while Gate G remains true.
+- Deterministic early-layer prefetch if Gate A/V0 confirms official routing representation — Gate G correctness, Gate M performance.
+- Predictive lookahead for learned routers — Gate G correctness, then Gate M/performance.
+- Chunked prefill distinct-expert reduction — preserve Gate G and Gate I/V8/K/V9 numerics.
+- Expert-parallel versus row-parallel CPU execution — after the relevant model V-level is stable.
+- FP4 SIMD variants and activation quantization — after Gate B/V1 + Gate C/V2.
+- Resident embedding/head versus row-on-demand strategies if the RAM floor requires it — planner + Gate G/L measurement.
+- Direct I/O versus page-cache behavior by OS/filesystem — Gate G correctness, Gate L performance.
+- CPU placement/thread counts — benchmark only after the measured model path is sufficiently correct.
+- Metal/CUDA offload only after profiling identifies a movable bottleneck and the scalar/official gate passes.
+- DSpark acceptance/speed/memory tradeoff — Gate N after Gate I/V8 + Gate K/V9.
 
 Each candidate gets its own numbered entry whether it succeeds or fails.
