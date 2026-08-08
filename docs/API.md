@@ -6,6 +6,13 @@ WASTE already has a useful architecture: an embeddable C library, a CLI that is 
 
 Imported `docs/SERVE.md` describes Kimi XTML and remains upstream reference material. DeepSeek requires its own official encoding/parser semantics.
 
+Gate terminology follows `docs/VALIDATION.md` §4a:
+
+- **README Gate K / V9** proves deterministic base-model generation;
+- **README Gate J / V10** proves tokenizer/conversation encoding and response parser semantics;
+- **V11** proves the OpenAI-compatible API surface and intentionally has no README letter;
+- **Gate N** governs DSpark; speculative tokens may never bypass the committed-output boundary.
+
 ## 1. Architectural rule
 
 > If the CLI or server needs an inference capability, expose it through the public C API first.
@@ -84,7 +91,7 @@ Plan output should include the rows described in `MEMORY_AND_IO.md`.
 
 The server should use the same planner as the CLI. It must not allocate a second independent expert cache or infer memory limits itself.
 
-## 5. Tokenization/encoding boundary
+## 5. Tokenization/encoding boundary — Gate J / V10
 
 DeepSeek 0731 supplies code-based encoding behavior. Separate two concepts:
 
@@ -98,9 +105,9 @@ Python server/host renders structured messages, tools and response constraints i
 
 This mirrors the useful design principle in imported WASTE `serve/`: protocol/chat logic belongs in Python; arithmetic/model state belongs in C.
 
-Do **not** assume DeepSeek uses Kimi's markup/token split. Port what official `encoding/` does and test exact token sequences.
+Do **not** assume DeepSeek uses Kimi's markup/token split. Port what official `encoding/` does and test exact token sequences under Gate J/V10.
 
-## 6. Response parser
+## 6. Response parser — Gate J / V10
 
 If official DeepSeek output uses structured reasoning/tool regions, the server needs an incremental parser that can consume generated token IDs/pieces and emit OpenAI-compatible deltas.
 
@@ -110,9 +117,9 @@ Requirements:
 - malformed/truncated output is handled as data, not a process crash;
 - streaming and non-streaming use the same parser semantics;
 - literal text that resembles structural markers must not be misparsed when token identity can distinguish it;
-- committed token state is distinct from speculative DSpark tokens.
+- committed token state is distinct from speculative Gate N/DSpark proposals.
 
-## 7. OpenAI-compatible HTTP scope
+## 7. OpenAI-compatible HTTP scope — V11
 
 Use the imported server as the implementation base instead of replacing it with an unrelated serving stack.
 
@@ -121,10 +128,12 @@ The initial DeepSeek milestone should expose only endpoints/features that can be
 1. health/model information;
 2. non-streaming chat completions;
 3. streaming chat completions;
-4. tools/structured output only after official encoding/parser parity;
+4. tools/structured output only after Gate J/V10 encoder/parser parity;
 5. optional project-specific controls such as DSpark only through clearly documented extensions, not fake standard OpenAI fields.
 
 Preserve compatibility where practical, but model correctness takes precedence over mimicking unsupported API features.
+
+V11 is an operational rung with no README §18 letter. It sits on top of Gate K/V9 model generation and Gate J/V10 encoding/parser correctness.
 
 ## 8. Model naming
 
@@ -152,15 +161,15 @@ Map request fields onto the existing public generation API deliberately:
 
 Fields with no faithful implementation should fail clearly or be documented as unsupported, not be ignored silently.
 
-## 10. Streaming
+## 10. Streaming — V11 with Gate N boundary
 
-The server should emit SSE deltas from committed model output.
+The server should emit SSE deltas from **committed** model output.
 
 Requirements:
 
 - client disconnect/cancellation should stop generation promptly where the native API supports cancellation;
 - stats are finalized even on cancellation where possible;
-- DSpark proposals are never streamed before they are accepted/committed;
+- Gate N/DSpark proposals are never streamed before they are accepted/committed;
 - parser state is incremental and identical to the non-streaming parse when concatenated;
 - UTF-8/token boundary handling is tested.
 
@@ -225,15 +234,16 @@ Do not load the model inside Streamlit's script-rerun lifecycle. The server shou
 
 Before calling serving complete:
 
-- [ ] official DeepSeek encoder tests pass token-for-token;
-- [ ] parser tests pass including malformed/truncated cases;
-- [ ] direct C generation and server generation match for deterministic request;
-- [ ] streaming concatenation equals non-streaming output;
-- [ ] unknown model/unsupported fields fail clearly;
-- [ ] context/RAM/read errors are propagated safely;
-- [ ] client cancellation tested;
-- [ ] server does not change RAM/cache plan relative to equivalent CLI run;
-- [ ] DSpark disabled/enabled modes obey `DSPARK.md`;
-- [ ] `VALIDATION.md` V8/V9 already pass on the underlying model.
+- [ ] **Gate I / V8** final-logit parity passes on the underlying model;
+- [ ] **Gate K / V9** deterministic base generation passes;
+- [ ] **Gate J / V10** official DeepSeek encoder tests pass token-for-token;
+- [ ] **Gate J / V10** parser tests pass including malformed/truncated cases;
+- [ ] **V11** direct C generation and server generation match for deterministic request;
+- [ ] **V11** streaming concatenation equals non-streaming output;
+- [ ] **V11** unknown model/unsupported fields fail clearly;
+- [ ] **V11** context/RAM/read errors are propagated safely;
+- [ ] **V11** client cancellation tested;
+- [ ] **V11** server does not change RAM/cache plan relative to equivalent CLI run;
+- [ ] **Gate N** DSpark disabled/enabled modes obey `DSPARK.md` if speculative serving is enabled.
 
 API compatibility is the last layer over a correct model, not evidence that the model is correct.
