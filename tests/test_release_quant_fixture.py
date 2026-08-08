@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Replay pinned 0731 quantization evidence through the scalar C seams.
+"""Replay pinned 0731 source evidence through the scalar/classifier seams.
 
 The FP4 expected values come from a small F3 fixture derived from the pinned
-official release source. After that source-convention check passes, the driver
-runs the model-free Gate C/V2 scalar-linear preflight. The latter is a
-source-derived arithmetic check only; it does not claim a real projection gate.
+official release source. The driver also pins the official bootstrap-routing
+spellings recognized by the inventory classifier and then runs the model-free
+Gate C/V2 scalar-linear preflight. Gate C itself still requires a real official
+projection fixture.
 """
 
 import json
@@ -18,9 +19,12 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.join(REPO, "tests")
-if TESTS not in sys.path:
-    sys.path.insert(0, TESTS)
+TOOLS = os.path.join(REPO, "tools")
+for path in (TESTS, TOOLS):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
+import inventory  # noqa: E402
 import test_v2_linear_ref  # noqa: E402
 
 FIXTURE = os.path.join(
@@ -38,7 +42,27 @@ def compiler():
     return None
 
 
+def check_release_router_names():
+    """Pin the two bootstrap-routing spellings found in official 0731 source."""
+    cases = (
+        "model.layers.0.mlp.gate.tid2eid",
+        "model.layers.1.mlp.gate.tie2eid",
+    )
+    for name in cases:
+        row = inventory.classify(name, 43)
+        if row["subsystem"] != "router_hash" or row["module"] != "main":
+            print(
+                f"FAIL: official bootstrap route name {name!r} classified as "
+                f"{row['subsystem']}/{row['module']}")
+            return 1
+    print("PASS pinned 0731 tid2eid/tie2eid inventory classification")
+    return 0
+
+
 def main():
+    if check_release_router_names() != 0:
+        return 1
+
     cc = compiler()
     if not cc:
         print("SKIP: no C compiler available")
