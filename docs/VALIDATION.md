@@ -357,30 +357,49 @@ Test the existing WASTE server architecture with the DeepSeek encoder/model path
 
 API success is not a substitute for V8/V9.
 
-## 4a. Concordance with the handoff plan's gates
+## 4a. Canonical concordance: README gates A–N, V-levels, and ROADMAP phases
 
-`README.md` predates this document and names its own gates/PR sequence. `ROADMAP.md` groups the same work into Phases 0–9. To avoid multiple incompatible status vocabularies, **cite the `V`-level in implementation PRs** and use phases only for scheduling.
+`README.md` §18 defines **14 stable design gates, A through N**. This table maps **every one of those 14 gates** to the operational validation level or systems/performance owner used by the maintained docs. `ROADMAP.md` phases are schedule only.
 
-| This doc | Handoff concept | ROADMAP | Owning documents |
-|---|---|---|---|
-| **V0** checkpoint inventory | inventory / Gate 0 | Phase 1 | `INVENTORY-0731.md`, `TENSOR_MAP.md`, `REFERENCE_ACCESS.md` |
-| **V1** native quantization decode | quantization decode | Phase 3 | `NUMERICS.md`, `FIXTURES.md`, this document |
-| **V2** one quantized linear | projection parity | Phase 3 | `NUMERICS.md`, this document |
-| **V3** model primitives | primitive parity | Phase 5 | `ARCHITECTURE.md`, `DEEPSEEK_V4.md` |
-| **V4** one MoE block | MoE parity | Phase 5 | `ARCHITECTURE.md`, this document |
-| **V5** one attention block | attention parity | Phase 5 | `DEEPSEEK_V4.md`, this document |
-| **V6** one transformer layer | layer parity | Phase 5 | this document |
-| **V7** multi-layer states | multi-layer localization | Phase 5 | this document |
-| **V8** final logits | end-to-end numerical parity | Phase 5 | this document |
-| **V9** greedy generation | token parity | Phase 5 | this document |
-| **V10** encoding/parser | prompt/output protocol parity | Phase 7 | `API.md` |
-| **V11** OpenAI-compatible API | serving parity | Phase 7 | `API.md` |
+Use both identifiers when a README gate has a V-level:
 
-Systems/performance gates such as disk/cache identity, storage bandwidth, cache curves, and DSpark are graded in `MEMORY_AND_IO.md`, `BENCHMARKS.md`, `DSPARK.md`, and the cache matrix below rather than by replacing numerical V-levels.
+```text
+Gate B / V1
+Gate H / V6
+Gate K / V9
+```
 
-When this document and older handoff ordering disagree about the validation ladder, this document wins because it is maintained with the tests. Neither overrides the official checkpoint/reference.
+For README systems/performance gates that intentionally have no V-number, cite the letter directly (`Gate G`, `Gate L`, `Gate M`, `Gate N`). Do not invent a fake V-level merely to make the table rectangular.
 
-## 5. Cache and I/O correctness matrix
+Conversely, this maintained ladder has two operational rungs that README §18 never gave letters: `V7` multi-layer localization and `V11` API parity. They are listed after A–N so the asymmetry is explicit rather than silently dropping either vocabulary.
+
+| README gate | This doc / operational gate | Handoff concept | ROADMAP | Owning documents |
+|---|---|---|---|---|
+| **A** — checkpoint inventory | **V0** | checkpoint inventory / storage truth | Phase 1 | `INVENTORY-0731.md`, `TENSOR_MAP.md`, `REFERENCE_ACCESS.md` |
+| **B** — native FP4 decode | **V1** | native quantization decode + DeepSeek byte/scale convention agreement | Phase 3 | `NUMERICS.md`, `FIXTURES.md`, this document |
+| **C** — FP8 trunk linear | **V2** | one official quantized trunk projection | Phase 3 | `NUMERICS.md`, this document |
+| **D** — mHC | **V3** | mHC and model-primitive parity | Phase 5 | `ARCHITECTURE.md`, `DEEPSEEK_V4.md`, this document |
+| **E** — attention by type | **V5** | attention-mode parity (ratio 0 / 128 / 4 + incremental state) | Phase 5 | `DEEPSEEK_V4.md`, this document |
+| **F** — routing + one MoE layer | **V4** | routing/shared/routed MoE parity | Phase 5 | `ARCHITECTURE.md`, this document |
+| **G** — disk vs cache identity | **Gate G systems correctness** | placement changes timing, never bytes/numerics | Phase 6 | §5 below, `MEMORY_AND_IO.md` |
+| **H** — one complete transformer block | **V6** | complete block/layer parity | Phase 5 | this document |
+| **I** — 43-layer base forward | **V8** | final base-model hidden/logit parity | Phase 5 | this document |
+| **J** — tokenizer/encoding | **V10** | exact official prompt/token/parser semantics | Phase 7 | `API.md`, this document |
+| **K** — generation | **V9** | deterministic greedy token parity | Phase 5 / 7 | this document, `API.md` |
+| **L** — real storage | **Gate L performance feasibility** | real aligned expert-record I/O on target storage | Phase 6 / 8 | `MEMORY_AND_IO.md`, `BENCHMARKS.md` |
+| **M** — cache curve | **Gate M performance feasibility** | routing-derived cache hit/traffic/throughput curve | Phase 6 / 8 | `MEMORY_AND_IO.md`, `BENCHMARKS.md` |
+| **N** — DSpark | **Gate N speculative correctness + performance** | official speculative acceptance parity + measured wall-clock benefit | Phase 9 | `DSPARK.md`, `BENCHMARKS.md` |
+| — | **V7** | multi-layer hidden-state localization | Phase 5 | this document |
+| — | **V11** | OpenAI-compatible API parity | Phase 7 | `API.md`, this document |
+
+Two ordering details are deliberate:
+
+1. README **Gate E** (attention) maps to `V5`, while README **Gate F** (MoE) maps to `V4`. The maintained V-ladder brings up one MoE block before the full compressed-attention machinery because that seam can be isolated earlier. The README letters remain stable design identifiers; the V-order remains the operational test order.
+2. README **Gate J** (encoding) maps to `V10`, while **Gate K** (generation) maps to `V9`. Raw/known-token greedy generation can establish model arithmetic before the full chat encoder/parser surface is complete; user-facing chat generation ultimately requires both.
+
+When this document and older handoff ordering disagree about the *operational order* of validation, this document wins because it is maintained with the tests. The README letters still identify the original design gate and rationale. Neither overrides the official checkpoint/reference.
+
+## 5. Cache and I/O correctness matrix — README Gate G
 
 For the same token sequence/container, compare:
 
@@ -475,11 +494,13 @@ An optimized kernel/path lands only when:
 - it passes the same independent fixture suite;
 - the scalar baseline being matched has itself passed the relevant official-reference gate;
 - real-model V8/V9 do not regress once available;
+- README Gate G remains true for placement/cache changes;
+- relevant Gate L/M storage/cache measurements remain valid for performance claims;
 - the benchmark records the hardware/configuration where the speedup exists;
 - memory usage does not silently violate the planner;
 - failures fall back safely where a backend is optional.
 
-A SIMD path matching a scalar implementation that is still wrong about nibble order is not model correctness. This is why V1b/V2 precede SIMD.
+A SIMD path matching a scalar implementation that is still wrong about nibble order is not model correctness. This is why Gate B/V1 and Gate C/V2 precede SIMD.
 
 ## 10. Result recording template
 
@@ -492,6 +513,8 @@ Model revision:
 Reference source path/hash:
 Container/converter revision:
 Hardware / OS:
+README gate letter(s):
+Operational V-level / systems gate:
 Operation/gate:
 Reference command:
 C command:
