@@ -42,6 +42,18 @@ Do this once Actions can run — check **Settings → Actions** and the
 account's billing page first, otherwise the next PR goes red again for the
 same reason.
 
+**Widen the SPDX glob when you restore it.** The workflow's header check
+globs `src/*.c` and `src/*.h`, which does not recurse — it would not see
+`src/quant/` at all, and would report "ok: all source files carry the
+header" while checking none of them. The port now keeps sources in
+subdirectories, so that step needs `src/**/*.c` and `src/**/*.h` added.
+
+Until then the recursive version runs in `tests/run.sh` under "quantization
+decode", so the check is live; it is only the parked copy that is stale.
+That is the safer failure of the two, but it is still a check that would
+pass by looking in the wrong place — fix the glob rather than assume the
+suite covers it forever.
+
 ### Meanwhile
 
 The suite still runs, and is still the gate; it just runs by hand:

@@ -116,6 +116,23 @@ Files/paths in this tree that are **not** verbatim upstream WASTE include:
 - `tests/test_inventory.py` — tests for the inventory tool.
 - `docs/INVENTORY-0731.md` — inventory status/results (checkpoint access pending).
 
+### Phase 3 — native quantization decoders
+
+- `src/quant/fp4_e2m1.{c,h}` — E2M1 + UE8M0 K32 scalar decode and matvec.
+- `src/quant/fp8_e4m3.{c,h}` — E4M3 (finite variant) + 128×128 block scales.
+- `tests/test_quant.c` — exhaustive format conformance, gate V1.
+
+### Imported files modified locally
+
+Apache-2.0 §4(b) requires a modified file to say so, and each of these
+carries that notice in its own header:
+
+- `Makefile` — `src/quant/` added to `SRC`; `test_quant` target added.
+- `tests/run.sh` — "quantization decode" and "checkpoint inventory"
+  sections, plus a recursive SPDX check.
+- `.github/workflows/ci.yml` — **not modified**, only moved to
+  `.github/workflows-disabled/`. It is byte-identical to the import.
+
 ### DeepSeek-specific documentation
 
 - `docs/README.md` — documentation/evidence map separating local docs from the
