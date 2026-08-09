@@ -16,9 +16,7 @@ int waste_ds_v4_rmsnorm_ref(const float *x, const float *weight,
                             size_t n, float eps, float *out);
 
 /* Per-head Q normalization is NOT the RMSNorm module. The pinned source does
- * q *= rsqrt(q.square().mean(-1)+eps) directly on the BF16 q tensor. This
- * reference preserves the visible BF16 boundaries of square/mean/+eps/rsqrt/
- * final multiply while using f32 opmath/reduction internally. */
+ * q *= rsqrt(q.square().mean(-1)+eps) directly on the BF16 q tensor. */
 int waste_ds_v4_head_rmsnorm_bf16_ref(const float *x, size_t n,
                                       float eps, float *out);
 
@@ -39,19 +37,8 @@ int waste_ds_v4_sparse_attn_head_ref(const float *q,
                                      float *out);
 
 /* Ratio-0 Attention.forward seam through inverse-RoPE sparse-attention output.
- * It deliberately stops before grouped wo_a/wo_b; that output projection is a
- * subsequent Gate-E sub-seam.  This function proves the DeepSeek-specific
- * query/KV preparation and sparse attention core without mixing in CSA/HCA.
- *
- * Fixed 0731 geometry used here:
- *   input hidden 4096, q LoRA rank 1024, KV 512,
- *   head dim 512, rope dim 64, K64 KV QAT, window 128.
- *
- * q_b_weight contains exactly n_heads*512 output rows and q_b_scale contains
- * ceil(n_heads*512/128) scale rows, each with 1024/128 columns.
- * q_after_rope, kv_after_qat and attn_after_inverse_rope are optional
- * diagnostics (NULL allowed) with shapes [seqlen,n_heads,512], [seqlen,512],
- * and [seqlen,n_heads,512], respectively. */
+ * It deliberately stops before grouped wo_a/wo_b; output projection is tested
+ * independently below so attention-core failures remain localizable. */
 int waste_ds_v4_attention_ratio0_prefill_ref(
     const float *x, size_t seqlen, size_t n_heads,
     const uint8_t *wq_a_weight, const uint8_t *wq_a_scale_e8m0,
@@ -64,5 +51,34 @@ int waste_ds_v4_attention_ratio0_prefill_ref(
     float *q_after_rope,
     float *kv_after_qat,
     float *attn_after_inverse_rope);
+
+/* One complete output-projection group.
+ *
+ * Official source reshapes 64 attention heads into 8 groups, each containing
+ * 8*512 = 4096 BF16 values. Checkpoint wo_a is FP8 E4M3 + E8M0 scale, but the
+ * official converter dequantizes it to BF16 before the einsum. For one group:
+ *
+ *   group_input[4096]
+ *     x BF16(dequant(wo_a_group[1024,4096])) -> group_lora[1024] BF16
+ *
+ * The 8 group latents are flattened to 8192 then fed to quantized wo_b. This
+ * bounded seam places `group_lora` at group_index and zeros all other groups,
+ * then evaluates `out_rows` real wo_b rows. It proves wo_a dequant/orientation,
+ * group placement, and wo_b quantized-linear semantics without pretending a
+ * synthetic group vector is the full 64-head attention output.
+ *
+ * wo_a_scale is the group's [8,32] E8M0 block grid. wo_b_scale_rows supplies
+ * one 64-entry scale-grid row when out_rows <= 128.
+ */
+int waste_ds_v4_attention_output_group_ref(
+    const float *group_input,
+    size_t group_index,
+    const uint8_t *wo_a_weight,
+    const uint8_t *wo_a_scale_e8m0,
+    const uint8_t *wo_b_rows,
+    const uint8_t *wo_b_scale_rows_e8m0,
+    size_t out_rows,
+    float *group_lora_out,
+    float *out);
 
 #endif /* WASTE_DEEPSEEK_V4_ATTENTION_REF_H */
