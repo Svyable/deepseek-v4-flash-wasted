@@ -156,6 +156,9 @@ int waste_ds_v4_compressor_ratio128_prefill_ref(
     const float *ape,
     const float *norm_weight,
     float norm_eps,
+    float *pooled_bf16_out,
+    float *norm_out,
+    float *rope_out,
     float *out)
 {
     if (!x || !wkv_bf16 || !wgate_bf16 || !ape || !norm_weight || !out ||
@@ -191,9 +194,20 @@ int waste_ds_v4_compressor_ratio128_prefill_ref(
         for (size_t d = 0; d < DS_KV; d++)
             pooled_bf16[d] = bf16(pooled[d]);
         float *dst = out + chunk * DS_KV;
+
+        /* Diagnostics are copies taken at the stage boundaries the pipeline
+         * already has, never a second evaluation: a diagnostic that recomputed
+         * its stage could agree with the fixture while the path feeding `out`
+         * disagreed, which is the failure the boundaries exist to localize. */
+        if (pooled_bf16_out)
+            memcpy(pooled_bf16_out + chunk * DS_KV, pooled_bf16,
+                   DS_KV * sizeof(float));
+
         if (waste_ds_v4_rmsnorm_ref(
                 pooled_bf16, norm_weight, DS_KV, norm_eps, dst) != 0)
             goto done;
+        if (norm_out)
+            memcpy(norm_out + chunk * DS_KV, dst, DS_KV * sizeof(float));
 
         /* Prefill takes freqs_cis[::ratio], so chunk i uses token position i*128. */
         if (waste_ds_v4_compressed_rope_ref(
@@ -201,6 +215,8 @@ int waste_ds_v4_compressor_ratio128_prefill_ref(
                 DS_ORIGINAL_SEQ, DS_COMPRESS_BASE, DS_YARN_FACTOR,
                 DS_BETA_FAST, DS_BETA_SLOW) != 0)
             goto done;
+        if (rope_out)
+            memcpy(rope_out + chunk * DS_KV, dst, DS_KV * sizeof(float));
 
         if (waste_ds_v4_fp8_sim_inplace_ref(
                 dst, DS_NOPE, DS_QAT_BLOCK) != 0)

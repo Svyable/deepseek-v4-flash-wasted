@@ -28,7 +28,8 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #7 real layer-0 mHC | **D/V3 mHC** | **DONE**, `eac344236d5f3bd5544188ab2a229faa8e3ead6c` |
 | PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **DONE**, `632f0b3ba36a033713702fda2daecf44ac0946aa` |
 | PR #9 ratio-0 attention + grouped output projection | **E/V5 partial** | **DONE**, `093081efc4a9f583a1962bcb69e05a20d57c1585` |
-| ratio-128 compressed attention | **E/V5** | **NEXT** |
+| ratio-128 compressor | **E/V5** | scalar + model-free **PASSED**; real fixture **PENDING** (needs HF access) |
+| ratio-128 compressed-history attention | **E/V5** | **NEXT**, on top of the compressor |
 | ratio-4 CSA/indexer attention | **E/V5** | after ratio-128; completes Gate E |
 | one full transformer layer | **H/V6** | after E/V5 attention variants |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |

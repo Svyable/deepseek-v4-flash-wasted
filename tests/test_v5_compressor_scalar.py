@@ -125,9 +125,11 @@ def main():
                          ctypes.c_size_t, ctypes.c_size_t, ctypes.c_float, ctypes.c_float,
                          ctypes.c_float, ctypes.c_float]
         x = [bf16(0.0)] * 512
-        x[448] = bf16(1.0)
+        x[448] = bf16(1.0)       # rope pair 0  — ramp clamps to 0, extrapolated
         x[449] = bf16(-0.25)
-        x[510] = bf16(0.5)
+        x[488] = bf16(0.5)       # rope pair 20 — ramp 0.5, the blended interior
+        x[489] = bf16(0.75)
+        x[510] = bf16(0.5)       # rope pair 31 — ramp clamps to 1, interpolated
         x[511] = bf16(0.75)
         pos0 = arr_f(x)
         assert rope(pos0, 512, 64, 0, 65536, 160000.0, 16.0, 32.0, 1.0) == 0
@@ -143,12 +145,44 @@ def main():
         assert bf16_bits(pos128[448]) == bf16_bits(e0)
         assert bf16_bits(pos128[449]) == bf16_bits(e1)
 
-        # Compressed YaRN must differ from ordinary base-10000 RoPE at pos128.
-        base_a = 128.0
-        plain0 = bf16(x[448]*math.cos(base_a) - x[449]*math.sin(base_a))
-        plain1 = bf16(x[448]*math.sin(base_a) + x[449]*math.cos(base_a))
-        assert (bf16_bits(pos128[448]), bf16_bits(pos128[449])) != \
-               (bf16_bits(plain0), bf16_bits(plain1))
+        # Pair 0 cannot witness YaRN, and asserting that it does is worse than
+        # not asserting: base**(-0/dim) == 1 for every base, and the ramp at
+        # these betas spans low=15..high=25, so pair 0 is fully extrapolated
+        # (smooth=1) and neither `base` nor `factor` reaches the angle. The
+        # compressed and plain schemes are bit-identical there by construction.
+        # This check therefore used to demand they differ at pair 0, which no
+        # implementation can satisfy — and everything above it still passed
+        # when yarn_freq was mutated to `return freq`, dropping factor and ramp
+        # altogether. Pin the coincidence as the invariant it actually is:
+        plain_a0 = 128.0 * 1.0
+        same0 = bf16(x[448]*math.cos(plain_a0) - x[449]*math.sin(plain_a0))
+        same1 = bf16(x[448]*math.sin(plain_a0) + x[449]*math.cos(plain_a0))
+        assert (bf16_bits(pos128[448]), bf16_bits(pos128[449])) == \
+               (bf16_bits(same0), bf16_bits(same1))
+
+        # Pair 20 is the witness that discriminates. The ramp spans low=15 to
+        # high=25, so pair 20 sits at ramp=0.5 — the interior, where the result
+        # is a genuine blend of interpolated and extrapolated frequency rather
+        # than a clamped endpoint. Pair 31 clamps to ramp=1 and its angles at
+        # position 128 (7.3e-05 against 1.2e-03) both round to the same BF16
+        # near 0.5, so it cannot see a dropped interpolation; pair 20's
+        # 0.038 against 0.072 can.
+        def rot(re, im, ang):
+            return (bf16(re*math.cos(ang) - im*math.sin(ang)),
+                    bf16(re*math.sin(ang) + im*math.cos(ang)))
+
+        got20 = (bf16_bits(pos128[488]), bf16_bits(pos128[489]))
+        want20 = rot(x[488], x[489], 128.0 * yarn_freq(20))
+        assert got20 == (bf16_bits(want20[0]), bf16_bits(want20[1])), (got20, want20)
+
+        # Two wrong frequencies for the same pair, each a one-line mistake:
+        # ordinary base-10000 RoPE, and base-160000 with the YaRN blend
+        # dropped. Both must produce a different answer than the contract.
+        raw20 = 1.0 / (160000.0 ** ((2*20)/64))          # no interpolation
+        plain20 = 1.0 / (10000.0 ** ((2*20)/64))         # wrong base entirely
+        for wrong_freq, label in ((raw20, "un-blended"), (plain20, "base-10000")):
+            w = rot(x[488], x[489], 128.0 * wrong_freq)
+            assert got20 != (bf16_bits(w[0]), bf16_bits(w[1])), label
 
     print("PASS Gate E ratio-128 compressor scalar semantics: per-dim pooling + compressed YaRN")
     return 0

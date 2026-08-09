@@ -194,6 +194,43 @@ This is the maintenance cost being paid within hours of being written down, and 
 
 ---
 
+## 7 — 2026-08-09 — A mutation check placed where the two schemes provably coincide
+
+**Question:** `tests/test_v5_compressor_scalar.py` claims to pin that the ratio-128 compressor's compressed YaRN RoPE differs from ordinary base-10000 RoPE. Does that check discriminate?
+
+**Protects:** Gate E/V5 ratio-128, and every attention mode built on the compressor. A wrong RoPE frequency is not a crash — it is a model that reads slightly the wrong positions, which surfaces at V8 logits with 43 layers of candidates in between.
+
+**README gate letter(s):** E. **Operational V-level:** V5 ratio-128 model-free half.
+
+**Evidence state:** MEASURED on this checkout. No checkpoint access used; Hugging Face remains CONNECT 403 here (entry 5).
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64.
+
+**Method:** the check was failing outright, which is what drew attention to it. It asserted that rope pair 0 at position 128 differs between compressed YaRN (base 160000, factor 16) and plain base-10000 RoPE. Then six single-line mutations were applied to `yarn_freq` and the rotation in `src/deepseek_v4_compressor_ref.c`, each rebuilt and re-run.
+
+**Result:** the assertion is unsatisfiable, and the surrounding checks were blind.
+
+`base**(-0/dim) == 1` for every base, so pair 0 has inv_freq 1.0 whether the base is 10000 or 160000. With `beta_fast=32, beta_slow=1` the YaRN ramp spans low=15 to high=25, so pair 0 is fully extrapolated (`smooth=1`) and `factor` never reaches the angle either. Both schemes compute exactly `angle = 128.0` and produce bit-identical BF16. No implementation can satisfy the assertion.
+
+Worse, pair 0 was also the *only* pair the test verified against an independent YaRN equation — the one pair where base, factor and ramp are all irrelevant. Mutating `yarn_freq` to `return freq`, dropping the interpolation entirely, left every check up to that point passing.
+
+| mutation | before | after |
+|---|---|---|
+| drop the YaRN blend, return raw freq | **survived** | killed |
+| always divide by factor, no ramp blend | killed | killed |
+| `smooth = ramp` (roles swapped) | killed | killed |
+| base 10000 instead of 160000 | killed | killed |
+| RoPE applied to the head instead of the tail | killed | killed |
+| sin sign flipped (rotation direction) | killed | killed |
+
+**Verdict:** a discrimination check is only as good as the point it is evaluated at. This is entry 3's lesson in a new shape: there the fixture shared a constant with the code, here it samples the one coordinate where the two candidate semantics are provably equal. Both produce a green check that cannot fail for the right reason.
+
+**Consequence:** the check moved to rope pair 20, which sits at ramp 0.5 — the blended interior, where the result is neither pure interpolation nor pure extrapolation. Its position-128 angles are 0.038 against 0.072 and separate cleanly in BF16. Pair 31 was considered and rejected: it clamps to ramp=1, but its angles (7.3e-05 against 1.2e-03) both round to the same BF16 near 0.5, so it cannot see a dropped blend either. Pair 0's coincidence is now asserted as the invariant it actually is — the two schemes *must* agree there — which turns a check that could only fail into one that can only fail if the geometry changes. Six of six mutations now die.
+
+**Follow-up:** when the real ratio-128 fixture is frozen, it will exercise all 32 pairs at once and subsume this. Until then the model-free half carries the whole gate, which is why it had to discriminate. The general rule for the remaining CSA/indexer work: **when pinning that A differs from B, first check that A and B are not equal by construction at the point sampled.**
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.
