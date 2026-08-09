@@ -1,0 +1,34 @@
+name: Gate E ratio-128 final replay
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio128
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-e-ratio128-final
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and ordinary frozen-fixture suite
+        run: |
+          make -j2
+          make check
+      - name: Sanitizers
+        run: make asan
+      - name: Verify frozen ratio-128 compressor evidence
+        run: |
+          test -f tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/provenance.json
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/pooled-before-norm.bf16.bin)" -eq 2048
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/post-norm.bf16.bin)" -eq 2048
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/post-yarn-rope.bf16.bin)" -eq 2048
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/compressed-kv.bf16.bin)" -eq 2048
