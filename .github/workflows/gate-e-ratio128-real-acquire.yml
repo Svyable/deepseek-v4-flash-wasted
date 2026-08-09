@@ -27,10 +27,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Model-free compressor preflight
+      - name: Model-free ratio-128 preflight
         run: |
           set -euo pipefail
           python3 tests/test_v5_compressor_scalar.py
+          python3 tests/test_v5_attention_history_scalar.py
 
       - name: Fetch immutable 0731 safetensors headers
         run: |
@@ -49,7 +50,7 @@ jobs:
           test "$(stat -c %s "$FIXTURE/wkv.bf16.bin")" -eq 4194304
           test "$(stat -c %s "$FIXTURE/wgate.bf16.bin")" -eq 4194304
           test "$(stat -c %s "$FIXTURE/ape.f32.bin")" -eq 262144
-          test "$(stat -c %s "$FIXTURE/norm.f32.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/norm.bf16.bin")" -eq 1024
           test "$(stat -c %s "$FIXTURE/pooled-before-norm.bf16.bin")" -eq 2048
           test "$(stat -c %s "$FIXTURE/post-norm.bf16.bin")" -eq 2048
           test "$(stat -c %s "$FIXTURE/post-yarn-rope.bf16.bin")" -eq 2048
