@@ -1,0 +1,87 @@
+name: PR5 Gate A validation
+
+on:
+  push:
+    branches:
+      - agent/gate-a-reference-acquisition
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr5-gate-a-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: build + model-free gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make -j2
+      - name: Check
+        run: make check
+      - name: Sanitizers
+        run: make asan
+
+  gate-a:
+    name: pinned 0731 real header inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      REF_DIR: reference/deepseek-v4-flash-0731
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch config, index, and all safetensors headers only
+        run: |
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" \
+            --revision "$REVISION" \
+            --out "$REF_DIR"
+      - name: Strict Gate A inventory
+        run: |
+          python3 tools/inventory.py "$REF_DIR" \
+            --strict \
+            --by-layer \
+            --json gate-a-inventory.json \
+            | tee gate-a-inventory.txt
+      - name: Verify 48-shard release coverage
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reference/deepseek-v4-flash-0731')
+          with open(root / 'model.safetensors.index.json', encoding='utf-8') as f:
+              idx = json.load(f)
+          shards = sorted(set(idx['weight_map'].values()))
+          assert len(shards) == 48, f'expected 48 shards, got {len(shards)}'
+          missing = [s for s in shards if not (root / s).is_file()]
+          assert not missing, f'missing header stubs: {missing[:5]}'
+
+          with open('gate-a-inventory.json', encoding='utf-8') as f:
+              inv = json.load(f)
+          assert inv['mode'] == 'headers', inv['mode']
+          assert not inv['missing_shards'], inv['missing_shards']
+          failures = [x for x in inv['gate0'] if x['status'] == 'FAIL']
+          assert not failures, failures
+          print(f'Gate A complete: {len(inv["tensors"])} tensors across {len(shards)} shards')
+          PY
+      - name: Upload Gate A evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr5-gate-a-evidence
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            gate-a-inventory.json
+            gate-a-inventory.txt
+            reference/deepseek-v4-flash-0731/reference_headers.json
+            reference/deepseek-v4-flash-0731/config.json
+            reference/deepseek-v4-flash-0731/model.safetensors.index.json
