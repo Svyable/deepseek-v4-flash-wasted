@@ -29,6 +29,10 @@ import test_v2_linear_ref  # noqa: E402
 import test_v2_real_projection  # noqa: E402
 import test_v3_mhc_scalar  # noqa: E402
 import test_v3_mhc_real  # noqa: E402
+import test_v3_router_scalar  # noqa: E402
+import test_v3_router_real  # noqa: E402
+import test_v4_routed_expert_real  # noqa: E402
+import test_v4_moe_real  # noqa: E402
 
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
@@ -161,8 +165,6 @@ int main(void) {{
         return 1
     print("PASS Gate C / V2 real checkpoint projection")
 
-    # Gate D is intentionally split into a model-free orientation/invariant
-    # test and a real checkpoint/source-oracle replay. Both must pass.
     if run_gate("Gate D model-free mHC invariants",
                 test_v3_mhc_scalar.main) != 0:
         return 1
@@ -170,6 +172,24 @@ int main(void) {{
                 test_v3_mhc_real.main) != 0:
         return 1
     print("PASS Gate D / V3 real checkpoint mHC primitive")
+
+    # Gate F is deliberately layered. A routing-only success is insufficient:
+    # the ordinary suite permanently replays learned/hash routing, one full
+    # routed FP4 expert, the resident shared FP8 expert, all six selected branch
+    # outputs, and the official f32 accumulation/final-BF16 combination.
+    if run_gate("Gate F model-free routing invariants",
+                test_v3_router_scalar.main) != 0:
+        return 1
+    if run_gate("Gate F real learned + hash routing",
+                test_v3_router_real.main) != 0:
+        return 1
+    if run_gate("Gate F real routed FP4 expert",
+                test_v4_routed_expert_real.main) != 0:
+        return 1
+    if run_gate("Gate F real shared expert + complete MoE",
+                test_v4_moe_real.main) != 0:
+        return 1
+    print("PASS Gate F / V4 complete routing + MoE")
 
     return 0
 

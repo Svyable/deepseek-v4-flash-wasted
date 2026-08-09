@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, and README Gate D mHC are passed at their stated scalar/model-semantic evidence levels for the pinned 0731 release. Gate D's mHC proof does not imply every primitive grouped under operational V3 is complete; router, RoPE, normalization, and expert activation seams remain before/alongside Gate F/V4 and Gate E/V5.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 routing+MoE are passed at their stated scalar/model-semantic evidence levels for the pinned 0731 release. Gate E/V5 attention is next. Storage/cache identity remains the separate Gate G systems proof.**
 
 Pinned model:
 
@@ -16,6 +16,7 @@ Primary maintained evidence docs:
 - `INVENTORY-0731.md` — real Gate A checkpoint result;
 - `NUMERICS.md` — Gates B/C quantization + real projection;
 - `MHC.md` — real Gate D Hyper-Connection result;
+- `ROADMAP.md` — current passed/next milestone sequence;
 - `FIXTURES.md` — independence/mutation policy;
 - `OFFICIAL-0731-SOURCE.md` — pinned source findings;
 - `REFERENCE_ACCESS.md` — bounded official-artifact acquisition.
@@ -46,6 +47,8 @@ Do not describe a source-equation CPU oracle as an official GPU-kernel execution
 Expected values must not be generated through the WASTE implementation under test.
 
 Round trips prove self-consistency. Silent conventions require independent literals, real checkpoint bytes, or independently evaluated official-source equations. Where practical, add a known-wrong mutation/orientation case that the fixture must reject.
+
+Gate F adds one useful pattern for expensive fixtures: a standalone expected-value producer may be optimized for fixture generation only if it shares no WASTE runtime helpers and is first cross-validated against an earlier exact independent fixture. `tools/v4_moe_oracle.c` is anchored bit-for-bit to the Fraction-based expert-2 fixture before producing the other routed/shared expected values.
 
 ---
 
@@ -129,11 +132,11 @@ Scalar C matches exact BF16 output bits:
 0x3e79 0xbf84 0x3f8d 0x400a 0x3ff3 0xbf9b 0x3f82 0x3ff0
 ```
 
-Gate C passes the scalar/model-semantic projection seam. Official TileLang/GPU execution was not claimed; optimized backends must match the frozen fixture later.
+Gate C passes the scalar/model-semantic projection seam. Official accelerator execution was not claimed; optimized backends must match the frozen fixture later.
 
 ### V3 — model primitives
 
-V3 is a bucket of independently provable primitive seams. It is **partially complete**.
+V3 is a bucket of independently provable primitive seams. It remains broader than any single README gate.
 
 #### README Gate D — mHC — **PASSED**
 
@@ -175,46 +178,105 @@ Final real combination matrix columns sum to approximately one; final rows inten
 
 See `MHC.md` for hashes and exact diagnostics.
 
-#### Remaining V3 seams — **OPEN**
+#### Other V3 primitive seams
 
-Still isolate before folding them into larger blocks:
+Routing primitive semantics are now exercised as part of passed Gate F/V4. Still isolate as attention bring-up requires them:
 
 - normalization outside the mHC-specific RMS calculation;
-- RoPE;
-- SwiGLU/clamp behavior;
-- learned router score transform, correction-bias selection, normalization/scaling;
-- hash-router ID + weight behavior;
-- attention projection/compression/indexer helper operations.
+- RoPE + inverse RoPE;
+- K64 KV QAT;
+- attention projection/compression/indexer helpers.
 
-The next high-leverage work is router/expert bring-up because it unlocks Gate F/V4 and uses the real checkpoint-resident `tid2eid` advantage.
+### V4 — routing + MoE — **PASSED / Gate F**
 
-### V4 — one routing/MoE block — **NEXT / Gate F**
-
-Required routing fixture fields:
+Pinned real learned-router representative, layer 3:
 
 ```text
-input hidden state
-raw router logits
-sqrt(softplus) scores
-selection scores after correction bias
-selected top-6 expert IDs/order
-routing weights gathered from original scores
-normalized × 1.5 weights
+selected IDs = [2,29,225,220,108,69]
+weights      = [0.263384104,0.251154065,0.248866215,
+                0.247819692,0.244902447,0.243873596]
+top-k boundary margin = 0.00040531158447265625
 ```
 
-Required expert/MoE fields:
+Pinned bootstrap/hash representative, layer 0 token 4242:
 
 ```text
-shared-expert output
-selected routed-expert outputs
-combined result
+selected IDs = [150,142,245,248,174,119]
+weights      = [0.248431414,0.267507851,0.247496858,
+                0.241705239,0.246138424,0.248720214]
 ```
 
-Test routed expert bytes both directly and through WASTE storage/cache. Placement may change latency, never arithmetic.
+The learned and hash scalar paths reproduce exact IDs/order. Float routing diagnostics have observed `max_abs = 9.53674316e-07` while retaining exact discrete decisions.
 
-### V5 — one attention block — **Gate E**
+#### Routed FP4 expert
 
-Create distinct fixtures for every proven attention mode, including sliding-window-only and compressed/indexed variants. Capture projection, compression, indexer selection, position and accumulation intermediates.
+Frozen representative:
+
+```text
+layer 3 / expert 2
+route weight = 0.2633841037750244
+```
+
+Real full `w1`/`w3` packed FP4 bytes + E8M0 scales and real first-eight `w2` rows replay through scalar C with exact gate/up diagnostics, exact hidden BF16, and exact output BF16:
+
+```text
+b96c b83c 39bf ba1c b988 3a81 389d 3a46
+```
+
+#### All six selected routed branches + shared resident FP8 expert
+
+Fixture:
+
+```text
+tests/fixtures/deepseek_v4/v4_moe_real/
+```
+
+All six selected routed experts were fetched from the pinned checkpoint and independently evaluated. To avoid freezing six redundant 12.75 MiB expert records, the extra five retain compact BF16 output slices plus source hashes; expert 2 remains the full permanent routed fixture.
+
+The shared expert is a distinct resident arithmetic path, so its full real `w1`/`w3` FP8 E4M3 weights + E8M0 scales and the first eight `w2` rows are frozen permanently. Scalar C reproduces its hidden and output BF16 exactly.
+
+Shared output first eight:
+
+```text
+3a2f ba40 b9b8 bad6 bb24 3a2e ba32 ba3e
+```
+
+#### Official combination order
+
+Pinned source semantics are tested explicitly:
+
+1. routed expert returns are BF16 values;
+2. selected branches accumulate into f32 in **ascending expert ID** because the source loops over expert IDs, not router top-k slots;
+3. the BF16 shared expert output is added once after routed accumulation;
+4. the result is finally cast to BF16.
+
+For the real representative the ascending-ID order is:
+
+```text
+[2,29,69,108,220,225]
+```
+
+The real top-k-versus-ID order happens to round to the same final BF16 vector. Therefore a separate model-free non-associativity mutation pins the ordering: IDs `[5,1,3]` with routed values `[1,2^30,-2^30]` yield `1` under official expert-ID order but `0` under top-k slot order in f32.
+
+Final complete real MoE first-eight output:
+
+```text
+b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
+```
+
+The successful branch gate also passed the inherited A–D suite and ASan/UBSan. The frozen Gate F fixtures are replayed by ordinary `make check`, not only by the temporary acquisition workflow.
+
+**Evidence boundary:** Gate F proves routing and MoE arithmetic from direct real checkpoint bytes. It does not yet prove that a converted WASTE expert record/cache supplies identical bytes. That placement identity is canonical **Gate G**, and must be proven when the DeepSeek container/storage path lands.
+
+### V5 — attention by type — **NEXT / Gate E**
+
+Create distinct fixtures for every proven attention mode. Operational order:
+
+1. ratio-0 sliding-window-only layer — projections, normalization, K64 KV QAT, RoPE, causal 128-window, sink-softmax sparse attention, inverse RoPE, output seam;
+2. ratio-128 compressed-history attention;
+3. ratio-4 CSA compressor + indexer/top-k sparse attention.
+
+Gate E passes only when all structurally distinct modes are independently checkpoint/source verified.
 
 ### V6 — complete transformer layer — **Gate H**
 
@@ -250,10 +312,10 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **B** native quantization | **V1** | **PASSED** |
 | **C** quantized trunk linear | **V2** | **PASSED scalar/model-semantic** |
 | **D** mHC | **V3 mHC seam** | **PASSED scalar/model-semantic** |
-| **E** attention by type | **V5** | later base bring-up |
-| **F** routing + one MoE block | **V4** | **NEXT** |
-| **G** disk/cache identity | systems correctness | streaming phase |
-| **H** complete transformer block | **V6** | base-model bring-up |
+| **E** attention by type | **V5** | **NEXT — ratio 0 first** |
+| **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
+| **G** disk/cache identity | systems correctness | streaming/container phase |
+| **H** complete transformer block | **V6** | after E/V5 |
 | **I** 43-layer base forward/logits | **V8** | base-model bring-up |
 | **J** tokenizer/encoding | **V10** | encoding/API phase |
 | **K** generation | **V9** | after logits |
@@ -273,13 +335,14 @@ For identical token/container inputs, these pairs must preserve selected experts
 
 | A | B |
 |---|---|
+| direct checkpoint/reference bytes | converted WASTE record bytes |
 | cache disabled | cache enabled |
 | direct I/O | fallback/page-cache path |
 | cold cache | preloaded/hot cache |
 | prefetch off | prefetch on |
 | sequential prefill | chunked prefill |
 
-Storage placement is never allowed to change model meaning.
+Storage placement is never allowed to change model meaning. Gate F's direct-byte arithmetic fixture is the oracle Gate G should reuse for the first converted expert-record identity test.
 
 ---
 
@@ -314,7 +377,7 @@ An optimized path lands only when:
 - memory remains within the planner;
 - optional backend failure/fallback is safe.
 
-Gates C and D now give later SIMD/backend work real checkpoint-backed arithmetic oracles. Router/MoE correctness is the next priority before broad optimization.
+Gates C, D, and F now give later SIMD/backend work real checkpoint-backed arithmetic oracles. Gate E attention correctness is the next base-model priority before broad optimization.
 
 ---
 

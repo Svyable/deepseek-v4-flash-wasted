@@ -1,0 +1,265 @@
+{
+  "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+  "expected": {
+    "bf16_hex": [
+      "0xb96c",
+      "0xb83c",
+      "0x39bf",
+      "0xba1c",
+      "0xb988",
+      "0x3a81",
+      "0x389d",
+      "0x3a46"
+    ],
+    "dtype": "BF16",
+    "file": "expected-out8.bf16.bin",
+    "reduction_stability": "each quantized linear output used in the fixture is BF16-stable against forward/reverse/exact dyadic accumulation",
+    "sha256": "0f96925400308324330c38cead5ca35da1df47f2d094dac564125782627102d4",
+    "shape": [
+      8
+    ]
+  },
+  "expert": 2,
+  "fixture_class": "F3 official-source + real-checkpoint selected routed expert",
+  "gate": "Gate F / V4 routed-expert primitive",
+  "input": {
+    "dtype": "BF16",
+    "file": "input.bf16.bin",
+    "sha256": "9bc8f7069b137e92d6e3ebd5075931936218a3388f5eda3e8a8571799af39822",
+    "shape": [
+      4096
+    ]
+  },
+  "intermediate": {
+    "gate_file": "gate-clamped.f32.bin",
+    "gate_positive_clamped_count": 0,
+    "gate_sha256": "7d046bda4c64d0db18d441ec30bf3b7ccb7f67d11aa691964b182fde9366c2f3",
+    "hidden_dtype": "BF16",
+    "hidden_file": "hidden-after-route.bf16.bin",
+    "hidden_sha256": "3efbb15e5dba0f444b082d80ff165b3bab9468e9326b853ee92fd5e763a4b265",
+    "hidden_shape": [
+      2048
+    ],
+    "up_clamped_count": 0,
+    "up_file": "up-clamped.f32.bin",
+    "up_sha256": "81124d6174661e8901beaeaf98ec7286681194af563fa4fe2de1a0aa9cad22d8"
+  },
+  "layer": 3,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claim": "One selected routed expert with eight final output rows. This is not yet the six-routed-plus-shared combined MoE Gate F block.",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "route_weight": 0.2633841037750244,
+  "router_fixture": {
+    "input_sha256": "9bc8f7069b137e92d6e3ebd5075931936218a3388f5eda3e8a8571799af39822",
+    "learned_ids": [
+      2,
+      29,
+      225,
+      220,
+      108,
+      69
+    ],
+    "learned_weights": [
+      0.2633841037750244,
+      0.2511540651321411,
+      0.2488662153482437,
+      0.2478196918964386,
+      0.24490244686603546,
+      0.24387359619140625
+    ]
+  },
+  "schema_version": 1,
+  "source_contract": {
+    "activation": "silu(gate) * up",
+    "gate_clamp": [
+      null,
+      10.0
+    ],
+    "path": "inference/model.py Expert.forward + inference/kernel.py fp4_gemm",
+    "quantized_linear": "E4M3 activation K128 x packed E2M1 weight with E8M0 K32 scales",
+    "routing_weight_order": "multiply hidden by route_weight before BF16 cast and w2",
+    "up_clamp": [
+      -10.0,
+      10.0
+    ],
+    "w1_role": "gate",
+    "w2_input_dtype": "BF16",
+    "w3_role": "up"
+  },
+  "tensors": {
+    "s1": {
+      "absolute_end": 102437327,
+      "absolute_start": 102175184,
+      "dtype": "F8_E8M0",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w1-scale.e8m0.bin",
+      "payload_bytes": 262144,
+      "payload_sha256": "cd39d5223dec65d926cc30bf643c92165bc01df6ca26e0be0652f16c041b9d5e",
+      "relative_end": 102264664,
+      "relative_start": 102002520,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 128,
+      "row_end": 2048,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        2048,
+        128
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w1.scale",
+      "tensor_data_offsets": [
+        102002520,
+        102264664
+      ]
+    },
+    "s2": {
+      "absolute_end": 102437839,
+      "absolute_start": 102437328,
+      "dtype": "F8_E8M0",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w2-scale-rows0-8.e8m0.bin",
+      "payload_bytes": 512,
+      "payload_sha256": "c50d0020e667e684f55ecc1d032700d25d032927d1253839b4e155a7ba4d83b8",
+      "relative_end": 102265176,
+      "relative_start": 102264664,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 64,
+      "row_end": 8,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        4096,
+        64
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w2.scale",
+      "tensor_data_offsets": [
+        102264664,
+        102526808
+      ]
+    },
+    "s3": {
+      "absolute_end": 102961615,
+      "absolute_start": 102699472,
+      "dtype": "F8_E8M0",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w3-scale.e8m0.bin",
+      "payload_bytes": 262144,
+      "payload_sha256": "bfe6c818ed494137cbae18086373e6a6cfa312fd5c728e2eea308578a98392b8",
+      "relative_end": 102788952,
+      "relative_start": 102526808,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 128,
+      "row_end": 2048,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        2048,
+        128
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w3.scale",
+      "tensor_data_offsets": [
+        102526808,
+        102788952
+      ]
+    },
+    "w1": {
+      "absolute_end": 1761023951,
+      "absolute_start": 1756829648,
+      "dtype": "I8",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w1.fp4.bin",
+      "payload_bytes": 4194304,
+      "payload_sha256": "5bfa7386d52b8a0371127296173c803d19c1e6b53cc8886362f20d5568bd796e",
+      "relative_end": 1760851288,
+      "relative_start": 1756656984,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 2048,
+      "row_end": 2048,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        2048,
+        2048
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w1.weight",
+      "tensor_data_offsets": [
+        1756656984,
+        1760851288
+      ]
+    },
+    "w2": {
+      "absolute_end": 1761032143,
+      "absolute_start": 1761023952,
+      "dtype": "I8",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w2-rows0-8.fp4.bin",
+      "payload_bytes": 8192,
+      "payload_sha256": "37e21b9a9ba07db381a54bd4a6e0ca284200b7e33415f25ce9d10a4f11762b45",
+      "relative_end": 1760859480,
+      "relative_start": 1760851288,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 1024,
+      "row_end": 8,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        4096,
+        1024
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w2.weight",
+      "tensor_data_offsets": [
+        1760851288,
+        1765045592
+      ]
+    },
+    "w3": {
+      "absolute_end": 1769412559,
+      "absolute_start": 1765218256,
+      "dtype": "I8",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "w3.fp4.bin",
+      "payload_bytes": 4194304,
+      "payload_sha256": "bb791807ba397044a32ae965dba6358e9adf44551367f5edaddf4b363d602aba",
+      "relative_end": 1769239896,
+      "relative_start": 1765045592,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 2048,
+      "row_end": 2048,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        2048,
+        2048
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.experts.2.w3.weight",
+      "tensor_data_offsets": [
+        1765045592,
+        1769239896
+      ]
+    }
+  }
+}

@@ -25,10 +25,10 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #4 gate/docs concordance | process | **DONE** |
 | PR #5 real checkpoint inventory + official quant contracts | **A/V0 + B/V1** | **DONE**, `fad91e7c7c9c9888670953b51d7e35338db9575e` |
 | PR #6 real resident quantized projection | **C/V2** | **DONE**, `8456aeef6ccdf417894c3ea97fc0aef9568ab7a1` |
-| PR #7 real layer-0 mHC | **D/V3 mHC** | **IN PROGRESS; real validation passed** |
-| router primitives + one MoE block | V3 → **F/V4** | **NEXT** |
-| attention by type | **E/V5** | after primitive/MoE seams |
-| one full transformer layer | **H/V6** | later base bring-up |
+| PR #7 real layer-0 mHC | **D/V3 mHC** | **DONE**, `eac344236d5f3bd5544188ab2a229faa8e3ead6c` |
+| PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **PASSED; pending merge** |
+| attention by type | **E/V5** | **NEXT — ratio-0 layer-0 attention first** |
+| one full transformer layer | **H/V6** | after E/V5 attention variants |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |
@@ -59,9 +59,18 @@ Gate D / V3 mHC
   independent hc_pre/Sinkhorn/hc_post oracle
   scalar C exact BF16 match on 4,096 pre + 16,384 post outputs
   diagnostic max_abs 4.76837158e-07
+
+Gate F / V4
+  learned layer-3 router exact top-6 IDs [2,29,225,220,108,69]
+  hash layer-0 token 4242 IDs [150,142,245,248,174,119]
+  real routed expert 3/2 exact gate/up + hidden/output BF16
+  all six selected routed expert output slices independently evaluated
+  real resident shared FP8 expert exact hidden/output BF16
+  official ascending-expert f32 accumulation + shared-add + final BF16 exact
+  final representative out8 = b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
 ```
 
-The immediate priority is now **router/MoE primitive bring-up**, not more checkpoint metadata or quantization work.
+The immediate priority is now **Gate E / V5 attention**, beginning with the structurally simplest ratio-0 layer before compressed/CSA attention.
 
 ---
 
@@ -98,7 +107,7 @@ Bootstrap `tid2eid` tables are checkpoint-resident in layers 0–2.
 
 ## Phase 2 — reference/oracle harness — ACTIVE FOUNDATION
 
-Reusable oracle tooling now supports:
+Reusable oracle tooling supports:
 
 - immutable header acquisition;
 - bounded tensor row/payload Range acquisition;
@@ -111,17 +120,20 @@ Completed oracle seams:
 
 1. native quantization convention — B/V1;
 2. real resident quantized projection — C/V2;
-3. real mHC/Sinkhorn primitive — D/V3.
+3. real mHC/Sinkhorn primitive — D/V3;
+4. learned + hash routing — F/V4;
+5. routed FP4 expert + resident shared FP8 expert + six-branch MoE combination — F/V4.
+
+The Gate F fixture generator also establishes a reusable speed pattern: a standalone C expected-value producer shares no WASTE runtime helpers and is anchored bit-for-bit to the earlier exact Fraction-based routed-expert fixture before producing additional expert outputs.
 
 Next oracle seams:
 
-1. learned router score/selection/weighting;
-2. hash-router IDs + weights;
-3. shared/routed expert SwiGLU and combination — F/V4;
-4. attention/compressor/indexer — E/V5;
-5. complete layer — H/V6;
-6. final logits/generation — I/V8 + K/V9;
-7. encoder/parser — J/V10.
+1. ratio-0 sliding-window attention — first E/V5 tranche;
+2. ratio-128 compressed attention;
+3. ratio-4 CSA compressor/indexer/selection — completes E/V5;
+4. complete layer — H/V6;
+5. final logits/generation — I/V8 + K/V9;
+6. encoder/parser — J/V10.
 
 Reuse the same fixture/provenance pattern rather than inventing a new oracle mechanism per subsystem.
 
@@ -141,13 +153,13 @@ Delivered:
 - exact scalar-C BF16 replay;
 - fail-closed bounded Range payload fetcher.
 
-Optimized backends may now use these frozen fixtures as arithmetic oracles, but optimization is not the immediate correctness priority.
+Optimized backends may use these frozen fixtures as arithmetic oracles, but optimization is not the immediate correctness priority.
 
 ---
 
 ## Phase 4 — DeepSeek-specific container / converter
 
-**Status: DESIGN / schema can now use real Gate A facts.**
+**Status: DESIGN / schema can now use real Gates A, C, and F facts.**
 
 Deliverables:
 
@@ -165,9 +177,9 @@ Container work may proceed in parallel, but storage must not become the only pat
 
 ## Phase 5 — base model arithmetic — D/F/E/H/I/K, V3–V9
 
-### Gate D / V3 mHC — VALIDATED
+### Gate D / V3 mHC — PASSED
 
-PR #7 adds:
+PR #7 delivered:
 
 - scalar `hc_split_sinkhorn`, `hc_pre`, `hc_post`;
 - model-free Sinkhorn/orientation tests;
@@ -176,44 +188,58 @@ PR #7 adds:
 
 See `docs/MHC.md`.
 
-### Next: router primitives → Gate F / V4
+### Gate F / V4 routing + MoE — PASSED
 
-Bring up routing in two cases from the pinned release:
+PR #8 proves both routing modes and both expert storage classes.
 
-1. **learned router**, representative layer 3;
-2. **hash/bootstrap router**, representative layer 0 with real `tid2eid`.
-
-Required exact semantics:
+Learned representative, layer 3:
 
 ```text
-raw = gate_linear(hidden)
-score = sqrt(softplus(raw))
-selection_score = score + correction_bias
-ids = topk(selection_score, 6)
-weights = score[ids]            # original transformed score, not biased score
-weights /= sum(weights)
-weights *= 1.5
+ids     = [2,29,225,220,108,69]
+weights = [0.263384104,0.251154065,0.248866215,
+           0.247819692,0.244902447,0.243873596]
 ```
 
-For the first three layers, `tid2eid[token_id]` provides the selected IDs; routing weights still come from the score path.
+Bootstrap representative, layer 0 token 4242:
 
-After router primitives:
+```text
+ids = [150,142,245,248,174,119]
+```
 
-- shared expert SwiGLU/clamp;
-- one real routed expert;
-- exact selected-expert combination;
-- direct bytes versus storage/cache bytes identity;
-- **Gate F / V4** one MoE block.
+The frozen real MoE representative additionally proves:
+
+- correction bias changes selection but does not contaminate route weights;
+- selected routed FP4 experts apply route weight before hidden BF16 cast and `w2`;
+- resident shared expert uses the FP8 E4M3/E8M0 path without route weight;
+- routed expert results are accumulated in ascending expert ID in f32;
+- the shared expert is added once after routed branches;
+- final MoE result is cast to BF16;
+- the complete first-eight output values match exactly:
+
+```text
+b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
+```
+
+A model-free non-associativity pin distinguishes official expert-ID accumulation order from router top-k order even though that order difference happens to disappear after BF16 rounding in the selected real fixture.
+
+Permanent ordinary `make check` replay covers model-free routing, real learned/hash routing, one full routed expert, the shared expert, all six branch output slices, and the final combination.
+
+### Next: Gate E / V5 attention by type
+
+Operational order:
+
+1. **ratio 0 / layer 0** — q/kv projections, normalization, K64 KV QAT, RoPE, 128-token causal window, sink-softmax sparse attention, inverse RoPE, output projection seam;
+2. **ratio 128** — compressor + compressed history attention;
+3. **ratio 4 / CSA** — compressor + indexer scoring/top-512 selection + sparse attention.
+
+Gate E is complete only when every structurally distinct attention path has its own independent real fixture.
 
 Then continue:
 
-1. sliding-window attention;
-2. compressed attention + compressor;
-3. CSA indexer/selection — **E/V5**;
-4. complete transformer layer — **H/V6**;
-5. multi-layer localization — **V7**;
-6. final norm/head/logits — **I/V8**;
-7. deterministic known-token generation — **K/V9**.
+1. complete transformer layer — **H/V6**;
+2. multi-layer localization — **V7**;
+3. final norm/head/logits — **I/V8**;
+4. deterministic known-token generation — **K/V9**.
 
 Each seam gets an independent source/checkpoint fixture before becoming part of a full layer.
 

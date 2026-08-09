@@ -1,0 +1,620 @@
+{
+  "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+  "expected": {
+    "combined_bf16_hex": [
+      "0xb848",
+      "0xba7a",
+      "0x3b1a",
+      "0xbb78",
+      "0xbbb7",
+      "0x3ab7",
+      "0xba25",
+      "0x3982"
+    ],
+    "combined_file": "combined-out8.bf16.bin",
+    "order_mutation_visible_at_bf16": false,
+    "routed_file": "routed-out8.bf16.bin",
+    "shared_file": "shared-out8.bf16.bin",
+    "topk_order_bf16_hex": [
+      "0xb848",
+      "0xba7a",
+      "0x3b1a",
+      "0xbb78",
+      "0xbbb7",
+      "0x3ab7",
+      "0xba25",
+      "0x3982"
+    ]
+  },
+  "fixture_class": "F3 pinned official source + real 0731 checkpoint",
+  "gate": "Gate F / V4 complete MoE primitive",
+  "input_sha256": "9bc8f7069b137e92d6e3ebd5075931936218a3388f5eda3e8a8571799af39822",
+  "layer": 3,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "official_accumulation": {
+    "accumulator": "float32 zeros_like",
+    "final_cast": "BF16",
+    "routed_loop_order": [
+      2,
+      29,
+      69,
+      108,
+      220,
+      225
+    ],
+    "shared_added_after_routed": true,
+    "source": "inference/model.py MoE.forward"
+  },
+  "oracle_independence": {
+    "producer": "tools/v4_moe_oracle.c",
+    "routed_anchor": "expert 2 must exactly match the earlier Fraction-based Python fixture before remaining experts are accepted",
+    "shares_runtime_helpers": false
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "routed_experts": [
+    {
+      "expert": 2,
+      "oracle_anchor": "exact v4_routed_expert_real",
+      "output_bf16_hex": [
+        "0xb96c",
+        "0xb83c",
+        "0x39bf",
+        "0xba1c",
+        "0xb988",
+        "0x3a81",
+        "0x389d",
+        "0x3a46"
+      ],
+      "route_weight": 0.2633841037750244,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.2.w1.scale",
+          "payload_sha256": "cd39d5223dec65d926cc30bf643c92165bc01df6ca26e0be0652f16c041b9d5e",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.2.w2.scale",
+          "payload_sha256": "c50d0020e667e684f55ecc1d032700d25d032927d1253839b4e155a7ba4d83b8",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.2.w3.scale",
+          "payload_sha256": "bfe6c818ed494137cbae18086373e6a6cfa312fd5c728e2eea308578a98392b8",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.2.w1.weight",
+          "payload_sha256": "5bfa7386d52b8a0371127296173c803d19c1e6b53cc8886362f20d5568bd796e",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.2.w2.weight",
+          "payload_sha256": "37e21b9a9ba07db381a54bd4a6e0ca284200b7e33415f25ce9d10a4f11762b45",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.2.w3.weight",
+          "payload_sha256": "bb791807ba397044a32ae965dba6358e9adf44551367f5edaddf4b363d602aba",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    },
+    {
+      "expert": 29,
+      "oracle_anchor": "fast independent oracle cross-validated on expert 2",
+      "output_bf16_hex": [
+        "0xb9c1",
+        "0x37e2",
+        "0x3a1f",
+        "0xba98",
+        "0xba27",
+        "0x39c7",
+        "0x398b",
+        "0xb99f"
+      ],
+      "route_weight": 0.2511540651321411,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.29.w1.scale",
+          "payload_sha256": "7e4c703c7e56b58907700ea29fec9d0de47dd33c977b87dde41dafe3cac19700",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.29.w2.scale",
+          "payload_sha256": "5e74ce37bbe0c84da777e6f6029cf32aa3ce00c86112d851babb775cea6be54d",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.29.w3.scale",
+          "payload_sha256": "1d8d2b82e67920bbf5865755cba4d0eba2e0e006ab03fb4aba3a3ab364c0fb8f",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.29.w1.weight",
+          "payload_sha256": "3a18b91fd6f6aae67553f6bc7c6c473eff2ffa58e749d1d29d6b83bd8d7a9c9f",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.29.w2.weight",
+          "payload_sha256": "033fbfce40733a6d7125f367c4a4bc849c0a40567ab1bbeed4ce9404b7f51d19",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.29.w3.weight",
+          "payload_sha256": "80236149e3002ba3f62141a734fa03ffc82cea1d754115c07f37d7ccb923b171",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    },
+    {
+      "expert": 225,
+      "oracle_anchor": "fast independent oracle cross-validated on expert 2",
+      "output_bf16_hex": [
+        "0xb899",
+        "0x3922",
+        "0x3a51",
+        "0xb978",
+        "0xba22",
+        "0xb9a8",
+        "0x3a2c",
+        "0xb917"
+      ],
+      "route_weight": 0.2488662153482437,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.225.w1.scale",
+          "payload_sha256": "443b5714d0111bf9412f81092bc121573397ec484c8dcaf4e58fa84b00a8b813",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.225.w2.scale",
+          "payload_sha256": "afd63a80c39bc9a11dffd5018faab157b54c83b642e46bcd6b7e440c539dac24",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.225.w3.scale",
+          "payload_sha256": "47b46c822b088734c06bc9fb295595ada4d78675e3893e35ac5798a40abb131c",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.225.w1.weight",
+          "payload_sha256": "1e82aae0ad2dfd56906dfcd55833922d0b29d4d4b4fc61d8ac62ad1d252e80ef",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.225.w2.weight",
+          "payload_sha256": "87c00507fd446485f994ab9ac8667aaf1139c1032e84546884cd717273dfd28e",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.225.w3.weight",
+          "payload_sha256": "c961a64eec5af6a5e98b577a10d32aa138154f271be22ea5851a425f2485cb0f",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    },
+    {
+      "expert": 220,
+      "oracle_anchor": "fast independent oracle cross-validated on expert 2",
+      "output_bf16_hex": [
+        "0x3935",
+        "0xb903",
+        "0x3a8e",
+        "0x39c9",
+        "0xbac1",
+        "0x38b8",
+        "0xba5c",
+        "0x3981"
+      ],
+      "route_weight": 0.2478196918964386,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.220.w1.scale",
+          "payload_sha256": "38c2f264cd64f982603622908f4ce1943fafbd9202fc5f2ce9bba65bada3e2e1",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.220.w2.scale",
+          "payload_sha256": "8c5766d69eb52fd84dfaf68ab93a3f31492b97bdcfb83e1623150157d853c2e5",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.220.w3.scale",
+          "payload_sha256": "34d5e238d0872859b9bf2a60eeafac0b5394b01c9319d29a15110f102e99604d",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.220.w1.weight",
+          "payload_sha256": "be41b8993efd387eb7d3ccaa85c420cbb0953ef5e24ef0a8e28357948017440a",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.220.w2.weight",
+          "payload_sha256": "f09d684e92d01571094c80a0967ec2acae159f8ce039be41eacfbaca6d802613",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.220.w3.weight",
+          "payload_sha256": "c8db6eacc7543103a84847b0b08580c648ada0bacd6c0665646b279018f1654b",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    },
+    {
+      "expert": 108,
+      "oracle_anchor": "fast independent oracle cross-validated on expert 2",
+      "output_bf16_hex": [
+        "0xb9a9",
+        "0xba25",
+        "0xb9ea",
+        "0x39da",
+        "0x39cf",
+        "0xba45",
+        "0x3871",
+        "0x38b0"
+      ],
+      "route_weight": 0.24490244686603546,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.108.w1.scale",
+          "payload_sha256": "d3ec062fc20bb7bfa780369e27cd3b4828555579237b2ab92ba4b73294f1a690",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.108.w2.scale",
+          "payload_sha256": "0c902e63b4363ebdebbc60bf1809e4155eb6eddc2700f8cc8224ef236207d2bb",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.108.w3.scale",
+          "payload_sha256": "c42e556e708f2d15a0bd239483c52a08f92f1eaa86d6e6153a8c496fcb400790",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.108.w1.weight",
+          "payload_sha256": "99530447f76d7ac2fd833e84ab7b1e0480e6d7852ba7f02f3852d7b1cf9a6af5",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.108.w2.weight",
+          "payload_sha256": "49b2a14599774c864a2715e13d0fce18e604fb97772e0e7761f3c68e07a70bdd",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.108.w3.weight",
+          "payload_sha256": "c086af15ebf47a8a2ea8a9883e3b1da03fbc540888c588fc42226059271083f4",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    },
+    {
+      "expert": 69,
+      "oracle_anchor": "fast independent oracle cross-validated on expert 2",
+      "output_bf16_hex": [
+        "0x38d3",
+        "0x39d0",
+        "0x399c",
+        "0xba7c",
+        "0xb9fb",
+        "0x39b9",
+        "0xb92e",
+        "0x39af"
+      ],
+      "route_weight": 0.24387359619140625,
+      "tensors": {
+        "s1": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.69.w1.scale",
+          "payload_sha256": "cd4058cea612cdb6057999ce0bfb51f0f8b96e6ad28d08df0675f7263bcdb71b",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s2": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.69.w2.scale",
+          "payload_sha256": "d13684913dedf5e4d691bcadfc9698adf75338355839f8773f84033d32293d7e",
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "s3": {
+          "dtype": "F8_E8M0",
+          "name": "layers.3.ffn.experts.69.w3.scale",
+          "payload_sha256": "3e2f29e5ceab0cd85be36a3b2f2163d1e5325a759a227f28c92cfad1f62facb1",
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w1": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.69.w1.weight",
+          "payload_sha256": "fa346f255b53ec2c361eae83b51e02e9aad0ba7e02c902437f35f89476db7d21",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w2": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.69.w2.weight",
+          "payload_sha256": "4e1ea7687c95a8194f8eb36c7c7e39121c9bc1724aed2e2ccb90178f7e00ef1d",
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        },
+        "w3": {
+          "dtype": "I8",
+          "name": "layers.3.ffn.experts.69.w3.weight",
+          "payload_sha256": "406b4df70418682c7dc6e755653fb3a614750348c4ef74ef0d3f201feae075ea",
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00005-of-00048.safetensors"
+        }
+      }
+    }
+  ],
+  "router": {
+    "ids_topk_order": [
+      2,
+      29,
+      225,
+      220,
+      108,
+      69
+    ],
+    "weights": [
+      0.2633841037750244,
+      0.2511540651321411,
+      0.2488662153482437,
+      0.2478196918964386,
+      0.24490244686603546,
+      0.24387359619140625
+    ]
+  },
+  "schema_version": 2,
+  "shared_expert": {
+    "hidden_sha256": "f8f95066336e1097b130795e04c7e0a1427dee737f210f75327e02c3559ed000",
+    "oracle": "standalone tools/v4_moe_oracle.c; no src/ linkage",
+    "output_bf16_hex": [
+      "0x3a2f",
+      "0xba40",
+      "0xb9b8",
+      "0xbad6",
+      "0xbb24",
+      "0x3a2e",
+      "0xba32",
+      "0xba3e"
+    ],
+    "tensors": {
+      "s1": {
+        "dtype": "F8_E8M0",
+        "frozen_file": "shared-w1-scale.e8m0.bin",
+        "name": "layers.3.ffn.shared_experts.w1.scale",
+        "payload_sha256": "9af7e3971723029c9bdbd6787b550433771d01406cd6bdaac5d0ddb26f3cf606",
+        "shape": [
+          16,
+          32
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      },
+      "s2": {
+        "dtype": "F8_E8M0",
+        "frozen_file": "shared-w2-scale-row0.e8m0.bin",
+        "name": "layers.3.ffn.shared_experts.w2.scale",
+        "payload_sha256": "c3a1b8f1b1f7447a5ed53e71d6e879395998e3e7021e0c748d5b38d1a14301a5",
+        "shape": [
+          32,
+          16
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      },
+      "s3": {
+        "dtype": "F8_E8M0",
+        "frozen_file": "shared-w3-scale.e8m0.bin",
+        "name": "layers.3.ffn.shared_experts.w3.scale",
+        "payload_sha256": "80bd4cc09ec95741b630bbd8c4772762c9b40a7434a1d5f8d6bc5343eea9c0cc",
+        "shape": [
+          16,
+          32
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      },
+      "w1": {
+        "dtype": "F8_E4M3",
+        "frozen_file": "shared-w1.fp8.bin",
+        "name": "layers.3.ffn.shared_experts.w1.weight",
+        "payload_sha256": "51488c7352b1efdaffed7c264fc81d1678ef239ade2930017b61a5f677da2d0a",
+        "shape": [
+          2048,
+          4096
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      },
+      "w2": {
+        "dtype": "F8_E4M3",
+        "frozen_file": "shared-w2-rows0-8.fp8.bin",
+        "name": "layers.3.ffn.shared_experts.w2.weight",
+        "payload_sha256": "9b19fff8aeebc6ac5fbf19c3e4cb24dc3914fabae153b17f5a802bb82023bc82",
+        "shape": [
+          4096,
+          2048
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      },
+      "w3": {
+        "dtype": "F8_E4M3",
+        "frozen_file": "shared-w3.fp8.bin",
+        "name": "layers.3.ffn.shared_experts.w3.weight",
+        "payload_sha256": "3dc698561482e0533eba7056537e4234c1628270af581652adfebf6ce0e23bb9",
+        "shape": [
+          2048,
+          4096
+        ],
+        "shard": "model-00005-of-00048.safetensors"
+      }
+    }
+  },
+  "storage_policy": "All six routed experts are fetched and independently evaluated during fixture generation. Only their compact BF16 outputs/hashes are frozen; full routed expert 3/2 remains a separate exact fixture. Full shared w1/w3 plus eight w2 rows are frozen because shared FP8 is a distinct arithmetic path."
+}
