@@ -73,8 +73,6 @@ static float fp4_scale_ref(const float *x, size_t n)
             amax = a;
     }
 
-    /* Official kernel: max(amax, 6*2^-126), then fast_round_scale(amax,1/6).
-     * The lower bound ensures amax/6 is a normal binary32 value. */
     float floorv = ldexpf(6.0f, -126);
     if (amax < floorv)
         amax = floorv;
@@ -149,10 +147,16 @@ static void bf16_linear_f32(const float *x, const uint16_t *w,
     }
 }
 
-static int overlap_pool(const float *kv, const float *score,
-                        const float *ape, size_t chunks,
-                        size_t d, float *out)
+int waste_ds_v4_csa_overlap_pool_ref(
+    const float *kv,
+    const float *score,
+    const float *ape,
+    size_t chunks,
+    size_t d,
+    float *out)
 {
+    if (!kv || !score || !ape || !out || chunks == 0 || d == 0)
+        return -1;
     size_t two_d = 2u * d;
     for (size_t c = 0; c < chunks; c++) {
         for (size_t j = 0; j < d; j++) {
@@ -226,7 +230,8 @@ int waste_ds_v4_csa_compressor_prefill_ref(
         bf16_linear_f32(xt, wkv_bf16, rows, DS_HIDDEN, kv + t * rows);
         bf16_linear_f32(xt, wgate_bf16, rows, DS_HIDDEN, score + t * rows);
     }
-    if (overlap_pool(kv, score, ape, chunks, head_dim, pooled) != 0)
+    if (waste_ds_v4_csa_overlap_pool_ref(
+            kv, score, ape, chunks, head_dim, pooled) != 0)
         goto done;
 
     if (pooled_bf16_out)
@@ -379,7 +384,6 @@ size_t waste_ds_v4_csa_topk_row_ref(
         ranked[i].valid = i < visible;
     }
 
-    /* O(n*k) selection is intentional: top-k reference, not runtime kernel. */
     for (size_t pos = 0; pos < k; pos++) {
         size_t best = pos;
         for (size_t j = pos + 1; j < n_compressed; j++)
