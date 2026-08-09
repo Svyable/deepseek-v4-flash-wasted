@@ -27,7 +27,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #6 real resident quantized projection | **C/V2** | **DONE**, `8456aeef6ccdf417894c3ea97fc0aef9568ab7a1` |
 | PR #7 real layer-0 mHC | **D/V3 mHC** | **DONE**, `eac344236d5f3bd5544188ab2a229faa8e3ead6c` |
 | PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **DONE**, `632f0b3ba36a033713702fda2daecf44ac0946aa` |
-| PR #9 ratio-0 attention + grouped output projection | **E/V5 partial** | **PASSED sub-seams; pending merge** |
+| PR #9 ratio-0 attention + grouped output projection | **E/V5 partial** | **DONE**, `093081efc4a9f583a1962bcb69e05a20d57c1585` |
 | ratio-128 compressed attention | **E/V5** | **NEXT** |
 | ratio-4 CSA/indexer attention | **E/V5** | after ratio-128; completes Gate E |
 | one full transformer layer | **H/V6** | after E/V5 attention variants |
@@ -247,6 +247,8 @@ Remaining operational order:
 1. **ratio 128** — learned compressor + compressed-history attention;
 2. **ratio 4 / CSA** — compressor + indexer scoring/top-512 selection + sparse attention;
 3. Gate E closes only after both remaining structural modes pass independent real fixtures.
+
+Every replay named above is a line in `tests/run.sh` under "DeepSeek gate replays". Until 2026-08-09 they reached `make check` only by being imported from `tests/test_inventory.py`, so the replay was real but the whole ladder reported as one "inventory" line — and a corrupted Gate F fixture blamed the tensor classifier. `docs/EXPERIMENTS.md` entry 6 records the mutations. The list is deliberately not a glob: **when ratio-128 and CSA fixtures are frozen, each needs its line added, or it is not replayed.**
 
 Then continue:
 

@@ -190,6 +190,8 @@ A model-free non-associativity fixture pins expert-ID ordering even though the s
 
 **Boundary:** direct checkpoint-byte MoE arithmetic is passed. Converted WASTE record/cache identity is Gate G.
 
+Since 2026-08-09 the replay is also *legible*: `tests/run.sh` invokes each Gate A–F replay as its own named line under "DeepSeek gate replays", and Gate E's three joined them on merge. Previously every replay was imported transitively from `tests/test_inventory.py`, so the whole ladder was reported as a single "inventory" line and a corrupted Gate F fixture failed under the tensor classifier's name. `docs/EXPERIMENTS.md` entry 6 records the mutation evidence. The list is enumerated, not globbed: a ratio-128 or CSA fixture is replayed when its line is added.
+
 ### V5 — attention by type — **PARTIAL / Gate E**
 
 Gate E has three structurally distinct attention modes plus a shared output projection. It closes only after all are independently proved.
