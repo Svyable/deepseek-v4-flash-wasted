@@ -118,31 +118,56 @@ int waste_ds_v4_fp8_linear_ref(const float *x,
         return -1;
 
     const size_t k_blocks = k / DS_V4_ACT_BLOCK;
+    uint8_t *qx = malloc(m * k);
+    float *act_scales = malloc(m * k_blocks * sizeof(float));
+    if (!qx || !act_scales) {
+        free(qx);
+        free(act_scales);
+        return -1;
+    }
 
+    /* Activation quantization is independent of the output row. The original
+     * scalar reference recomputed it inside every row; precomputing it once
+     * preserves the exact byte/scale values while making attention-sized
+     * projection fixtures practical. */
     for (size_t mi = 0; mi < m; mi++) {
         const float *xr = x + mi * k;
+        for (size_t kb = 0; kb < k_blocks; kb++) {
+            const float *xb = xr + kb * DS_V4_ACT_BLOCK;
+            float s = waste_ds_v4_act_scale_ref(xb, DS_V4_ACT_BLOCK);
+            if (!(s > 0.0f) || !isfinite(s)) {
+                free(qx);
+                free(act_scales);
+                return -1;
+            }
+            act_scales[mi * k_blocks + kb] = s;
+            for (size_t j = 0; j < DS_V4_ACT_BLOCK; j++)
+                qx[mi * k + kb * DS_V4_ACT_BLOCK + j] = quantize_act(xb, j, s);
+        }
+    }
+
+    for (size_t mi = 0; mi < m; mi++) {
+        const uint8_t *qr = qx + mi * k;
+        const float *as = act_scales + mi * k_blocks;
         for (size_t ni = 0; ni < n; ni++) {
             float accum = 0.0f;
             const uint8_t *wr = weight + ni * k;
-
             for (size_t kb = 0; kb < k_blocks; kb++) {
-                const float *xb = xr + kb * DS_V4_ACT_BLOCK;
+                const uint8_t *qb = qr + kb * DS_V4_ACT_BLOCK;
                 const uint8_t *wb = wr + kb * DS_V4_ACT_BLOCK;
-                float act_scale = waste_ds_v4_act_scale_ref(xb, DS_V4_ACT_BLOCK);
                 float weight_scale =
                     weight_scales[(ni / WASTE_FP8_BLOCK) * k_blocks + kb];
                 float part = 0.0f;
-
-                for (size_t j = 0; j < DS_V4_ACT_BLOCK; j++) {
-                    float a = waste_e4m3_decode(quantize_act(xb, j, act_scale));
-                    float b = waste_e4m3_decode(wb[j]);
-                    part += a * b;
-                }
-                accum += part * act_scale * weight_scale;
+                for (size_t j = 0; j < DS_V4_ACT_BLOCK; j++)
+                    part += waste_e4m3_decode(qb[j]) * waste_e4m3_decode(wb[j]);
+                accum += part * as[kb] * weight_scale;
             }
             y[mi * n + ni] = waste_ds_v4_bf16_round_ref(accum);
         }
     }
+
+    free(qx);
+    free(act_scales);
     return 0;
 }
 
