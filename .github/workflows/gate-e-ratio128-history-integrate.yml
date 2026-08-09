@@ -30,44 +30,30 @@ jobs:
 
           p = Path('tests/run.sh')
           s = p.read_text()
-          needle = '''deepseek_replay "Gate E/V5 — real ratio-128 compressor stages" \\
-                "test_v5_compressor_real.py"
-'''
-          add = needle + '''deepseek_replay "Gate E/V5 — model-free ratio-128 compressed-history indexing" \\
-                "test_v5_attention_history_scalar.py"
-deepseek_replay "Gate E/V5 — real ratio-128 compressed-history composition" \\
-                "test_v5_attention_history_real.py"
-'''
+          needle = 'deepseek_replay "Gate E/V5 — real ratio-128 compressor stages" \\\n                "test_v5_compressor_real.py"\n'
+          add = (needle
+                 + 'deepseek_replay "Gate E/V5 — model-free ratio-128 compressed-history indexing" \\\n                "test_v5_attention_history_scalar.py"\n'
+                 + 'deepseek_replay "Gate E/V5 — real ratio-128 compressed-history composition" \\\n                "test_v5_attention_history_real.py"\n')
           if 'test_v5_attention_history_real.py' not in s:
               if needle not in s:
                   raise SystemExit('run.sh ratio-128 insertion anchor missing')
               s = s.replace(needle, add, 1)
           s = s.replace(
-              '# Ratio-128 compressor. The model-free half carries the weight until the real\n'
-              '# fixture is frozen, and it is the half that needed strengthening: its YaRN\n',
-              '# Ratio-128 compressor + compressed-history composition. Both now have frozen\n'
-              '# real checkpoint evidence; the model-free half remains load-bearing for YaRN\n'
-          )
+              '# Ratio-128 compressor. The model-free half carries the weight until the real\n# fixture is frozen, and it is the half that needed strengthening: its YaRN\n',
+              '# Ratio-128 compressor + compressed-history composition. Both now have frozen\n# real checkpoint evidence; the model-free half remains load-bearing for YaRN\n')
           p.write_text(s)
 
           p = Path('ROADMAP.md')
           s = p.read_text()
           s = s.replace(
-              '| ratio-128 compressor | **E/V5** | scalar + model-free **PASSED**; real fixture **PENDING** (needs HF access) |\n'
-              '| ratio-128 compressed-history attention | **E/V5** | **NEXT**, on top of the compressor |',
-              '| ratio-128 compressor | **E/V5 partial** | **CHECKPOINT-PASSED**, 4,096 exact BF16 diagnostics |\n'
-              '| ratio-128 compressed-history composition | **E/V5 partial** | **CHECKPOINT-PASSED**, 130 indices + 512 BF16 exact |\n'
-              '| coherent same-input ratio-128 forward | **E/V5** | **NEXT** |')
+              '| ratio-128 compressor | **E/V5** | scalar + model-free **PASSED**; real fixture **PENDING** (needs HF access) |\n| ratio-128 compressed-history attention | **E/V5** | **NEXT**, on top of the compressor |',
+              '| ratio-128 compressor | **E/V5 partial** | **CHECKPOINT-PASSED**, 4,096 exact BF16 diagnostics |\n| ratio-128 compressed-history composition | **E/V5 partial** | **CHECKPOINT-PASSED**, 130 indices + 512 BF16 exact |\n| coherent same-input ratio-128 forward | **E/V5** | **NEXT** |')
           s = s.replace(
               '**Immediate priority: ratio-128 compressor + compressed-history attention.**',
               '**Immediate priority: coherent same-input ratio-128 forward through inverse compressed RoPE, then ratio-4 CSA/indexer.**')
           s = s.replace(
-              '7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam.\n\nNext oracle seams:\n\n'
-              '1. ratio-128 learned compressor + compressed-history attention;',
-              '7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam;\n'
-              '8. real ratio-128 learned compressor — 4,096 exact BF16 diagnostics;\n'
-              '9. real ratio-128 compressed-history composition — 130 exact indices + 512 BF16 attention values.\n\nNext oracle seams:\n\n'
-              '1. coherent same-input ratio-128 forward through inverse compressed RoPE;')
+              '7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam.\n\nNext oracle seams:\n\n1. ratio-128 learned compressor + compressed-history attention;',
+              '7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam;\n8. real ratio-128 learned compressor — 4,096 exact BF16 diagnostics;\n9. real ratio-128 compressed-history composition — 130 exact indices + 512 BF16 attention values.\n\nNext oracle seams:\n\n1. coherent same-input ratio-128 forward through inverse compressed RoPE;')
           p.write_text(s)
 
           p = Path('docs/VALIDATION.md')
@@ -77,45 +63,20 @@ deepseek_replay "Gate E/V5 — real ratio-128 compressed-history composition" \\
               "**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, the real ratio-128 compressor, and a real ratio-128 compressed-history composition seam are passed. A coherent same-input ratio-128 forward and ratio-4 CSA/indexer remain. Gate G still owns converted-record/cache identity.**")
           start = s.index('#### Ratio 128 — **NEXT**')
           end = s.index('#### Ratio 4 / CSA — **OPEN**', start)
-          replacement = '''#### Ratio 128 compressor — **PASSED real-checkpoint sub-seam**
-
-Frozen fixture:
-
-```text
-tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/
-```
-
-Pinned real checkpoint tensors are BF16 `wkv/wgate`, F32 APE, and **BF16** compressor norm storage. The reference implementation upcasts RMSNorm parameters to f32 after load; the fixture preserves checkpoint BF16 bytes and performs that upcast only in the source-equation oracle/runtime semantics.
-
-Two reduction-safe 128-token structural chunks match exactly at pooled-before-norm, post-norm, post-YaRN-RoPE and post-K64-QAT compressed KV: **4,096 exact BF16 values**. The compressed-KV SHA-256 is `61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5`.
-
-The pair-20 YaRN mutation remains required: pair 0 is invariant to the parameters this check is meant to witness.
-
-#### Ratio 128 compressed-history composition — **PASSED checkpoint-derived sub-seam**
-
-Frozen fixture:
-
-```text
-tests/fixtures/deepseek_v4/v5_attention_history_ratio128_real/
-```
-
-For layer 3 / prefill row 255 it derives a checkpoint-real head-0 Q, all 256 checkpoint-real local KV entries, and a real `attn_sink`, then composes them with the independently frozen real compressor KV. The source namespace is pinned exactly:
-
-```text
-local visible      128..255
-compressed visible 256,257
-combined top-k     130 entries
-```
-
-The C replay matches **130/130 indices and 512/512 BF16 attention values exactly**. Mutations that drop compressed history or use the window-size prefill offset instead of full `seqlen` fail.
-
-**Boundary:** the compressed KV and Q/local-KV fixtures use different structural input sequences. This proves checkpoint-derived cache/index/sparse-attention composition, not one coherent same-input `Attention.forward`.
-
-#### Ratio 128 coherent forward — **NEXT**
-
-Use one input sequence for local Q/KV and compressor KV and prove through sparse attention plus inverse compressed RoPE. The already-proven shared output projection may then be attached without reopening its orientation.
-
-'''
+          replacement = (
+              '#### Ratio 128 compressor — **PASSED real-checkpoint sub-seam**\n\n'
+              'Frozen fixture:\n\n```text\ntests/fixtures/deepseek_v4/v5_compressor_ratio128_real/\n```\n\n'
+              'Pinned real checkpoint tensors are BF16 `wkv/wgate`, F32 APE, and **BF16** compressor norm storage. The reference implementation upcasts RMSNorm parameters to f32 after load; the fixture preserves checkpoint BF16 bytes and performs that upcast only in the source-equation oracle/runtime semantics.\n\n'
+              'Two reduction-safe 128-token structural chunks match exactly at pooled-before-norm, post-norm, post-YaRN-RoPE and post-K64-QAT compressed KV: **4,096 exact BF16 values**. The compressed-KV SHA-256 is `61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5`.\n\n'
+              'The pair-20 YaRN mutation remains required: pair 0 is invariant to the parameters this check is meant to witness.\n\n'
+              '#### Ratio 128 compressed-history composition — **PASSED checkpoint-derived sub-seam**\n\n'
+              'Frozen fixture:\n\n```text\ntests/fixtures/deepseek_v4/v5_attention_history_ratio128_real/\n```\n\n'
+              'For layer 3 / prefill row 255 it derives a checkpoint-real head-0 Q, all 256 checkpoint-real local KV entries, and a real `attn_sink`, then composes them with the independently frozen real compressor KV. The source namespace is pinned exactly:\n\n'
+              '```text\nlocal visible      128..255\ncompressed visible 256,257\ncombined top-k     130 entries\n```\n\n'
+              'The C replay matches **130/130 indices and 512/512 BF16 attention values exactly**. Mutations that drop compressed history or use the window-size prefill offset instead of full `seqlen` fail.\n\n'
+              '**Boundary:** the compressed KV and Q/local-KV fixtures use different structural input sequences. This proves checkpoint-derived cache/index/sparse-attention composition, not one coherent same-input `Attention.forward`.\n\n'
+              '#### Ratio 128 coherent forward — **NEXT**\n\n'
+              'Use one input sequence for local Q/KV and compressor KV and prove through sparse attention plus inverse compressed RoPE. The already-proven shared output projection may then be attached without reopening its orientation.\n\n')
           s = s[:start] + replacement + s[end:]
           p.write_text(s)
           PY
