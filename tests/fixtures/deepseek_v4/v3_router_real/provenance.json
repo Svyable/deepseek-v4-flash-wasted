@@ -1,0 +1,229 @@
+{
+  "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+  "fixture_class": "F3 official-source + real-checkpoint router primitive",
+  "gate": "V3 router primitive -> Gate F / V4",
+  "hash": {
+    "diagnostics_file": "hash-diagnostics.f32.bin",
+    "diagnostics_layout": "raw[256], score[256]",
+    "diagnostics_sha256": "95985c892ce699d87086b23a4b05f5afb8d536c8c868a0e94e1be19a3ead8651",
+    "ids": [
+      150,
+      142,
+      245,
+      248,
+      174,
+      119
+    ],
+    "ids_file": "hash-ids.u32.bin",
+    "ids_sha256": "ab750430994bf4c1333e556c0b5f21b88d768e15534ce8d3918e8eb6ea3b87ea",
+    "layer": 0,
+    "tid2eid": {
+      "absolute_end": 375903,
+      "absolute_start": 375856,
+      "dtype": "I64",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172232,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "layer0-tid2eid-token4242.i64.bin",
+      "payload_bytes": 48,
+      "payload_sha256": "a1835f298a79557c8abca378db5397792394a58dbe277cdd4ec3ab1b4a28b229",
+      "relative_end": 203664,
+      "relative_start": 203616,
+      "remote_file_bytes": 3566321192,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 48,
+      "row_end": 4243,
+      "row_start": 4242,
+      "schema_version": 1,
+      "shape": [
+        129280,
+        6
+      ],
+      "shard": "model-00002-of-00048.safetensors",
+      "tensor": "layers.0.ffn.gate.tid2eid",
+      "tensor_data_offsets": [
+        0,
+        6205440
+      ]
+    },
+    "token_id": 4242,
+    "weight": {
+      "absolute_end": 11632295,
+      "absolute_start": 9535144,
+      "dtype": "BF16",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172232,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "layer0-gate-weight.bf16.bin",
+      "payload_bytes": 2097152,
+      "payload_sha256": "e110e3c4e310e7c9981f287038c5a0c8ad73da1b36b36feb3b909e04477a6a12",
+      "relative_end": 11460056,
+      "relative_start": 9362904,
+      "remote_file_bytes": 3566321192,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 8192,
+      "row_end": 256,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        256,
+        4096
+      ],
+      "shard": "model-00002-of-00048.safetensors",
+      "tensor": "layers.0.ffn.gate.weight",
+      "tensor_data_offsets": [
+        9362904,
+        11460056
+      ]
+    },
+    "weights": [
+      0.24843141436576843,
+      0.2675078511238098,
+      0.2474968582391739,
+      0.24170523881912231,
+      0.24613842368125916,
+      0.2487202137708664
+    ],
+    "weights_file": "hash-weights.f32.bin",
+    "weights_sha256": "554180d28b9efed0e0e898e9996f2af80cf86bca8c67663883ca4a47b752937a"
+  },
+  "input": {
+    "dtype": "BF16",
+    "file": "input.bf16.bin",
+    "sha256": "9bc8f7069b137e92d6e3ebd5075931936218a3388f5eda3e8a8571799af39822",
+    "shape": [
+      4096
+    ],
+    "support": [
+      [
+        0,
+        1.0
+      ],
+      [
+        7,
+        -0.375
+      ],
+      [
+        17,
+        0.625
+      ],
+      [
+        511,
+        -1.25
+      ],
+      [
+        1023,
+        0.1875
+      ],
+      [
+        2048,
+        1.5
+      ],
+      [
+        3071,
+        -0.75
+      ],
+      [
+        4095,
+        0.5
+      ]
+    ]
+  },
+  "learned": {
+    "bias": {
+      "absolute_end": 436087,
+      "absolute_start": 435064,
+      "dtype": "F32",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "layer3-gate-bias.f32.bin",
+      "payload_bytes": 1024,
+      "payload_sha256": "34d941394db670f6de58ccb9bb781158d12407cc27613f8ae90756e2623fb236",
+      "relative_end": 263424,
+      "relative_start": 262400,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 4,
+      "row_end": 256,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        256
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.gate.bias",
+      "tensor_data_offsets": [
+        262400,
+        263424
+      ]
+    },
+    "diagnostics_file": "learned-diagnostics.f32.bin",
+    "diagnostics_layout": "raw[256], score[256], selection[256]",
+    "diagnostics_sha256": "c0d5929a492480d1007582c975a5065e9b04150872b139afb5f8efe3f1ca92ec",
+    "ids": [
+      2,
+      29,
+      225,
+      220,
+      108,
+      69
+    ],
+    "ids_file": "learned-ids.u32.bin",
+    "ids_sha256": "b1fcf187d0a223b67d459ea8aca125c87ec427b5963e454678ec8edf498d5e76",
+    "layer": 3,
+    "topk_boundary_margin": 0.00040531158447265625,
+    "weight": {
+      "absolute_end": 14080079,
+      "absolute_start": 11982928,
+      "dtype": "BF16",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172656,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "layer3-gate-weight.bf16.bin",
+      "payload_bytes": 2097152,
+      "payload_sha256": "03667a2c67509c1f9a5391d3e9a772e603132bd8e91a472e6dca595c7ea5b78c",
+      "relative_end": 13907416,
+      "relative_start": 11810264,
+      "remote_file_bytes": 3568768976,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 8192,
+      "row_end": 256,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        256,
+        4096
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.ffn.gate.weight",
+      "tensor_data_offsets": [
+        11810264,
+        13907416
+      ]
+    },
+    "weights": [
+      0.2633841037750244,
+      0.2511540651321411,
+      0.2488662153482437,
+      0.2478196918964386,
+      0.24490244686603546,
+      0.24387359619140625
+    ],
+    "weights_file": "learned-weights.f32.bin",
+    "weights_sha256": "3c0ebed8c686ee6aef0bb54212abafb8f6b6d17ca28e085feb6f9cc6d7d1668b"
+  },
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claim": "Router primitive only. No routed/shared expert execution or full MoE block is claimed by this fixture.",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "experts": 256,
+    "normalization": "divide selected weights by sum then multiply 1.5",
+    "path": "inference/model.py Gate.forward",
+    "score_func": "sqrt(softplus(raw_linear))",
+    "selection": "learned: topk(score+bias); hash: tid2eid[input_id]",
+    "topk": 6,
+    "weight_source": "unbiased transformed score"
+  }
+}
