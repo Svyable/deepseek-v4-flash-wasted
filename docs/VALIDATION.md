@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, and a coherent same-input real ratio-128 forward through inverse compressed RoPE are passed. Ratio-4 CSA/indexer remains. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 one complete transformer layer is the next numerical integration rung. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -192,9 +192,9 @@ A model-free non-associativity fixture pins expert-ID ordering even though the s
 
 Since 2026-08-09 the replay is also *legible*: `tests/run.sh` invokes each Gate A–F replay as its own named line under "DeepSeek gate replays", and Gate E's three joined them on merge. Previously every replay was imported transitively from `tests/test_inventory.py`, so the whole ladder was reported as a single "inventory" line and a corrupted Gate F fixture failed under the tensor classifier's name. `docs/EXPERIMENTS.md` entry 6 records the mutation evidence. The list is enumerated, not globbed: a ratio-128 or CSA fixture is replayed when its line is added.
 
-### V5 — attention by type — **PARTIAL / Gate E**
+### V5 — attention by type — **PASSED / Gate E**
 
-Gate E has three structurally distinct attention modes plus a shared output projection. It closes only after all are independently proved.
+Gate E has three structurally distinct attention modes plus a shared output projection. All are now independently checkpoint/source proved at the stated scalar/model-semantic evidence level.
 
 #### Ratio 0 — attention core — **PASSED sub-seam**
 
@@ -315,9 +315,17 @@ The offline C replay regenerates every stage from the frozen raw checkpoint slic
 
 **Boundary:** one head / one query row only. The shared grouped output projection is already proved separately; ratio-4 CSA/indexer remains the final Gate-E attention mode.
 
-#### Ratio 4 / CSA — **OPEN**
+#### Ratio 4 / CSA — **PASSED real-checkpoint sub-seams**
 
-After ratio 128, add compressor/indexer scoring, top-512 compressed-position selection/order, and sparse attention over selected history.
+Frozen official layer-2 header inventory: `reference/deepseek-v4-flash-0731.layer2-csa.json`. It pins the separate 128-wide Indexer compressor, 64x128 Indexer query path, BF16 `weights_proj`, and 512-wide main overlapping compressor before arithmetic.
+
+Model-free fixtures pin normalized Walsh-Hadamard, K32 E2M1 FP4 simulation, previous-FIRST/current-SECOND overlap, BF16 score/ReLU/weight boundaries, causal masking before top-k, and a genuine 520-candidate -> 512 cutoff.
+
+Real Indexer fixture: `tests/fixtures/deepseek_v4/v5_csa_indexer_real/`. The same 8-token sparse input uses positions 3 and 7 so chunk-1 overlap is load-bearing. All 8,192 real Indexer `wq_b` outputs pass forward/reverse reduction stability. Real BF16 scores are `bc8e` and `bc63`, yielding compressed selection `[9,8]` after offset 8.
+
+Coherent main fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. The frozen real Indexer selection is consumed as a dependency; the main head-0 Q/local-KV path and 512-wide overlapping compressor are independently replayed from the same positions 3/7 input, followed by selected sink sparse attention and inverse compressed YaRN. Mutations that ignore overlap, drop Indexer-selected compressed entries, or omit inverse YaRN fail.
+
+**Boundary:** one main attention head / one query row. Shared grouped output projection is independently proved. Gate H/V6 now owns complete-layer composition.
 
 See `ATTENTION.md` for detailed cast boundaries and fixture provenance.
 
@@ -355,7 +363,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **B** native quantization | **V1** | **PASSED** |
 | **C** quantized trunk linear | **V2** | **PASSED scalar/model-semantic** |
 | **D** mHC | **V3 mHC seam** | **PASSED scalar/model-semantic** |
-| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output + coherent ratio-128 checkpoint-passed; ratio-4 CSA/indexer next** |
+| **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
 | **H** complete transformer block | **V6** | after E/V5 |

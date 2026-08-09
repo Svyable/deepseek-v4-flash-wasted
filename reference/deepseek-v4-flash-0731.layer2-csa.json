@@ -1,0 +1,543 @@
+{
+  "compress_ratio": 4,
+  "config_attention_contract": {
+    "compress_rope_theta": 160000,
+    "head_dim": 512,
+    "hidden_size": 4096,
+    "index_head_dim": 128,
+    "index_n_heads": 64,
+    "index_topk": 512,
+    "num_attention_heads": 64,
+    "q_lora_rank": 1024,
+    "qk_rope_head_dim": 64,
+    "sliding_window": 128
+  },
+  "config_sha256": "6c8f3d2d3b48707541b88f32f22ef3f0f8a6b57d8523281e2b8d3cdb0ae9a023",
+  "groups": {
+    "attention": {
+      "names": [
+        "layers.2.attn.attn_sink",
+        "layers.2.attn.kv_norm.weight",
+        "layers.2.attn.q_norm.weight",
+        "layers.2.attn.wkv.scale",
+        "layers.2.attn.wkv.weight",
+        "layers.2.attn.wo_a.scale",
+        "layers.2.attn.wo_a.weight",
+        "layers.2.attn.wo_b.scale",
+        "layers.2.attn.wo_b.weight",
+        "layers.2.attn.wq_a.scale",
+        "layers.2.attn.wq_a.weight",
+        "layers.2.attn.wq_b.scale",
+        "layers.2.attn.wq_b.weight"
+      ],
+      "payload_bytes": 106964608,
+      "tensor_count": 13
+    },
+    "compressor": {
+      "names": [
+        "layers.2.attn.compressor.ape",
+        "layers.2.attn.compressor.norm.weight",
+        "layers.2.attn.compressor.wgate.weight",
+        "layers.2.attn.compressor.wkv.weight",
+        "layers.2.attn.indexer.compressor.ape",
+        "layers.2.attn.indexer.compressor.norm.weight",
+        "layers.2.attn.indexer.compressor.wgate.weight",
+        "layers.2.attn.indexer.compressor.wkv.weight"
+      ],
+      "payload_bytes": 20993280,
+      "tensor_count": 8
+    },
+    "indexer": {
+      "names": [
+        "layers.2.attn.indexer.weights_proj.weight",
+        "layers.2.attn.indexer.wq_b.scale",
+        "layers.2.attn.indexer.wq_b.weight"
+      ],
+      "payload_bytes": 8913408,
+      "tensor_count": 3
+    }
+  },
+  "index_sha256": "98efab455cf08dfbbbaaba6f570e1bf10bf927d2b4c3c453a59c2f6f0e3be92b",
+  "layer": 2,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source": "official immutable Hugging Face safetensors headers",
+  "tensors": [
+    {
+      "absolute_range_half_open": [
+        6379072,
+        6379328
+      ],
+      "data_offsets": [
+        6205440,
+        6205696
+      ],
+      "dtype": "F32",
+      "group": "attention",
+      "name": "layers.2.attn.attn_sink",
+      "payload_bytes": 256,
+      "shape": [
+        64
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        6379328,
+        6395712
+      ],
+      "data_offsets": [
+        6205696,
+        6222080
+      ],
+      "dtype": "F32",
+      "group": "compressor",
+      "name": "layers.2.attn.compressor.ape",
+      "payload_bytes": 16384,
+      "shape": [
+        4,
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        9545752,
+        9546776
+      ],
+      "data_offsets": [
+        9372120,
+        9373144
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.compressor.norm.weight",
+      "payload_bytes": 1024,
+      "shape": [
+        512
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        9546776,
+        17935384
+      ],
+      "data_offsets": [
+        9373144,
+        17761752
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.compressor.wgate.weight",
+      "payload_bytes": 8388608,
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        17935384,
+        26323992
+      ],
+      "data_offsets": [
+        17761752,
+        26150360
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.compressor.wkv.weight",
+      "payload_bytes": 8388608,
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        6395712,
+        6399808
+      ],
+      "data_offsets": [
+        6222080,
+        6226176
+      ],
+      "dtype": "F32",
+      "group": "compressor",
+      "name": "layers.2.attn.indexer.compressor.ape",
+      "payload_bytes": 4096,
+      "shape": [
+        4,
+        256
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        26323992,
+        26324248
+      ],
+      "data_offsets": [
+        26150360,
+        26150616
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.indexer.compressor.norm.weight",
+      "payload_bytes": 256,
+      "shape": [
+        128
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        26324248,
+        28421400
+      ],
+      "data_offsets": [
+        26150616,
+        28247768
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.indexer.compressor.wgate.weight",
+      "payload_bytes": 2097152,
+      "shape": [
+        256,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        28421400,
+        30518552
+      ],
+      "data_offsets": [
+        28247768,
+        30344920
+      ],
+      "dtype": "BF16",
+      "group": "compressor",
+      "name": "layers.2.attn.indexer.compressor.wkv.weight",
+      "payload_bytes": 2097152,
+      "shape": [
+        256,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        30518552,
+        31042840
+      ],
+      "data_offsets": [
+        30344920,
+        30869208
+      ],
+      "dtype": "BF16",
+      "group": "indexer",
+      "name": "layers.2.attn.indexer.weights_proj.weight",
+      "payload_bytes": 524288,
+      "shape": [
+        64,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33159448,
+        33159960
+      ],
+      "data_offsets": [
+        32985816,
+        32986328
+      ],
+      "dtype": "F8_E8M0",
+      "group": "indexer",
+      "name": "layers.2.attn.indexer.wq_b.scale",
+      "payload_bytes": 512,
+      "shape": [
+        64,
+        8
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        234494616,
+        242883224
+      ],
+      "data_offsets": [
+        234320984,
+        242709592
+      ],
+      "dtype": "F8_E4M3",
+      "group": "indexer",
+      "name": "layers.2.attn.indexer.wq_b.weight",
+      "payload_bytes": 8388608,
+      "shape": [
+        8192,
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        31042840,
+        31043864
+      ],
+      "data_offsets": [
+        30869208,
+        30870232
+      ],
+      "dtype": "BF16",
+      "group": "attention",
+      "name": "layers.2.attn.kv_norm.weight",
+      "payload_bytes": 1024,
+      "shape": [
+        512
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        31043864,
+        31045912
+      ],
+      "data_offsets": [
+        30870232,
+        30872280
+      ],
+      "dtype": "BF16",
+      "group": "attention",
+      "name": "layers.2.attn.q_norm.weight",
+      "payload_bytes": 2048,
+      "shape": [
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33159960,
+        33160088
+      ],
+      "data_offsets": [
+        32986328,
+        32986456
+      ],
+      "dtype": "F8_E8M0",
+      "group": "attention",
+      "name": "layers.2.attn.wkv.scale",
+      "payload_bytes": 128,
+      "shape": [
+        4,
+        32
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        242883224,
+        244980376
+      ],
+      "data_offsets": [
+        242709592,
+        244806744
+      ],
+      "dtype": "F8_E4M3",
+      "group": "attention",
+      "name": "layers.2.attn.wkv.weight",
+      "payload_bytes": 2097152,
+      "shape": [
+        512,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33160088,
+        33162136
+      ],
+      "data_offsets": [
+        32986456,
+        32988504
+      ],
+      "dtype": "F8_E8M0",
+      "group": "attention",
+      "name": "layers.2.attn.wo_a.scale",
+      "payload_bytes": 2048,
+      "shape": [
+        64,
+        32
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        244980376,
+        278534808
+      ],
+      "data_offsets": [
+        244806744,
+        278361176
+      ],
+      "dtype": "F8_E4M3",
+      "group": "attention",
+      "name": "layers.2.attn.wo_a.weight",
+      "payload_bytes": 33554432,
+      "shape": [
+        8192,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33162136,
+        33164184
+      ],
+      "data_offsets": [
+        32988504,
+        32990552
+      ],
+      "dtype": "F8_E8M0",
+      "group": "attention",
+      "name": "layers.2.attn.wo_b.scale",
+      "payload_bytes": 2048,
+      "shape": [
+        32,
+        64
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        278534808,
+        312089240
+      ],
+      "data_offsets": [
+        278361176,
+        311915608
+      ],
+      "dtype": "F8_E4M3",
+      "group": "attention",
+      "name": "layers.2.attn.wo_b.weight",
+      "payload_bytes": 33554432,
+      "shape": [
+        4096,
+        8192
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33164184,
+        33164440
+      ],
+      "data_offsets": [
+        32990552,
+        32990808
+      ],
+      "dtype": "F8_E8M0",
+      "group": "attention",
+      "name": "layers.2.attn.wq_a.scale",
+      "payload_bytes": 256,
+      "shape": [
+        8,
+        32
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        312089240,
+        316283544
+      ],
+      "data_offsets": [
+        311915608,
+        316109912
+      ],
+      "dtype": "F8_E4M3",
+      "group": "attention",
+      "name": "layers.2.attn.wq_a.weight",
+      "payload_bytes": 4194304,
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        33164440,
+        33166488
+      ],
+      "data_offsets": [
+        32990808,
+        32992856
+      ],
+      "dtype": "F8_E8M0",
+      "group": "attention",
+      "name": "layers.2.attn.wq_b.scale",
+      "payload_bytes": 2048,
+      "shape": [
+        256,
+        8
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    },
+    {
+      "absolute_range_half_open": [
+        316283544,
+        349837976
+      ],
+      "data_offsets": [
+        316109912,
+        349664344
+      ],
+      "dtype": "F8_E4M3",
+      "group": "attention",
+      "name": "layers.2.attn.wq_b.weight",
+      "payload_bytes": 33554432,
+      "shape": [
+        32768,
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors",
+      "shard_remote_file_bytes": 3596229272
+    }
+  ]
+}

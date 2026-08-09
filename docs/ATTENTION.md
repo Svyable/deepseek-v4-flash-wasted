@@ -1,6 +1,6 @@
 # DeepSeek V4 attention bring-up
 
-**Current state: Gate E / V5 is PARTIAL. Ratio-0 attention, the shared grouped output projection, and coherent same-input ratio-128 attention through inverse compressed RoPE are checkpoint/source verified at the scalar model-semantic level. Ratio-4 CSA/indexer is the remaining attention mode.**
+**Current state: Gate E / V5 is PASSED at the stated scalar/model-semantic evidence level. Ratio-0, the shared grouped output projection, coherent ratio-128, and coherent ratio-4 CSA/indexer attention all have independent checkpoint/source evidence. Gate H/V6 complete-layer composition is next.**
 
 Pinned release:
 
@@ -361,7 +361,10 @@ Ordinary `make check` is expected to enumerate each DeepSeek gate replay by name
 - model-free ratio-128 prefill/decode history index semantics;
 - real ratio-128 compressed-history composition;
 - model-free inverse compressed-YaRN pair-20 mutation;
-- coherent same-input real ratio-128 forward through inverse compressed RoPE.
+- coherent same-input real ratio-128 forward through inverse compressed RoPE;
+- model-free ratio-4 CSA/indexer semantics;
+- real ratio-4 CSA Indexer;
+- coherent real ratio-4 CSA selected attention.
 
 Acquisition workflows are temporary by design and are removed after fixtures freeze. They must never contain hard-coded PR readiness or merge actions.
 
@@ -406,16 +409,74 @@ fixture freeze d12cb39a36973dab70a6005b05fffc664b0bec6d
 
 **Boundary:** one head and one query row. The shared grouped output projection was proved independently in section 5 and is not redundantly re-opened here.
 
-## 10. Next — ratio-4 CSA/indexer
+## 10. Ratio-4 CSA/indexer — PASSED real-checkpoint sub-seams
 
-Ratio-4 is now the only remaining Gate-E attention mode. It adds:
+Official immutable layer-2 header inventory:
 
-- overlapping two-half compressor behavior;
-- its own 128-dimensional indexer compressor;
-- Hadamard rotation and FP4 simulation where the pinned source applies them;
-- 64 indexer heads × 128 dimensions;
-- BF16 `weights_proj` weighting;
-- exact top-512 compressed-position selection/order;
-- sparse attention over the selected compressed history.
+```text
+reference/deepseek-v4-flash-0731.layer2-csa.json
+```
 
-Gate E / V5 closes only after that ratio-4/CSA seam has independent checkpoint/source evidence.
+It pins the actual exported split before arithmetic: the main compressor is BF16 `wkv/wgate [1024,4096]` + F32 APE `[4,1024]` + BF16 norm `[512]`; the separate Indexer compressor is BF16 `wkv/wgate [256,4096]` + F32 APE `[4,256]` + BF16 norm `[128]`; and the Indexer uses FP8 `wq_b [8192,1024]`, E8M0 scales `[64,8]`, and BF16 `weights_proj [64,4096]`.
+
+### 10.1 Model-free source contract
+
+`tests/test_v5_csa_scalar.py` independently pins normalized Walsh-Hadamard, K32 finite-E2M1 FP4 simulation, previous-FIRST/current-SECOND overlap, BF16 score/ReLU/weight boundaries, causal masking before top-k, and an actual 520-candidate -> 512 cutoff. Known-wrong K64 FP4, ignore-overlap, omitted-ReLU, and future-score leakage mutations fail.
+
+### 10.2 Real Indexer
+
+Frozen fixture: `tests/fixtures/deepseek_v4/v5_csa_indexer_real/`. The 8-token sparse input activates positions 3 and 7; position 3 is deliberately the last token of chunk 0 so its FIRST half must feed chunk-1 overlap, while position 7 supplies the current SECOND half and query. Forward/reverse stability agrees for q-norm, all 8,192 Indexer `wq_b` BF16 outputs, overlap softmax, and score reduction.
+
+Real score/ranking evidence:
+
+```text
+entry 0 score bc8e
+entry 1 score bc63
+compressed top-k [9, 8]
+```
+
+Artifact evidence:
+
+```text
+workflow run 31330024933
+artifact id 9042665069
+artifact sha256 01935f02bccd9679b71b9d6e5881813fe17db525c26b904b05aaa0ad61d064eb
+fixture freeze 5de641fe5fbcbb7643a9d3ec92ea88dc29954a5d
+```
+
+### 10.3 Coherent main CSA attention
+
+Frozen fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. It consumes only the frozen real Indexer q-rank/selection dependency, then independently replays the real main head-0 Q/local-KV path, 512-wide overlapping compressor, local row `[0..7] + [9,8]`, sink sparse attention, and inverse compressed YaRN from the same positions 3/7 structural input.
+
+Representative evidence:
+
+```text
+main compressor chunk1 first8
+bb80 ba60 bcc0 bca0 3c00 3b20 3c80 3c00
+
+pre-inverse attention first8
+3c7e bc36 bbef bcc7 3c93 3b9a 3cb8 3a5f
+
+post-inverse attention first8
+3c7e bc36 bbef bcc7 3c93 3b9a 3cb8 3a5f
+
+pair20 pre  bbca bc88
+pair20 post bbcb bc88
+```
+
+Artifact evidence:
+
+```text
+workflow run 31330389738
+artifact id 9042766089
+artifact sha256 ea11e1688c74f0e2a78da53d854136a870751cf4d778d826787422d53dd87412
+fixture freeze 74a5026387e73b2607557699797995d41c209639
+```
+
+Load-bearing mutations remove the previous overlap half, drop Indexer-selected compressed entries, or omit inverse compressed YaRN; all must change the final evidence. The identical first eight pre/post inverse values are expected because RoPE affects only the final 64 dimensions; pair 20 is in that tail.
+
+**Boundary:** one main attention head / one query row. The shared grouped output projection is already independently proved in section 5 and is not redundantly duplicated.
+
+## 11. Next — Gate H/V6 complete transformer layer
+
+Gate E is now complete at the repository's stated scalar/model-semantic evidence level. Gate H must compose one full transformer layer — mHC attention merge, attention mode, routing/MoE, and final layer output — and compare checkpoint-derived boundaries before any full-model correctness claim.
