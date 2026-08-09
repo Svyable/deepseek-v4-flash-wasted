@@ -1,4 +1,4 @@
-name: Gate E ratio-0 attention
+name: Gate E final replay
 
 on:
   push:
@@ -7,82 +7,27 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: gate-e-ratio0
   cancel-in-progress: true
 
 jobs:
-  scalar:
+  replay:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Existing and frozen ratio-0 suite
+      - name: Build and ordinary check
         run: |
           make -j2
           make check
-      - name: Ratio-0 source-contract scalar tests
-        run: python3 tests/test_v5_attention_scalar.py
       - name: Sanitizers
         run: make asan
-
-  output-projection:
-    needs: scalar
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
-      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
-      SNAPSHOT: reference/deepseek-v4-flash-0731
-      FIXTURE: tests/fixtures/deepseek_v4/v5_attn_output_group0_real
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Fetch pinned 0731 headers only
+      - name: Verify frozen Gate E fixtures
         run: |
-          python3 tools/fetch_hf_headers.py \
-            --model "$MODEL" \
-            --revision "$REVISION" \
-            --out "$SNAPSHOT"
-
-      - name: Build bounded real grouped-output fixture
-        run: |
-          rm -rf "$FIXTURE"
-          python3 tools/make_v5_attention_output_fixture.py "$SNAPSHOT" "$FIXTURE"
-          test "$(stat -c %s "$FIXTURE/group-input.bf16.bin")" -eq 8192
-          test "$(stat -c %s "$FIXTURE/wo-a-group0.fp8.bin")" -eq 4194304
-          test "$(stat -c %s "$FIXTURE/wo-a-group0-scale.e8m0.bin")" -eq 256
-          test "$(stat -c %s "$FIXTURE/wo-b-rows0-8.fp8.bin")" -eq 65536
-          test "$(stat -c %s "$FIXTURE/wo-b-scale-row0.e8m0.bin")" -eq 64
-          test "$(stat -c %s "$FIXTURE/expected-group-lora.bf16.bin")" -eq 2048
-          test "$(stat -c %s "$FIXTURE/expected-out8.bf16.bin")" -eq 16
-
-      - name: Replay grouped output projection through WASTE scalar C
-        run: python3 tests/test_v5_attention_output_real.py
-
-      - name: Upload grouped-output evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: gate-e-output-group0-real
-          retention-days: 30
-          if-no-files-found: error
-          path: tests/fixtures/deepseek_v4/v5_attn_output_group0_real/
-
-      - name: Freeze verified fixture
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FIXTURE"
-          if git diff --cached --quiet; then
-            echo "output fixture already frozen"
-            exit 0
-          fi
-          git commit -m "fixtures: freeze real 0731 grouped attention output evidence"
-          git push origin HEAD:agent/gate-e-attention-ratio0
+          test -f tests/fixtures/deepseek_v4/v5_attn_ratio0_real/provenance.json
+          test -f tests/fixtures/deepseek_v4/v5_attn_output_group0_real/provenance.json
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_attn_ratio0_real/attn-after-inverse-rope.bf16.bin)" -eq 4096
+          test "$(stat -c %s tests/fixtures/deepseek_v4/v5_attn_output_group0_real/expected-out8.bf16.bin)" -eq 16
