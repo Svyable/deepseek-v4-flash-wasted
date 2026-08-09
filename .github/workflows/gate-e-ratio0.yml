@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: gate-e-ratio0
@@ -27,3 +27,69 @@ jobs:
         run: python3 tests/test_v5_attention_scalar.py
       - name: Sanitizers
         run: make asan
+
+  real-ratio0:
+    needs: scalar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v5_attn_ratio0_real
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch pinned 0731 headers only
+        run: |
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" \
+            --revision "$REVISION" \
+            --out "$SNAPSHOT"
+
+      - name: Build bounded real ratio-0 fixture
+        run: |
+          rm -rf "$FIXTURE"
+          python3 tools/make_v5_attention_ratio0_fixture.py "$SNAPSHOT" "$FIXTURE"
+          test "$(stat -c %s "$FIXTURE/input.bf16.bin")" -eq 16384
+          test "$(stat -c %s "$FIXTURE/wq-a.fp8.bin")" -eq 4194304
+          test "$(stat -c %s "$FIXTURE/wq-a-scale.e8m0.bin")" -eq 256
+          test "$(stat -c %s "$FIXTURE/q-norm.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/wq-b-head0-2.fp8.bin")" -eq 1048576
+          test "$(stat -c %s "$FIXTURE/wq-b-scale-head0-2.e8m0.bin")" -eq 64
+          test "$(stat -c %s "$FIXTURE/wkv.fp8.bin")" -eq 2097152
+          test "$(stat -c %s "$FIXTURE/wkv-scale.e8m0.bin")" -eq 128
+          test "$(stat -c %s "$FIXTURE/kv-norm.bf16.bin")" -eq 1024
+          test "$(stat -c %s "$FIXTURE/attn-sink-head0-2.f32.bin")" -eq 8
+          test "$(stat -c %s "$FIXTURE/q-a-token0-first8.bf16.bin")" -eq 16
+          test "$(stat -c %s "$FIXTURE/q-after-rope.bf16.bin")" -eq 4096
+          test "$(stat -c %s "$FIXTURE/kv-after-qat.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/attn-after-inverse-rope.bf16.bin")" -eq 4096
+
+      - name: Replay real ratio-0 core through WASTE scalar C
+        run: python3 tests/test_v5_attention_ratio0_real.py
+
+      - name: Upload Gate E ratio-0 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-e-ratio0-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v5_attn_ratio0_real/
+
+      - name: Freeze verified fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE"
+          if git diff --cached --quiet; then
+            echo "ratio-0 fixture already frozen"
+            exit 0
+          fi
+          git commit -m "fixtures: freeze real 0731 ratio-0 attention evidence"
+          git push origin HEAD:agent/gate-e-attention-ratio0
