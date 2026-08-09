@@ -1,0 +1,306 @@
+{
+  "checkpoint_tensors": {
+    "attn_sink": {
+      "absolute_range": [
+        172664,
+        172667
+      ],
+      "dtype": "F32",
+      "name": "layers.3.attn.attn_sink",
+      "payload_bytes": 4,
+      "payload_sha256": "2c98a891adc0a322810b62c24a88094e5142534a85971a5b854388793c01e188",
+      "rows": [
+        0,
+        1
+      ],
+      "shape": [
+        64
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "kv_norm": {
+      "absolute_range": [
+        11971664,
+        11972687
+      ],
+      "dtype": "BF16",
+      "name": "layers.3.attn.kv_norm.weight",
+      "payload_bytes": 1024,
+      "payload_sha256": "42eff990439d348e734b9e4eb0ee1119520042f78ccc0bbcc38cd6bdd6135f83",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        512
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "q_norm": {
+      "absolute_range": [
+        11972688,
+        11974735
+      ],
+      "dtype": "BF16",
+      "name": "layers.3.attn.q_norm.weight",
+      "payload_bytes": 2048,
+      "payload_sha256": "3ca83c47bb85de13e5850a664b2a06c13d8b67e38cd0668f2427e2843a803141",
+      "rows": [
+        0,
+        1024
+      ],
+      "shape": [
+        1024
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wkv": {
+      "absolute_range": [
+        215422928,
+        217520079
+      ],
+      "dtype": "F8_E4M3",
+      "name": "layers.3.attn.wkv.weight",
+      "payload_bytes": 2097152,
+      "payload_sha256": "6a2db8d064248045779d264d5e17bff64f265489ddd46d3108fc32c9aef50f06",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        512,
+        4096
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wkv_scale": {
+      "absolute_range": [
+        14088272,
+        14088399
+      ],
+      "dtype": "F8_E8M0",
+      "name": "layers.3.attn.wkv.scale",
+      "payload_bytes": 128,
+      "payload_sha256": "540abe2bbf66bd6c8ebd21ca2f1894b19bfa670306fa7e92cbb21de6a930405a",
+      "rows": [
+        0,
+        4
+      ],
+      "shape": [
+        4,
+        32
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wq_a": {
+      "absolute_range": [
+        284628944,
+        288823247
+      ],
+      "dtype": "F8_E4M3",
+      "name": "layers.3.attn.wq_a.weight",
+      "payload_bytes": 4194304,
+      "payload_sha256": "d789583d090d2865bbaf86fb0521b0847a79e2417a0e7c5e70ef43a0468d90df",
+      "rows": [
+        0,
+        1024
+      ],
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wq_a_scale": {
+      "absolute_range": [
+        14092496,
+        14092751
+      ],
+      "dtype": "F8_E8M0",
+      "name": "layers.3.attn.wq_a.scale",
+      "payload_bytes": 256,
+      "payload_sha256": "81eff7be2e8b938ffaa3af9407d85ea81c3d9c1cb539ef74b18caa62e2dd336c",
+      "rows": [
+        0,
+        8
+      ],
+      "shape": [
+        8,
+        32
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wq_b": {
+      "absolute_range": [
+        288823248,
+        289347535
+      ],
+      "dtype": "F8_E4M3",
+      "name": "layers.3.attn.wq_b.weight",
+      "payload_bytes": 524288,
+      "payload_sha256": "f3b4ee570dfdf715f98f1642bdc5bbb66586222a9e2ee5e3de8de0b856060eab",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        32768,
+        1024
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wq_b_scale": {
+      "absolute_range": [
+        14092752,
+        14092783
+      ],
+      "dtype": "F8_E8M0",
+      "name": "layers.3.attn.wq_b.scale",
+      "payload_bytes": 32,
+      "payload_sha256": "850fa497c88547e48a6112a184970ff0022a5373f256e1c3bd12132e393b9605",
+      "rows": [
+        0,
+        4
+      ],
+      "shape": [
+        256,
+        8
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    }
+  },
+  "compress_ratio": 128,
+  "compressor_dependency": {
+    "expected_sha256": "61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5",
+    "path": "tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/compressed-kv.bf16.bin",
+    "sha256": "61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5"
+  },
+  "evidence_state": "CHECKPOINT-WEIGHTS + STRUCTURAL-SPARSE-INPUT + FROZEN-REAL-COMPRESSOR + SOURCE-ORACLE",
+  "gate": "Gate E / V5 ratio-128 compressed-history composition sub-seam",
+  "layer": 3,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "compressed KV comes from the independently frozen compressor fixture and not from the same structural token inputs used for q/local KV",
+    "therefore this proves cache/index/sparse-attention composition, not a single same-input Attention.forward",
+    "does not include inverse-RoPE or grouped output projection",
+    "does not prove ratio-4 CSA/indexer",
+    "does not complete Gate E/V5"
+  ],
+  "oracle_independence": {
+    "producer": "tools/make_v5_attention_history_real_fixture.py independent Python equations",
+    "shares_waste_runtime_helpers": false
+  },
+  "outputs": {
+    "attention": {
+      "dtype": "BF16",
+      "file": "expected-attn-row255.bf16.bin",
+      "first8_hex": [
+        "0xbd5b",
+        "0xbc9a",
+        "0x3cc7",
+        "0xbde7",
+        "0x3c7b",
+        "0x3dda",
+        "0x3e1f",
+        "0x3d59"
+      ],
+      "sha256": "b4d9d0c4f7bb81ea5259c92de1b41b74bf135390fd2268e44a07071e3fbaa6e5",
+      "shape": [
+        512
+      ]
+    },
+    "attn_sink": {
+      "dtype": "F32",
+      "file": "attn-sink-head0.f32.bin",
+      "sha256": "2c98a891adc0a322810b62c24a88094e5142534a85971a5b854388793c01e188",
+      "shape": [
+        1
+      ],
+      "value": 0.25188711285591125
+    },
+    "local_kv": {
+      "dtype": "BF16",
+      "file": "local-kv-0-255.bf16.bin",
+      "row255_first8_hex": [
+        "0x3fa0",
+        "0xbe10",
+        "0xbdb0",
+        "0xbf60",
+        "0x3fa0",
+        "0xbf00",
+        "0x3ea0",
+        "0xbea0"
+      ],
+      "sha256": "08237ab9f2d39d259b58a2ddb993cd36204460086e0a1599903c0351c9ad03ba",
+      "shape": [
+        256,
+        512
+      ]
+    },
+    "q": {
+      "dtype": "BF16",
+      "file": "q-pos255-head0.bf16.bin",
+      "first8_hex": [
+        "0xbfcf",
+        "0x3f44",
+        "0xbf8f",
+        "0xbf7d",
+        "0x3e43",
+        "0x3e97",
+        "0x3f13",
+        "0x3fac"
+      ],
+      "sha256": "3b200dafb52b2438eaa1e6552d1a1f392e3c452f10a61bf7c0c1111e7ccc3999",
+      "shape": [
+        512
+      ]
+    },
+    "topk": {
+      "dtype": "I32",
+      "file": "topk-row255.i32.bin",
+      "first8": [
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "last8": [
+        250,
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257
+      ],
+      "sha256": "f1d0f29b97e04795c3388951a07180a4baca346b5c6997860f14ca9823023aa9",
+      "shape": [
+        130
+      ]
+    }
+  },
+  "query_position": 255,
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "attention": "BF16 q/kv, f32 block-online softmax, BF16 exp weights for value GEMM, f32 denominator plus real attn_sink",
+    "history_namespace": "prefill sparse-attn KV is [all 256 local KV, 2 compressed KV]; row255 indices local128..255 then compressed256,257",
+    "local_kv": "real layer3 wkv -> learned RMSNorm -> compressed YaRN per position -> K64 E4M3 QAT first448",
+    "q": "real layer3 wq_a -> learned RMSNorm -> head0 wq_b -> direct BF16 head norm -> compressed YaRN at position255"
+  },
+  "structural_input": {
+    "all_positions_recipe_sha256": "9e0a1d6587f85ef7ec621b0d9e1f44ed256ba356a2fd640405d3be0d6b2259a2",
+    "formula": "one nonzero lane per position; lane=(position*2053+17)%4096, source=(position*1543+lane)%4096, sign flip when position%3==1",
+    "query_position_recipe": {
+      "bf16_hex": "0xbf20",
+      "lane": 3340,
+      "position": 255
+    },
+    "source": "Gate-C frozen BF16 input bits"
+  }
+}
