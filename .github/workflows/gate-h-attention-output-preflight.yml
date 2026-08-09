@@ -1,0 +1,23 @@
+name: Gate H full attention-output preflight
+
+on:
+  push:
+    branches: [agent/gate-h-layer3-full]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-h-attention-output-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tests/test_v6_attention_output_full_scalar.py
+      - run: python3 tests/test_v6_layer_composition_scalar.py
+      - run: python3 tests/test_v6_hc_composition_real.py
