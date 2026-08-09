@@ -2,6 +2,7 @@
  * Copyright 2026 The deepseek-v4-flash-wasted authors.
  */
 #include "deepseek_v4_linear_ref.h"
+#include "fp4_e2m1.h"
 #include "fp8_e4m3.h"
 
 #include <float.h>
@@ -10,6 +11,7 @@
 #include <string.h>
 
 #define DS_V4_ACT_BLOCK 128u
+#define DS_V4_FP4_WEIGHT_BLOCK 32u
 
 static uint32_t f32_bits(float x)
 {
@@ -40,10 +42,6 @@ uint8_t waste_ds_v4_e4m3_encode_ref(float x)
     double best_err = DBL_MAX;
     uint8_t best = neg ? 0x80u : 0x00u;
 
-    /* Reference-only exhaustive search. Restrict candidates to x's sign so
-     * very small negative values round to -0 rather than +0. On an exact
-     * midpoint, E4M3 round-to-nearest-even chooses a code whose significand
-     * least-significant bit is zero, which is the encoded low bit here. */
     for (unsigned mag = 0; mag < 0x80u; mag++) {
         uint8_t code = (uint8_t)(mag | (neg ? 0x80u : 0u));
         if ((code & 0x7Fu) == 0x7Fu)
@@ -73,9 +71,6 @@ float waste_ds_v4_act_scale_ref(const float *x, size_t n)
     if (amax < 1e-4f)
         amax = 1e-4f;
 
-    /* Pinned 0731 kernel fast_round_scale(amax, 1/448):
-     * ceil(log2(amax/448)) synthesized as an exact power of two from the
-     * binary32 exponent. The lower clamp keeps the ratio normal. */
     float ratio = amax * (1.0f / WASTE_E4M3_MAX);
     uint32_t bits = f32_bits(ratio);
     int exp = (int)((bits >> 23) & 0xFFu) - 127;
@@ -90,18 +85,24 @@ float waste_ds_v4_bf16_round_ref(float x)
     uint32_t exp = u & 0x7F800000u;
     uint32_t frac = u & 0x007FFFFFu;
 
-    /* Keep infinities/NaNs non-finite without allowing the rounding add to
-     * wrap an exponent. Payload exactness is not part of the model contract. */
     if (exp == 0x7F800000u) {
         if (frac != 0u)
-            u |= 0x00400000u;  /* quiet NaN */
+            u |= 0x00400000u;
         return bits_f32(u & 0xFFFF0000u);
     }
 
-    /* Round-to-nearest-even at the BF16 cut: add 0x7fff plus the retained
-     * least-significant bit, then clear the discarded 16 bits. */
     u += 0x7FFFu + ((u >> 16) & 1u);
     return bits_f32(u & 0xFFFF0000u);
+}
+
+static uint8_t quantize_act(const float *block, size_t lane, float scale)
+{
+    float normalized = block[lane] / scale;
+    if (normalized > WASTE_E4M3_MAX)
+        normalized = WASTE_E4M3_MAX;
+    if (normalized < -WASTE_E4M3_MAX)
+        normalized = -WASTE_E4M3_MAX;
+    return waste_ds_v4_e4m3_encode_ref(normalized);
 }
 
 int waste_ds_v4_fp8_linear_ref(const float *x,
@@ -116,8 +117,6 @@ int waste_ds_v4_fp8_linear_ref(const float *x,
         return -1;
 
     const size_t k_blocks = k / DS_V4_ACT_BLOCK;
-    const size_t n_scale_rows = (n + WASTE_FP8_BLOCK - 1) / WASTE_FP8_BLOCK;
-    (void)n_scale_rows;  /* documents the expected grid; index below uses n/128 */
 
     for (size_t mi = 0; mi < m; mi++) {
         const float *xr = x + mi * k;
@@ -134,17 +133,68 @@ int waste_ds_v4_fp8_linear_ref(const float *x,
                 float part = 0.0f;
 
                 for (size_t j = 0; j < DS_V4_ACT_BLOCK; j++) {
-                    float normalized = xb[j] / act_scale;
-                    if (normalized > WASTE_E4M3_MAX)
-                        normalized = WASTE_E4M3_MAX;
-                    if (normalized < -WASTE_E4M3_MAX)
-                        normalized = -WASTE_E4M3_MAX;
-                    uint8_t qa = waste_ds_v4_e4m3_encode_ref(normalized);
-                    float a = waste_e4m3_decode(qa);
+                    float a = waste_e4m3_decode(quantize_act(xb, j, act_scale));
                     float b = waste_e4m3_decode(wb[j]);
                     part += a * b;
                 }
+                accum += part * act_scale * weight_scale;
+            }
+            y[mi * n + ni] = waste_ds_v4_bf16_round_ref(accum);
+        }
+    }
+    return 0;
+}
 
+static uint8_t packed_fp4_code(const uint8_t *row, size_t logical_k)
+{
+    uint8_t byte = row[logical_k / 2u];
+    return (logical_k & 1u) ? (uint8_t)(byte >> 4)
+                            : (uint8_t)(byte & 0x0Fu);
+}
+
+int waste_ds_v4_fp4_linear_ref(const float *x,
+                               size_t m, size_t k,
+                               const uint8_t *packed_weight,
+                               const uint8_t *weight_scales_e8m0,
+                               size_t n,
+                               float *y)
+{
+    if (!x || !packed_weight || !weight_scales_e8m0 || !y ||
+        m == 0 || n == 0 || k == 0 ||
+        k % DS_V4_ACT_BLOCK != 0 || k % DS_V4_FP4_WEIGHT_BLOCK != 0)
+        return -1;
+
+    const size_t act_blocks = k / DS_V4_ACT_BLOCK;
+    const size_t weight_blocks = k / DS_V4_FP4_WEIGHT_BLOCK;
+    (void)act_blocks;
+
+    for (size_t mi = 0; mi < m; mi++) {
+        const float *xr = x + mi * k;
+        for (size_t ni = 0; ni < n; ni++) {
+            const uint8_t *wr = packed_weight + ni * (k / 2u);
+            const uint8_t *sr = weight_scales_e8m0 + ni * weight_blocks;
+            float accum = 0.0f;
+
+            for (size_t wb = 0; wb < weight_blocks; wb++) {
+                size_t base = wb * DS_V4_FP4_WEIGHT_BLOCK;
+                size_t ab = base / DS_V4_ACT_BLOCK;
+                const float *act_block = xr + ab * DS_V4_ACT_BLOCK;
+                float act_scale = waste_ds_v4_act_scale_ref(
+                    act_block, DS_V4_ACT_BLOCK);
+                float weight_scale = waste_ue8m0_decode(sr[wb]);
+                if (!isfinite(weight_scale))
+                    return -1;
+                float part = 0.0f;
+
+                for (size_t j = 0; j < DS_V4_FP4_WEIGHT_BLOCK; j++) {
+                    size_t logical_k = base + j;
+                    size_t act_lane = logical_k - ab * DS_V4_ACT_BLOCK;
+                    float a = waste_e4m3_decode(
+                        quantize_act(act_block, act_lane, act_scale));
+                    float b = waste_e2m1_decode(
+                        packed_fp4_code(wr, logical_k));
+                    part += a * b;
+                }
                 accum += part * act_scale * weight_scale;
             }
             y[mi * n + ni] = waste_ds_v4_bf16_round_ref(accum);
