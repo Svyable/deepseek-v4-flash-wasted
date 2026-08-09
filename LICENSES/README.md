@@ -25,52 +25,48 @@ If you modify an imported file, Apache-2.0 §4(b) requires the modified file to
 carry a prominent notice stating that you changed it. Add that notice as you
 edit, not in a cleanup pass later.
 
-## DeepSeek-V4-Flash-0731 — MIT (text not yet vendored)
+## DeepSeek-V4-Flash-0731 — MIT
 
+- Text: [`DEEPSEEK-MIT.txt`](DEEPSEEK-MIT.txt)
 - Upstream: <https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731>
-- Pinned revision: `9e165c3`
-- Placeholder: [`DEEPSEEK-MIT.txt.MISSING`](DEEPSEEK-MIT.txt.MISSING)
+- Release commit: `9e165c30e2704aec5d9d593cce3eebd58bbef1cb`
+- Upstream filename: `LICENSE`
+- Upstream copyright line: `Copyright (c) 2023 DeepSeek`
 
-**The DeepSeek license text is deliberately absent.** `huggingface.co` is
-blocked by this environment's egress policy, so the authoritative `LICENSE`
-file could not be retrieved. Writing an MIT template from memory would put a
-fabricated legal document into the repository under a real party's name, with a
-copyright line nobody verified — so the placeholder records the requirement
-instead.
+The exact publisher license was retrieved from the pinned **Release
+DeepSeek-V4-Flash-0731** commit and vendored verbatim. The old
+`DEEPSEEK-MIT.txt.MISSING` marker has therefore been removed.
 
-The repository `README.md` §0 states DeepSeek's weights and repository are
-MIT-licensed. That is a claim to verify against the checkpoint, not a
-substitute for the file.
+The release commit adds one `LICENSE` file and identifies the repository/model
+as MIT-licensed. If a future pinned revision introduces additional model/code
+license or notice files, vendor and record those separately rather than
+assuming this file governs a materially different release.
 
-### To resolve
+### Provenance rule for DeepSeek-derived code and fixtures
 
-From an environment that can reach Hugging Face:
+Before copying or adapting any official `inference/` or `encoding/` source,
+record at minimum:
 
-```bash
-python -m pip install 'huggingface_hub>=0.34'
-python - <<'PY'
-from huggingface_hub import hf_hub_download
-import shutil
-for name in ('LICENSE', 'LICENSE-MODEL', 'LICENSE-CODE'):
-    try:
-        p = hf_hub_download(
-            'deepseek-ai/DeepSeek-V4-Flash-0731',
-            name,
-            revision='9e165c3',
-        )
-    except Exception as exc:
-        print(f'{name}: {exc}')
-        continue
-    shutil.copy(p, f'LICENSES/DEEPSEEK-{name}.txt')
-    print(f'{name}: vendored')
-PY
-git rm LICENSES/DEEPSEEK-MIT.txt.MISSING
+```text
+model repository
+full immutable source commit SHA
+source path
+source/content hash where practical
+this repository commit that imports/adapts it
 ```
 
-Check which of those filenames actually exist at the pinned revision — some
-DeepSeek repositories split model and code licensing — and vendor each one you
-find rather than assuming a single `LICENSE`.
+Small official-oracle fixtures must also follow `docs/FIXTURES.md`: the
+expected side must remain independent of the implementation/convention it is
+meant to prove.
 
-This must be done before any DeepSeek reference code, tensor-name tables, or
-converter logic derived from the official `inference/` sources is committed
-here. Until then, nothing in this tree is derived from DeepSeek material.
+The canonical release baseline for current Gate A/V0, Gate B/V1 and Gate C/V2
+work is:
+
+```text
+deepseek-ai/DeepSeek-V4-Flash-0731
+9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+```
+
+A later model-card-only commit does not silently change the checkpoint/oracle
+baseline. Moving the baseline requires an explicit project update and fixture
+provenance change.
