@@ -287,6 +287,10 @@ wkv / wgate
 + dense attention over compressed history
 ```
 
+The compressor through K64 QAT is implemented in `src/deepseek_v4_compressor_ref.{c,h}` and its **model-free** semantics are pinned: per-output-dimension pooling softmax, position-0 RoPE identity, an independent YaRN equation, and discrimination against ordinary base-10000 RoPE at rope pair 20 — the ramp interior, because pair 0 is bit-identical between the two schemes by construction and cannot witness anything (`EXPERIMENTS.md` entry 7).
+
+**No real checkpoint bytes have been through the compressor.** Agreement with the pinned release is unproven until `tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/` is frozen; the ordinary suite reports that replay as a SKIP, not a pass. `ATTENTION.md` §7 has the acquisition recipe and expected byte sizes. Compressed-history attention over the compressor output is a separate seam and is not started.
+
 #### Ratio 4 / CSA — **OPEN**
 
 After ratio 128, add compressor/indexer scoring, top-512 compressed-position selection/order, and sparse attention over selected history.
@@ -327,7 +331,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **B** native quantization | **V1** | **PASSED** |
 | **C** quantized trunk linear | **V2** | **PASSED scalar/model-semantic** |
 | **D** mHC | **V3 mHC seam** | **PASSED scalar/model-semantic** |
-| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output passed; ratio 128 next** |
+| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output passed; ratio-128 compressor model-free only, real fixture pending; CSA next** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
 | **H** complete transformer block | **V6** | after E/V5 |

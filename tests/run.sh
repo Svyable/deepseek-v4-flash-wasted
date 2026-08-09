@@ -1169,6 +1169,17 @@ deepseek_replay "Gate E/V5 — real ratio-0 attention core, exact BF16 Q/KV/attn
 deepseek_replay "Gate E/V5 — real grouped wo_a/wo_b output projection" \
                 "test_v5_attention_output_real.py"
 
+# Ratio-128 compressor. The model-free half carries the weight until the real
+# fixture is frozen, and it is the half that needed strengthening: its YaRN
+# check originally witnessed only rope pair 0, where base**0 == 1 and the ramp
+# leaves the frequency untouched, so compressed YaRN and plain base-10000 RoPE
+# are bit-identical there by construction. Pair 20 sits at ramp 0.5 and does
+# discriminate. EXPERIMENTS.md entry 7 has the mutation table.
+deepseek_replay "Gate E/V5 — model-free ratio-128 pooling and compressed YaRN" \
+                "test_v5_compressor_scalar.py"
+deepseek_replay "Gate E/V5 — real ratio-128 compressor stages" \
+                "test_v5_compressor_real.py"
+
 # ------------------------------------------------------------ converter ----
 head_ "converter"
 

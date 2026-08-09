@@ -216,13 +216,15 @@ Ordinary `make check` replays:
 - sliding-window and incremental ring indices;
 - sink-softmax and 64-position online-softmax behavior;
 - real ratio-0 checkpoint Q/KV/attention fixture;
-- real grouped `wo_a/wo_b` output-projection fixture.
+- real grouped `wo_a/wo_b` output-projection fixture;
+- model-free ratio-128 pooling and compressed-YaRN semantics;
+- real ratio-128 compressor stages — **SKIP until the fixture is frozen**, reported by name so the gap is visible.
 
 Temporary acquisition workflows are removed before merge once these fixtures are frozen and the ordinary suite/sanitizers are green.
 
-## 7. Next — ratio 128 compressed attention
+## 7. Ratio 128 compressed attention — compressor implemented, real fixture PENDING
 
-Ratio-128 removes the CSA indexer but introduces the learned compressor. The source contract to prove next is:
+Ratio-128 removes the CSA indexer but introduces the learned compressor. The source contract is:
 
 ```text
 wkv / wgate
@@ -234,7 +236,55 @@ wkv / wgate
 + dense attention over compressed history
 ```
 
-This should be brought up before ratio-4 CSA because it isolates compressor correctness from indexer/top-k correctness.
+This is brought up before ratio-4 CSA because it isolates compressor correctness from indexer/top-k correctness.
+
+### What is proved
+
+`src/deepseek_v4_compressor_ref.{c,h}` implements the compressor through K64 QAT, with diagnostics exposed at the stage boundaries the pipeline already has — pooled-before-norm, post-norm, post-YaRN-RoPE — copied rather than recomputed, so a diagnostic cannot agree with the fixture while the path feeding `out` disagrees.
+
+`tests/test_v5_compressor_scalar.py` pins the model-free half: per-output-dimension pooling softmax (not one shared softmax), position-0 RoPE identity, the independent YaRN equation, and that compressed YaRN differs from ordinary base-10000 RoPE.
+
+**The YaRN discrimination is checked at rope pair 20, and the choice of pair is load-bearing.** At pair 0 the check is vacuous: `base**(-0/dim) == 1` for every base, and with `beta_fast=32, beta_slow=1` the ramp spans low=15 to high=25, so pair 0 is fully extrapolated and neither `base` nor `factor` reaches the angle. Compressed YaRN and plain RoPE are bit-identical there by construction. Pair 31 clamps to ramp=1 but its position-128 angles (7.3e-05 against 1.2e-03) both round to the same BF16 near 0.5. Pair 20 sits at ramp=0.5 — the blended interior — with angles 0.038 against 0.072, and does discriminate. See `EXPERIMENTS.md` entry 7.
+
+### What is not proved
+
+No real checkpoint bytes have been through this path. The compressor's agreement with the pinned release is **unproven** until the fixture below is frozen; the ordinary suite reports that as a SKIP rather than a pass.
+
+### Freezing the real fixture — run in an environment authorized for Hugging Face
+
+```bash
+MODEL=deepseek-ai/DeepSeek-V4-Flash-0731
+REVISION=9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+SNAPSHOT=reference/deepseek-v4-flash-0731
+FIXTURE=tests/fixtures/deepseek_v4/v5_compressor_ratio128_real
+
+python3 tools/fetch_hf_headers.py --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+python3 tools/make_v5_compressor_ratio128_fixture.py "$SNAPSHOT" "$FIXTURE"
+python3 tests/test_v5_compressor_real.py
+```
+
+Expected exact sizes, which the generator must produce before the replay is meaningful:
+
+```text
+input.bf16.bin             2097152     wkv.bf16.bin      4194304
+wgate.bf16.bin             4194304     ape.f32.bin        262144
+norm.f32.bin                  2048
+pooled-before-norm.bf16.bin   2048     post-norm.bf16.bin    2048
+post-yarn-rope.bf16.bin       2048     compressed-kv.bf16.bin 2048
+```
+
+Real tensors asserted exactly against the pinned checkpoint:
+
+```text
+layers.3.attn.compressor.wkv.weight    BF16 [512,4096]
+layers.3.attn.compressor.wgate.weight  BF16 [512,4096]
+layers.3.attn.compressor.ape           F32  [128,512]
+layers.3.attn.compressor.norm.weight   F32  [512]
+```
+
+The fixture uses two 128-token chunks with exactly one non-zero token/hidden lane per chunk. That still exercises all 512 compressor dimensions, all 128 APE/softmax positions, learned norm, position-128 YaRN and K64 QAT, while making each non-zero `wkv/wgate` output exactly one product — removing projection reduction ambiguity ahead of the softmax.
+
+Once frozen, the `run.sh` replay line stops skipping on its own; no wiring change is needed.
 
 ## 8. Then — ratio 4 CSA/indexer
 
