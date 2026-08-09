@@ -40,7 +40,7 @@ TENSORS = {
     "wkv": ("layers.3.attn.compressor.wkv.weight", None, "BF16", [512,4096], "wkv.bf16.bin"),
     "wgate": ("layers.3.attn.compressor.wgate.weight", None, "BF16", [512,4096], "wgate.bf16.bin"),
     "ape": ("layers.3.attn.compressor.ape", None, "F32", [128,512], "ape.f32.bin"),
-    "norm": ("layers.3.attn.compressor.norm.weight", None, "F32", [512], "norm.f32.bin"),
+    "norm": ("layers.3.attn.compressor.norm.weight", None, "BF16", [512], "norm.bf16.bin"),
 }
 
 
@@ -194,7 +194,8 @@ def main(argv=None):
         paths[key], tmeta[key] = fetch(args.snapshot, key, args.out_dir, args.token)
 
     wkv = read_u16(paths["wkv"]); wgate = read_u16(paths["wgate"])
-    ape = read_f32(paths["ape"]); norm = read_f32(paths["norm"])
+    ape = read_f32(paths["ape"])
+    norm = [qref.bf16_to_f32(b) for b in read_u16(paths["norm"])]
     pooled_all=[]; norm_all=[]; rope_all=[]; final_all=[]
     for chunk, a in enumerate(active):
         xv = qref.bf16_to_f32(a["bits"])
@@ -226,7 +227,7 @@ def main(argv=None):
         "evidence_state":"CHECKPOINT-WEIGHTS + STRUCTURAL-SPARSE-INPUT + SOURCE-ORACLE",
         "model":"deepseek-ai/DeepSeek-V4-Flash-0731","revision":REV,"layer":3,"compress_ratio":128,
         "input":input_meta,"tensors":tmeta,
-        "source_contract":{"projection":"wkv/wgate checkpoint BF16 loaded into f32 Linear; sparse active token gives one product/output row","pool":"per-output-dimension f32 softmax(score+ape) over 128 tokens; f32 weighted pool then explicit BF16 cast","norm":"learned RMSNorm f32 math/F32 weight -> BF16","rope":"compressed YaRN base160000 factor16 beta_fast32 beta_slow1, chunk positions 0 and 128","qat":"finite E4M3 quant/dequant first448 in K64 blocks, BF16 result"},
+        "source_contract":{"projection":"wkv/wgate checkpoint BF16 loaded into f32 Linear; sparse active token gives one product/output row","pool":"per-output-dimension f32 softmax(score+ape) over 128 tokens; f32 weighted pool then explicit BF16 cast","norm":"RMSNorm checkpoint BF16 weight loaded/upcast to f32 parameter semantics; f32 normalization -> BF16 output","rope":"compressed YaRN base160000 factor16 beta_fast32 beta_slow1, chunk positions 0 and 128","qat":"finite E4M3 quant/dequant first448 in K64 blocks, BF16 result"},
         "oracle_independence":{"producer":"tools/make_v5_compressor_ratio128_fixture.py independent Python source equations","shares_waste_runtime_helpers":False,"reduction_design":"one nonzero hidden lane/token eliminates wkv/wgate reduction ambiguity"},
         "outputs":outputs,
         "non_claims":["does not execute official GPU kernels","does not yet include compressed-history attention scores","does not prove ratio-4 CSA/indexer","therefore does not complete Gate E/V5"]}

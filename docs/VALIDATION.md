@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention and the shared grouped-output projection are passed; ratio-128 compression and ratio-4 CSA/indexer remain. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, the real ratio-128 compressor, and a real ratio-128 compressed-history composition seam are passed. A coherent same-input ratio-128 forward and ratio-4 CSA/indexer remain. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -273,23 +273,43 @@ ba34 bce1 bd35 3bd0 3d87 3d77 bc85 bd46
 
 **Boundary:** heads 2–7 in this projection fixture are deterministic structural transforms seeded from real heads 0/1, not independently generated checkpoint attention heads. This proves the shared projection structure/arithmetic, not a full 64-head layer output.
 
-#### Ratio 128 — **NEXT**
+#### Ratio 128 compressor — **PASSED real-checkpoint sub-seam**
 
-Prove the learned compressor independently from CSA:
+Frozen fixture:
 
 ```text
-wkv / wgate
-+ learned absolute position embedding over 128-token chunks
-+ softmax-weighted pooling
-+ learned RMSNorm
-+ compressed-position RoPE
-+ K64 QAT
-+ dense attention over compressed history
+tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/
 ```
 
-The compressor through K64 QAT is implemented in `src/deepseek_v4_compressor_ref.{c,h}` and its **model-free** semantics are pinned: per-output-dimension pooling softmax, position-0 RoPE identity, an independent YaRN equation, and discrimination against ordinary base-10000 RoPE at rope pair 20 — the ramp interior, because pair 0 is bit-identical between the two schemes by construction and cannot witness anything (`EXPERIMENTS.md` entry 7).
+Pinned real checkpoint tensors are BF16 `wkv/wgate`, F32 APE, and **BF16** compressor norm storage. The reference implementation upcasts RMSNorm parameters to f32 after load; the fixture preserves checkpoint BF16 bytes and performs that upcast only in the source-equation oracle/runtime semantics.
 
-**No real checkpoint bytes have been through the compressor.** Agreement with the pinned release is unproven until `tests/fixtures/deepseek_v4/v5_compressor_ratio128_real/` is frozen; the ordinary suite reports that replay as a SKIP, not a pass. `ATTENTION.md` §7 has the acquisition recipe and expected byte sizes. Compressed-history attention over the compressor output is a separate seam and is not started.
+Two reduction-safe 128-token structural chunks match exactly at pooled-before-norm, post-norm, post-YaRN-RoPE and post-K64-QAT compressed KV: **4,096 exact BF16 values**. The compressed-KV SHA-256 is `61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5`.
+
+The pair-20 YaRN mutation remains required: pair 0 is invariant to the parameters this check is meant to witness.
+
+#### Ratio 128 compressed-history composition — **PASSED checkpoint-derived sub-seam**
+
+Frozen fixture:
+
+```text
+tests/fixtures/deepseek_v4/v5_attention_history_ratio128_real/
+```
+
+For layer 3 / prefill row 255 it derives a checkpoint-real head-0 Q, all 256 checkpoint-real local KV entries, and a real `attn_sink`, then composes them with the independently frozen real compressor KV. The source namespace is pinned exactly:
+
+```text
+local visible      128..255
+compressed visible 256,257
+combined top-k     130 entries
+```
+
+The C replay matches **130/130 indices and 512/512 BF16 attention values exactly**. Mutations that drop compressed history or use the window-size prefill offset instead of full `seqlen` fail.
+
+**Boundary:** the compressed KV and Q/local-KV fixtures use different structural input sequences. This proves checkpoint-derived cache/index/sparse-attention composition, not one coherent same-input `Attention.forward`.
+
+#### Ratio 128 coherent forward — **NEXT**
+
+Use one input sequence for local Q/KV and compressor KV and prove through sparse attention plus inverse compressed RoPE. The already-proven shared output projection may then be attached without reopening its orientation.
 
 #### Ratio 4 / CSA — **OPEN**
 
