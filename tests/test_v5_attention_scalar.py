@@ -61,6 +61,20 @@ def arr_f(values):
     return (ctypes.c_float * len(values))(*[f32(x) for x in values])
 
 
+def head_norm_python(values, eps):
+    # Direct BF16 tensor expression from Attention.forward rather than the
+    # learned RMSNorm module: square->BF16, mean->BF16, +eps->BF16,
+    # rsqrt->BF16, in-place multiply->BF16.
+    squares = [bf16(f32(bf16(v) * bf16(v))) for v in values]
+    total = f32(0.0)
+    for v in squares:
+        total = f32(total + v)
+    mean = bf16(f32(total / len(values)))
+    shifted = bf16(f32(mean + eps))
+    inv = bf16(f32(1.0 / math.sqrt(shifted)))
+    return [bf16(f32(bf16(v) * inv)) for v in values]
+
+
 def sparse_python(q, kv, idxs, sink, scale):
     d = len(q)
     max_score = -math.inf
@@ -117,6 +131,20 @@ def main():
         expected = [bf16(f32(f32(v * s) * ww)) for v, ww in zip(x, w)]
         assert [out[i] for i in range(4)] == expected
 
+        head_norm = lib.waste_ds_v4_head_rmsnorm_bf16_ref
+        head_norm.restype = ctypes.c_int
+        head_norm.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_size_t,
+                              ctypes.c_float, ctypes.POINTER(ctypes.c_float)]
+        qh = [bf16(0.1015625), bf16(-0.3359375), bf16(1.234375), bf16(-2.71875)]
+        hout = (ctypes.c_float * 4)()
+        assert head_norm(arr_f(qh), 4, ctypes.c_float(1e-6), hout) == 0
+        head_expected = head_norm_python(qh, 1e-6)
+        assert [hout[i] for i in range(4)] == head_expected
+        learned_unit = (ctypes.c_float * 4)()
+        assert rms(arr_f(qh), None, 4, ctypes.c_float(1e-6), learned_unit) == 0
+        assert [hout[i] for i in range(4)] != [learned_unit[i] for i in range(4)], \
+            "fixture must distinguish direct BF16 q normalization from learned RMSNorm"
+
         rope = lib.waste_ds_v4_rope_ref
         rope.restype = ctypes.c_int
         rope.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_size_t,
@@ -141,7 +169,7 @@ def main():
         ring = (ctypes.c_int32 * 4)()
         assert win(4, 1, 2, ring, 4) == 4
         assert list(ring) == [0, 1, 2, -1]
-        assert win(4, 1, 6, ring, 4) == 4  # 6 % 4 == 2
+        assert win(4, 1, 6, ring, 4) == 4
         assert list(ring) == [3, 0, 1, 2]
 
         sim = lib.waste_ds_v4_fp8_sim_inplace_ref
@@ -176,7 +204,6 @@ def main():
         no_sink_expected = sparse_python(q, kv, idxs, -100.0, 1.0)
         assert expected != no_sink_expected, "sink-denominator mutation should be visible"
 
-        # Exercise online-softmax rescaling across the kernel's 64-position block boundary.
         kv_many = [[bf16((i % 7 - 3) / 4.0), bf16((i % 5 - 2) / 4.0)] for i in range(65)]
         ids_many = list(range(65))
         exp_many = sparse_python(q, kv_many, ids_many, -0.75, 0.7)
@@ -186,7 +213,7 @@ def main():
                       ctypes.c_float(-0.75), ctypes.c_float(0.7), got_many) == 0
         assert [got_many[i] for i in range(2)] == exp_many
 
-    print("PASS Gate E ratio-0 scalar contract: RMSNorm, RoPE, K64 QAT, window, sink sparse attention")
+    print("PASS Gate E ratio-0 scalar contract: learned/head RMS, RoPE, K64 QAT, window, sink sparse attention")
     return 0
 
 
