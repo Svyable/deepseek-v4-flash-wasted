@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "evidence_state": "CHECKPOINT-VERIFIED",
+  "gate": "Gate A / V0",
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "validation": {
+    "github_actions_run_id": 31285866894,
+    "runner_os": "Ubuntu 24.04.4 LTS",
+    "all_gate_checks_passed": true,
+    "gate_checks": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "build": "PASS",
+    "make_check": "PASS",
+    "make_asan": "PASS",
+    "real_header_inventory": "PASS"
+  },
+  "checkpoint": {
+    "shards": 48,
+    "tensors": 72317,
+    "payload_bytes": 166878536440,
+    "payload_gib": 155.41774820536375,
+    "config": {
+      "main_layers": 43,
+      "hidden_size": 4096,
+      "routed_experts_per_layer": 256,
+      "shared_experts_per_layer": 1,
+      "routed_experts_per_token_per_layer": 6,
+      "moe_intermediate_size": 2048,
+      "bootstrap_hash_layers": 3
+    }
+  },
+  "buckets": {
+    "main_routed_expert": {
+      "bytes": 147169738752,
+      "gib": 137.0625,
+      "tensors": 66048
+    },
+    "shared_expert": {
+      "bytes": 1082196480,
+      "gib": 1.0078740119934082,
+      "tensors": 258
+    },
+    "attention_compressor_indexer": {
+      "bytes": 5400422016,
+      "gib": 5.029534935951233,
+      "tensors": 784
+    },
+    "mhc": {
+      "bytes": 135537756,
+      "gib": 0.12622937187552452,
+      "tensors": 261
+    },
+    "embedding_and_head": {
+      "bytes": 2118123520,
+      "gib": 1.97265625,
+      "tensors": 2
+    },
+    "dspark": {
+      "bytes": 10862838300,
+      "gib": 10.116806533187628,
+      "tensors": 4705
+    },
+    "other_resident": {
+      "bytes": 109679616,
+      "gib": 0.10214710235595703,
+      "tensors": 259
+    },
+    "unclassified": {
+      "bytes": 0,
+      "tensors": 0
+    }
+  },
+  "dtype_totals": {
+    "I8": {"bytes": 148176371712, "tensors": 35328},
+    "F8_E8M0": {"bytes": 9261408000, "tensors": 35718},
+    "F8_E4M3": {"bytes": 6304038912, "tensors": 390},
+    "BF16": {"bytes": 2967134976, "tensors": 445},
+    "F32": {"bytes": 150966520, "tensors": 433},
+    "I64": {"bytes": 18616320, "tensors": 3}
+  },
+  "routed_experts": {
+    "records": 11008,
+    "layers": 43,
+    "records_per_layer": 256,
+    "payload_bytes_per_record": 13369344,
+    "payload_mib_per_record": 12.75,
+    "records_touched_per_decode_token": 258,
+    "all_miss_payload_bytes_per_decode_token": 3449290752,
+    "all_miss_payload_gib_per_decode_token": 3.21240234375,
+    "notes": "Payload figures exclude future WASTE record headers and 4 KiB alignment and assume zero cache hits."
+  },
+  "bootstrap_routing": {
+    "checkpoint_tensor": "layers.<0..2>.ffn.gate.tid2eid",
+    "dtype": "I64",
+    "shape": [129280, 6],
+    "layers_present": [0, 1, 2]
+  },
+  "representative_real_tensors": {
+    "embedding": {
+      "name": "embed.weight",
+      "dtype": "BF16",
+      "shape": [129280, 4096]
+    },
+    "head": {
+      "name": "head.weight",
+      "dtype": "BF16",
+      "shape": [129280, 4096]
+    },
+    "routed_w1": {
+      "name": "layers.0.ffn.experts.0.w1.weight",
+      "dtype": "I8",
+      "shape": [2048, 2048],
+      "scale_name": "layers.0.ffn.experts.0.w1.scale",
+      "scale_dtype": "F8_E8M0",
+      "scale_shape": [2048, 128]
+    },
+    "resident_fp8_projection": {
+      "name": "layers.0.attn.wq_a.weight",
+      "dtype": "F8_E4M3",
+      "shape": [1024, 4096],
+      "scale_name": "layers.0.attn.wq_a.scale",
+      "scale_dtype": "F8_E8M0",
+      "scale_shape": [8, 32]
+    }
+  }
+}
