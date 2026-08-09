@@ -1,0 +1,184 @@
+name: Inventory official layer-2 ratio-4 CSA tensors
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio4-csa
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-e-ratio4-inventory
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      OUT: reference/deepseek-v4-flash-0731.layer2-csa.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Frozen baseline
+        run: |
+          set -euo pipefail
+          make -j2
+          make check
+
+      - name: Fetch immutable 0731 headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" \
+            --revision "$REVISION" \
+            --out "$SNAPSHOT"
+
+      - name: Extract exact layer-2 attention inventory
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, struct
+          from pathlib import Path
+
+          snap = Path(os.environ['SNAPSHOT'])
+          out = Path(os.environ['OUT'])
+          rev = os.environ['REVISION']
+          model = os.environ['MODEL']
+
+          config = json.loads((snap / 'config.json').read_text())
+          index = json.loads((snap / 'model.safetensors.index.json').read_text())
+          headers_manifest = json.loads((snap / 'reference_headers.json').read_text())
+          weight_map = index['weight_map']
+
+          ratios = config.get('compress_ratios')
+          if not isinstance(ratios, list) or len(ratios) <= 2 or ratios[2] != 4:
+              raise SystemExit(f'layer 2 compress_ratio mismatch: {ratios!r}')
+
+          cache = {}
+          def shard_header(shard):
+              if shard in cache:
+                  return cache[shard]
+              path = snap / shard
+              with path.open('rb') as f:
+                  raw = f.read(8)
+                  if len(raw) != 8:
+                      raise SystemExit(f'{shard}: truncated stub')
+                  (hlen,) = struct.unpack('<Q', raw)
+                  blob = f.read(hlen)
+                  if len(blob) != hlen:
+                      raise SystemExit(f'{shard}: truncated JSON header')
+              hdr = json.loads(blob)
+              cache[shard] = (hlen, hdr)
+              return cache[shard]
+
+          names = sorted(n for n in weight_map if n.startswith('layers.2.attn.'))
+          if not names:
+              raise SystemExit('no layers.2.attn.* tensors found')
+
+          rows = []
+          for name in names:
+              shard = weight_map[name]
+              hlen, hdr = shard_header(shard)
+              if name not in hdr:
+                  raise SystemExit(f'{name}: missing from {shard} header')
+              meta = hdr[name]
+              begin, end = meta['data_offsets']
+              absolute_start = 8 + hlen + begin
+              absolute_end = 8 + hlen + end
+              if '.compressor.' in name:
+                  group = 'compressor'
+              elif '.indexer.' in name:
+                  group = 'indexer'
+              else:
+                  group = 'attention'
+              rows.append({
+                  'name': name,
+                  'group': group,
+                  'dtype': meta['dtype'],
+                  'shape': meta['shape'],
+                  'payload_bytes': end - begin,
+                  'shard': shard,
+                  'data_offsets': [begin, end],
+                  'absolute_range_half_open': [absolute_start, absolute_end],
+                  'shard_remote_file_bytes': headers_manifest['shards'][shard].get('remote_file_bytes'),
+              })
+
+          groups = {}
+          for row in rows:
+              g = row['group']
+              groups.setdefault(g, {'tensor_count': 0, 'payload_bytes': 0, 'names': []})
+              groups[g]['tensor_count'] += 1
+              groups[g]['payload_bytes'] += row['payload_bytes']
+              groups[g]['names'].append(row['name'])
+
+          if groups.get('compressor', {}).get('tensor_count', 0) == 0:
+              raise SystemExit('layer 2 ratio-4 inventory has no compressor tensors')
+          if groups.get('indexer', {}).get('tensor_count', 0) == 0:
+              raise SystemExit('layer 2 ratio-4 inventory has no indexer tensors')
+
+          doc = {
+              'schema_version': 1,
+              'model': model,
+              'revision': rev,
+              'layer': 2,
+              'compress_ratio': ratios[2],
+              'source': 'official immutable Hugging Face safetensors headers',
+              'config_sha256': hashlib.sha256((snap / 'config.json').read_bytes()).hexdigest(),
+              'index_sha256': hashlib.sha256((snap / 'model.safetensors.index.json').read_bytes()).hexdigest(),
+              'config_attention_contract': {
+                  'hidden_size': config.get('hidden_size'),
+                  'num_attention_heads': config.get('num_attention_heads'),
+                  'head_dim': config.get('head_dim'),
+                  'q_lora_rank': config.get('q_lora_rank'),
+                  'qk_rope_head_dim': config.get('qk_rope_head_dim'),
+                  'sliding_window': config.get('sliding_window'),
+                  'index_n_heads': config.get('index_n_heads'),
+                  'index_head_dim': config.get('index_head_dim'),
+                  'index_topk': config.get('index_topk'),
+                  'compress_rope_theta': config.get('compress_rope_theta'),
+              },
+              'groups': groups,
+              'tensors': rows,
+          }
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(doc, indent=2, sort_keys=True) + '\n')
+          print(f"layer2 attention tensors: {len(rows)}")
+          for g in sorted(groups):
+              print(f"  {g}: {groups[g]['tensor_count']} tensors, {groups[g]['payload_bytes']} bytes")
+          print('\ncompressor:')
+          for n in groups['compressor']['names']:
+              print(' ', n)
+          print('\nindexer:')
+          for n in groups['indexer']['names']:
+              print(' ', n)
+          PY
+
+      - name: Upload exact inventory evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-e-ratio4-layer2-header-inventory
+          retention-days: 30
+          if-no-files-found: error
+          path: reference/deepseek-v4-flash-0731.layer2-csa.json
+
+      - name: Freeze checkpoint-derived inventory
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$OUT"
+          if git diff --cached --quiet; then
+            echo "CSA inventory already frozen"
+            exit 0
+          fi
+          git commit -m "reference: freeze official layer-2 ratio-4 CSA tensor inventory [skip ci]"
+          git push origin HEAD:agent/gate-e-attention-ratio4-csa
