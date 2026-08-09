@@ -28,8 +28,9 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #7 real layer-0 mHC | **D/V3 mHC** | **DONE**, `eac344236d5f3bd5544188ab2a229faa8e3ead6c` |
 | PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **DONE**, `632f0b3ba36a033713702fda2daecf44ac0946aa` |
 | PR #9 ratio-0 attention + grouped output projection | **E/V5 partial** | **DONE**, `093081efc4a9f583a1962bcb69e05a20d57c1585` |
-| ratio-128 compressor | **E/V5** | scalar + model-free **PASSED**; real fixture **PENDING** (needs HF access) |
-| ratio-128 compressed-history attention | **E/V5** | **NEXT**, on top of the compressor |
+| ratio-128 compressor | **E/V5 partial** | **CHECKPOINT-PASSED**, 4,096 exact BF16 diagnostics |
+| ratio-128 compressed-history composition | **E/V5 partial** | **CHECKPOINT-PASSED**, 130 indices + 512 BF16 exact |
+| coherent same-input ratio-128 forward | **E/V5** | **NEXT** |
 | ratio-4 CSA/indexer attention | **E/V5** | after ratio-128; completes Gate E |
 | one full transformer layer | **H/V6** | after E/V5 attention variants |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
@@ -117,7 +118,7 @@ The output fixture uses a sparse structurally valid 8-head group seeded from rea
 
 See `docs/ATTENTION.md` for source cast boundaries, fixture provenance, and non-claims.
 
-**Immediate priority: ratio-128 compressor + compressed-history attention.**
+**Immediate priority: coherent same-input ratio-128 forward through inverse compressed RoPE, then ratio-4 CSA/indexer.**
 
 ---
 
@@ -171,11 +172,13 @@ Completed oracle seams:
 4. learned + hash routing — F/V4;
 5. routed FP4 + shared FP8 expert and six-branch MoE combination — F/V4;
 6. ratio-0 Q/KV/RoPE/K64-QAT/sink-sparse-attention core — partial E/V5;
-7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam.
+7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam;
+8. real ratio-128 learned compressor — 4,096 exact BF16 diagnostics;
+9. real ratio-128 compressed-history composition — 130 exact indices + 512 BF16 attention values.
 
 Next oracle seams:
 
-1. ratio-128 learned compressor + compressed-history attention;
+1. coherent same-input ratio-128 forward through inverse compressed RoPE;
 2. ratio-4 CSA compressor + indexer/top-512 selection + sparse attention — completes E/V5;
 3. complete layer — H/V6;
 4. final logits/generation — I/V8 + K/V9;
