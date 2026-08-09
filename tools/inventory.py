@@ -150,7 +150,8 @@ RULES = (
     (re.compile(r"\.shared_experts?\."), "shared_expert"),
     (re.compile(r"tid2eid|tie2eid|hash|token_to_expert|expert_map"),
      "router_hash"),
-    (re.compile(r"\.mlp\.gate\.|e_score_correction_bias|\brouter\b"),
+    (re.compile(r"(?:^|\.)ffn\.gate\.|\.mlp\.gate\.|"
+                r"e_score_correction_bias|\brouter\b"),
      "router"),
     (re.compile(r"indexer|\bidx_"), "csa_indexer"),
     (re.compile(r"compress|\bkv_c\b|\bc_kv\b"), "compressor"),
@@ -159,7 +160,8 @@ RULES = (
     (re.compile(r"_proj|\.attn\.|attention|q_a_|q_b_|kv_a_|kv_b_"),
      "attention"),
     (re.compile(r"embed_tokens|\bembed\b|word_embeddings"), "embedding"),
-    (re.compile(r"lm_head|output\.weight$"), "lm_head"),
+    (re.compile(r"lm_head|output\.weight$|(?:^|\.)head\.weight$"),
+     "lm_head"),
 )
 
 BUCKETS = {
@@ -178,7 +180,7 @@ BUCKETS = {
     "unclassified": "unclassified",
 }
 
-LAYER_RE = re.compile(r"\.layers\.(\d+)\.")
+LAYER_RE = re.compile(r"(?:^|\.)layers\.(\d+)\.")
 EXPERT_RE = re.compile(r"\.experts\.(\d+)\.")
 DSPARK_RE = re.compile(r"dspark|\bspark\b|\bmtp\b|speculat|draft")
 
