@@ -188,6 +188,10 @@ Three defects followed from the shape, and the mutations pinned each:
 
 **Follow-up:** the replays are enumerated rather than globbed, so a Gate E/V5 attention fixture is not covered until its line is added. That is deliberate — a glob hides an unreplayed fixture exactly as well as the import chain did — and it is the one maintenance cost this fix creates.
 
+**Addendum, same day, before this entry merged.** PR #9 landed ratio-0 attention and the grouped output projection on `main` while this change was open, and added its three replays *to the import chain* — `test_v5_attention_scalar`, `test_v5_attention_ratio0_real`, `test_v5_attention_output_real`, imported into `test_release_quant_fixture.py`. So the chain reached fourteen replays under the one "inventory" line before anyone noticed eleven. The merge resolution keeps the decoupling and gives the three their own lines; suite is 48 passed, 0 failed, 12 skipped. Two further mutations confirm the new lines bite: corrupting `v5_attn_ratio0_real/q-after-rope.bf16.bin` names *Gate E/V5 — real ratio-0 attention core* and leaves inventory passing (47 passed, 1 failed), and removing `v5_attn_output_group0_real/` reports SKIP with its reason rather than passing.
+
+This is the maintenance cost being paid within hours of being written down, and it is also the evidence that the cost is worth it: the chain absorbed three new gates silently, which is exactly how it absorbed the first eleven. **Ratio-128 and ratio-4/CSA each need their `run.sh` line when their fixtures are frozen.**
+
 ---
 
 ## Candidate experiments after base correctness

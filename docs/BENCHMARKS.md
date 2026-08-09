@@ -272,7 +272,7 @@ make asan  -> 33 passed, 0 failed
 Current, after the Gate A–F replays were given their own suite lines:
 
 ```text
-make check -> 45 passed, 0 failed, 12 skipped
+make check -> 48 passed, 0 failed, 12 skipped
 ```
 
 That is a test-suite state, not a performance result. It belongs in project status/PR history and is repeated here only to prevent someone from mistaking the absence of DeepSeek benchmarks for missing documentation.

@@ -1070,7 +1070,7 @@ else
 fi
 
 # ------------------------------------------------- DeepSeek gate replays ----
-head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4)"
+head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, partial E/V5)"
 
 # These eleven replays did run before this section existed, but not under
 # their own names. test_inventory.py imported the Gate B/V1 driver, which
@@ -1156,6 +1156,18 @@ deepseek_replay "Gate F/V4 — real routed FP4 expert 3/2, exact gate/up and out
                 "test_v4_routed_expert_real.py"
 deepseek_replay "Gate F/V4 — real shared FP8 expert and six-branch combination" \
                 "test_v4_moe_real.py"
+
+# Gate E/V5 — PARTIAL. Ratio-0 attention and the shared grouped-output
+# projection have real fixtures; ratio-128 compression and ratio-4 CSA do
+# not, and get their lines when they do. These three arrived on main while
+# this section was being written, added to the old import chain — the first
+# instance of the maintenance cost enumeration buys, paid immediately.
+deepseek_replay "Gate E/V5 — model-free ratio-0 attention semantics" \
+                "test_v5_attention_scalar.py"
+deepseek_replay "Gate E/V5 — real ratio-0 attention core, exact BF16 Q/KV/attn" \
+                "test_v5_attention_ratio0_real.py"
+deepseek_replay "Gate E/V5 — real grouped wo_a/wo_b output projection" \
+                "test_v5_attention_output_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

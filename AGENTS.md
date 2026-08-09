@@ -14,7 +14,7 @@ Merged baseline through PR #3:
 - Documentation foundation merged in PR #2 as `7c5c8d95fa7e1a9588b744aba4a6389bf77e98f7`.
 - PR #3 merged as `91c36b8f4168349e6893a9911a3f60075d62d973` and added the first DeepSeek-specific arithmetic: scalar E2M1/UE8M0 and finite-E4M3 decoders/matvecs under `src/quant/`.
 - PR #3 model-free suite: **34 passed, 0 failed, 12 skipped**.
-- Current suite after PRs #5–#8 and the replay-reporting fix: **45 passed, 0 failed, 12 skipped**. The eleven Gate A–F replays reached `make check` through an import chain from `test_inventory.py` and were reported as a single "inventory" line; `tests/run.sh` now invokes each by name. Same tests, honest attribution — `docs/EXPERIMENTS.md` entry 6.
+- Current suite after PRs #5–#9 and the replay-reporting fix: **48 passed, 0 failed, 12 skipped**. The Gate A–F replays reached `make check` through an import chain from `test_inventory.py` and were reported as a single "inventory" line; PR #9 added Gate E's three to that same chain. `tests/run.sh` now invokes all fourteen by name. Same tests, honest attribution — `docs/EXPERIMENTS.md` entry 6.
 - PR #3 sanitizer run: **33 passed, 0 failed** under ASan/UBSan; clean rebuild had no `-Wall -Wextra` warnings.
 - README **Gate B / V1** is **half satisfied**: public number-format conformance and local indexing/matvec consistency pass, but official DeepSeek nibble order, scale direction, scale layout and oracle projection agreement remain unverified.
 - No DeepSeek transformer forward path has been ported.

@@ -20,7 +20,7 @@ PRs #5–#8 have since merged Gates A/V0, B/V1, C/V2, D/V3 and F/V4 against
 real 0731 checkpoint fixtures. Current:
 
 ```text
-make check -> 45 passed, 0 failed, 12 skipped
+make check -> 48 passed, 0 failed, 12 skipped
 ```
 
 Those eleven gate replays were running under PR #3's count too — through an

@@ -286,7 +286,7 @@ before local model work: 31 passed, 0 failed, 12 skipped
 after PR #1 inventory:  32 passed, 0 failed, 12 skipped
 after PR #3 quant:      34 passed, 0 failed, 12 skipped
 PR #3 ASan/UBSan:       33 passed, 0 failed
-after gate replays:     45 passed, 0 failed, 12 skipped
+after gate replays:     48 passed, 0 failed, 12 skipped
 ```
 
 The jump from 34 to 45 is reporting, not new coverage. Gates B, C, D and F
