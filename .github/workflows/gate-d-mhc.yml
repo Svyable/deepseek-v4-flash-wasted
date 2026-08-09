@@ -31,6 +31,7 @@ jobs:
         run: |
           make -j2
           make check
+          python3 tests/test_v3_mhc_scalar.py
 
       - name: Fetch pinned headers only
         run: |
