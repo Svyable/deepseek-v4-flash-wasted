@@ -94,14 +94,14 @@ jobs:
                   return 'hc_ffn'
               if tail.startswith('attn.'):
                   return 'attention'
-              if tail.startswith('mlp.shared_experts.'):
-                  return 'mlp_shared'
-              if tail.startswith('mlp.experts.'):
-                  return 'mlp_routed'
-              if tail.startswith('mlp.gate.'):
+              if tail.startswith('ffn.shared_experts.'):
+                  return 'ffn_shared'
+              if tail.startswith('ffn.experts.'):
+                  return 'ffn_routed'
+              if tail.startswith('ffn.gate.'):
                   return 'router'
-              if tail.startswith('mlp.'):
-                  return 'mlp_other'
+              if tail.startswith('ffn.'):
+                  return 'ffn_other'
               return 'other'
 
           rows = []
@@ -132,23 +132,20 @@ jobs:
               g['tensor_count'] += 1
               g['payload_bytes'] += row['payload_bytes']
               g['dtype_counts'][row['dtype']] += 1
-              if group not in ('mlp_routed',):
+              if group != 'ffn_routed':
                   g['names'].append(name)
 
-          # Routed experts are intentionally summarized by exact count/bytes and
-          # a deterministic sample; the full per-tensor rows remain below.
-          routed = [r for r in rows if r['group'] == 'mlp_routed']
+          routed = [r for r in rows if r['group'] == 'ffn_routed']
           if not routed:
-              raise SystemExit('layer 3 inventory has no routed expert tensors')
-          groups['mlp_routed']['names'] = [r['name'] for r in routed[:18]]
-          groups['mlp_routed']['name_sample_truncated'] = len(routed) > 18
+              raise SystemExit('layer 3 inventory has no ffn.experts.* tensors')
+          groups['ffn_routed']['names'] = [r['name'] for r in routed[:18]]
+          groups['ffn_routed']['name_sample_truncated'] = len(routed) > 18
 
-          required_groups = {'hc_attn','hc_ffn','attention','router','mlp_routed','mlp_shared'}
+          required_groups = {'hc_attn','hc_ffn','attention','router','ffn_routed','ffn_shared'}
           missing = sorted(required_groups - set(groups))
           if missing:
               raise SystemExit(f'missing expected layer-3 groups: {missing}')
 
-          # HC names are a new Gate-H acquisition surface and must be explicit.
           hc_names = sorted(r['name'] for r in rows if r['group'] in ('hc_attn','hc_ffn'))
           expected_hc = {
               'layers.3.hc_attn_fn', 'layers.3.hc_attn_base', 'layers.3.hc_attn_scale',
