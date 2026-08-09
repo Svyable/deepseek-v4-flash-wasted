@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Replay pinned 0731 source evidence through the scalar/classifier seams.
+"""Replay pinned 0731 source/checkpoint evidence through scalar C seams.
 
-The FP4 expected values come from a small F3 fixture derived from the pinned
-official release source. The driver also pins the official bootstrap-routing
-spellings recognized by the inventory classifier and then runs the model-free
-Gate C/V2 scalar-linear preflight. Gate C itself still requires a real official
-projection fixture.
+This driver is reached by ``tests/test_inventory.py`` and therefore by
+``make check``. It keeps four evidence classes adjacent but distinct:
+
+- pinned source-level bootstrap-routing names;
+- the independent F3 FP4 nibble/scale convention fixture;
+- the model-free Gate C scalar-linear preflight;
+- the frozen real-checkpoint Gate C projection plus fail-closed Range-slice
+  transport used to acquire it.
 """
 
 import json
@@ -25,7 +28,9 @@ for path in (TESTS, TOOLS):
         sys.path.insert(0, path)
 
 import inventory  # noqa: E402
+import test_fetch_hf_tensor_slice  # noqa: E402
 import test_v2_linear_ref  # noqa: E402
+import test_v2_real_projection  # noqa: E402
 
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
@@ -43,10 +48,11 @@ def compiler():
 
 
 def check_release_router_names():
-    """Pin the two bootstrap-routing spellings found in official 0731 source."""
+    """Pin source and real-export bootstrap-routing spellings."""
     cases = (
         "model.layers.0.mlp.gate.tid2eid",
         "model.layers.1.mlp.gate.tie2eid",
+        "layers.0.ffn.gate.tid2eid",
     )
     for name in cases:
         row = inventory.classify(name, 43)
@@ -55,12 +61,17 @@ def check_release_router_names():
                 f"FAIL: official bootstrap route name {name!r} classified as "
                 f"{row['subsystem']}/{row['module']}")
             return 1
-    print("PASS pinned 0731 tid2eid/tie2eid inventory classification")
+    print("PASS pinned 0731 bootstrap routing-name classification")
     return 0
 
 
 def main():
     if check_release_router_names() != 0:
+        return 1
+
+    # The payload transport is a separate seam from quantized arithmetic.
+    if test_fetch_hf_tensor_slice.main() != 0:
+        print("FAIL: bounded safetensors payload Range transport")
         return 1
 
     cc = compiler()
@@ -134,12 +145,21 @@ int main(void) {{
 
     print("PASS pinned 0731 FP4 nibble order + E8M0 scale application")
 
-    v2 = test_v2_linear_ref.main()
-    if v2 != 0:
-        if v2 == 77:
+    v2_preflight = test_v2_linear_ref.main()
+    if v2_preflight != 0:
+        if v2_preflight == 77:
             print("SKIP Gate C scalar preflight: no compiler")
             return 77
         return 1
+
+    v2_real = test_v2_real_projection.main()
+    if v2_real != 0:
+        if v2_real == 77:
+            print("SKIP real Gate C projection fixture unavailable")
+            return 77
+        return 1
+
+    print("PASS Gate C / V2 real checkpoint projection")
     return 0
 
 
