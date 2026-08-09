@@ -1,0 +1,439 @@
+{
+  "checkpoint_tensors": {
+    "attn_sink": {
+      "absolute_range": [
+        6379072,
+        6379075
+      ],
+      "dtype": "F32",
+      "file": "attn-sink-head0.f32.bin",
+      "name": "layers.2.attn.attn_sink",
+      "payload_bytes": 4,
+      "payload_sha256": "3bf7e7a63bd359f0f5a7960f893d59c56af84798151889f95cc5ab6fbbaf9bbb",
+      "rows": [
+        0,
+        1
+      ],
+      "shape": [
+        64
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "comp_ape": {
+      "absolute_range": [
+        6379328,
+        6395711
+      ],
+      "dtype": "F32",
+      "file": "main-comp-ape.f32.bin",
+      "name": "layers.2.attn.compressor.ape",
+      "payload_bytes": 16384,
+      "payload_sha256": "f93afef4a88371262663f89f026a48b79f7187bd9d6498742c1db2860ae73554",
+      "rows": [
+        0,
+        4
+      ],
+      "shape": [
+        4,
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "comp_norm": {
+      "absolute_range": [
+        9545752,
+        9546775
+      ],
+      "dtype": "BF16",
+      "file": "main-comp-norm.bf16.bin",
+      "name": "layers.2.attn.compressor.norm.weight",
+      "payload_bytes": 1024,
+      "payload_sha256": "95931e541c6589fa43f2d24b8dfbb93ac6d948fbc4053786daac5dca7ff47d02",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        512
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "comp_wgate": {
+      "absolute_range": [
+        9546776,
+        17935383
+      ],
+      "dtype": "BF16",
+      "file": "main-comp-wgate.bf16.bin",
+      "name": "layers.2.attn.compressor.wgate.weight",
+      "payload_bytes": 8388608,
+      "payload_sha256": "b2609470385caf2fe20cda729aa8b37cd3d65cdb877ca220d064c677d11c7d78",
+      "rows": [
+        0,
+        1024
+      ],
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "comp_wkv": {
+      "absolute_range": [
+        17935384,
+        26323991
+      ],
+      "dtype": "BF16",
+      "file": "main-comp-wkv.bf16.bin",
+      "name": "layers.2.attn.compressor.wkv.weight",
+      "payload_bytes": 8388608,
+      "payload_sha256": "0247c85dc0f6ccd8356b333c691c518eda037e350cac7cb7a6542463e6e86d76",
+      "rows": [
+        0,
+        1024
+      ],
+      "shape": [
+        1024,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "kv_norm": {
+      "absolute_range": [
+        31042840,
+        31043863
+      ],
+      "dtype": "BF16",
+      "file": "main-kv-norm.bf16.bin",
+      "name": "layers.2.attn.kv_norm.weight",
+      "payload_bytes": 1024,
+      "payload_sha256": "c84461c3cf90530a723debef4e92bdbdbd1c7658f963cddfa5294b532c657353",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        512
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "wkv": {
+      "absolute_range": [
+        242883224,
+        244980375
+      ],
+      "dtype": "F8_E4M3",
+      "file": "main-wkv.fp8.bin",
+      "name": "layers.2.attn.wkv.weight",
+      "payload_bytes": 2097152,
+      "payload_sha256": "108bf0e279a04312f7b6b5140eef4a4f38dbba60f84e7b70d96c14021bc0c535",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        512,
+        4096
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "wkv_scale": {
+      "absolute_range": [
+        33159960,
+        33160087
+      ],
+      "dtype": "F8_E8M0",
+      "file": "main-wkv-scale.e8m0.bin",
+      "name": "layers.2.attn.wkv.scale",
+      "payload_bytes": 128,
+      "payload_sha256": "5b39d820a21b1d575b02fa9978ad7bccd7286a610ce402e9def6a2f3ba1cec94",
+      "rows": [
+        0,
+        4
+      ],
+      "shape": [
+        4,
+        32
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "wq_b": {
+      "absolute_range": [
+        316283544,
+        316807831
+      ],
+      "dtype": "F8_E4M3",
+      "file": "main-wq-b-head0.fp8.bin",
+      "name": "layers.2.attn.wq_b.weight",
+      "payload_bytes": 524288,
+      "payload_sha256": "38e60eedb24eba087a0b0d6608f2702f5463d158c55d4c302abe71da3978af27",
+      "rows": [
+        0,
+        512
+      ],
+      "shape": [
+        32768,
+        1024
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    },
+    "wq_b_scale": {
+      "absolute_range": [
+        33164440,
+        33164471
+      ],
+      "dtype": "F8_E8M0",
+      "file": "main-wq-b-scale-head0.e8m0.bin",
+      "name": "layers.2.attn.wq_b.scale",
+      "payload_bytes": 32,
+      "payload_sha256": "cbfdf593ee3a531813e821b32b0fc782ac1e3390cbc80507209bbbd4a6c6ec8f",
+      "rows": [
+        0,
+        4
+      ],
+      "shape": [
+        256,
+        8
+      ],
+      "shard": "model-00004-of-00048.safetensors"
+    }
+  },
+  "compress_ratio": 4,
+  "evidence_state": "CHECKPOINT-WEIGHTS + SAME-STRUCTURAL-INPUT + FROZEN-REAL-INDEXER + SOURCE-ORACLE",
+  "gate": "Gate E / V5 coherent ratio-4 CSA attention sub-seam",
+  "indexer_dependency": {
+    "fixture": "tests/fixtures/deepseek_v4/v5_csa_indexer_real",
+    "provenance_sha256": "f495e319cf295345b17dee2f78570a64578fd8324641896ee2cbc6efbd9ce6f1",
+    "qr_sha256": "c58da8144b41a9db7fc63c99043db7d7e7bdc58b746816cf4de57b5183dc0e55",
+    "topk_sha256": "6e0ab185b35256921e89bf0561eb706386348dba4b0f8157db03c4f91e56bf38",
+    "topk_values": [
+      9,
+      8
+    ]
+  },
+  "input_recipe": {
+    "active_tokens": [
+      {
+        "bf16_hex": "0x3d80",
+        "lane": 2080,
+        "position": 3
+      },
+      {
+        "bf16_hex": "0xc050",
+        "lane": 2100,
+        "position": 7
+      }
+    ],
+    "all_other_tokens": "exact BF16 zero",
+    "seqlen": 8
+  },
+  "layer": 2,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "mutations": {
+    "drop_indexer_compressed_entries": "must change final sparse attention",
+    "ignore_previous_overlap_half": "must change final sparse attention",
+    "omit_inverse_compressed_yarn": "must change final output"
+  },
+  "non_claims": [
+    "one main attention head and one query row only",
+    "shared grouped output projection was proved separately and is not repeated",
+    "does not yet prove a full transformer layer"
+  ],
+  "oracle_independence": {
+    "producer": "tools/make_v5_csa_attention_real_fixture.py independent Python source equations",
+    "shares_waste_runtime_helpers": false
+  },
+  "outputs": {
+    "active_local": {
+      "dtype": "BF16",
+      "file": "local-kv-active-3-7.bf16.bin",
+      "first8_hex": [
+        "0xbef0",
+        "0xbdc0",
+        "0x3f90",
+        "0x3d90",
+        "0x3d10",
+        "0x3ea0",
+        "0x3f40",
+        "0x3e70"
+      ],
+      "sha256": "03c7342364d106ef076525d3c8a858ba2957a175798540de48f980b9043f7746",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "attn_post": {
+      "dtype": "BF16",
+      "file": "attn-post-inverse.bf16.bin",
+      "first8_hex": [
+        "0x3e36",
+        "0x3e2f",
+        "0x3d66",
+        "0xbe18",
+        "0x3ea5",
+        "0x3ddf",
+        "0xbded",
+        "0x3d13"
+      ],
+      "pair20_hex": [
+        "0xbeaa",
+        "0x3d6a"
+      ],
+      "sha256": "5c6aaec66e96b80b1740732e2a3dbc9898ba6480de927318e11c3001be014455",
+      "shape": [
+        512
+      ]
+    },
+    "attn_pre": {
+      "dtype": "BF16",
+      "file": "attn-pre-inverse.bf16.bin",
+      "first8_hex": [
+        "0x3e36",
+        "0x3e2f",
+        "0x3d66",
+        "0xbe18",
+        "0x3ea5",
+        "0x3ddf",
+        "0xbded",
+        "0x3d13"
+      ],
+      "pair20_hex": [
+        "0xbeaa",
+        "0x3d67"
+      ],
+      "sha256": "5a519a21a5d315afd9d26245240365ea4e99728f43b6295dc95d2a1ec878fcc1",
+      "shape": [
+        512
+      ]
+    },
+    "comp_kv": {
+      "dtype": "BF16",
+      "file": "main-comp-kv.bf16.bin",
+      "first8_hex": [
+        "0x3eb0",
+        "0xbe00",
+        "0x3ea0",
+        "0xbf00",
+        "0x3df0",
+        "0x3d10",
+        "0xbe40",
+        "0xbc10"
+      ],
+      "sha256": "e304bd92597f4d9def9568169b372c85f4316754c96ad9f9f584fe845eecebf1",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "comp_norm": {
+      "dtype": "BF16",
+      "file": "main-comp-post-norm.bf16.bin",
+      "first8_hex": [
+        "0x3eb7",
+        "0xbdf8",
+        "0x3ea4",
+        "0xbf04",
+        "0x3dea",
+        "0x3d0c",
+        "0xbe42",
+        "0xbc0a"
+      ],
+      "sha256": "005d24460474008c57d0d9f090909ffb7415d0c8fde83a0e6875aa3d44e52fbb",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "comp_pooled": {
+      "dtype": "BF16",
+      "file": "main-comp-pooled.bf16.bin",
+      "first8_hex": [
+        "0x39dc",
+        "0xb919",
+        "0x39bd",
+        "0xba19",
+        "0x390d",
+        "0x3823",
+        "0xb96b",
+        "0xb727"
+      ],
+      "sha256": "2cb17e4a16987fea814ca6c39144fd70fe47320ab861193d93286719616ce7de",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "comp_rope": {
+      "dtype": "BF16",
+      "file": "main-comp-post-rope.bf16.bin",
+      "first8_hex": [
+        "0x3eb7",
+        "0xbdf8",
+        "0x3ea4",
+        "0xbf04",
+        "0x3dea",
+        "0x3d0c",
+        "0xbe42",
+        "0xbc0a"
+      ],
+      "sha256": "3a273b41af035a8d4a2bc4cb86c21502af19f699699b95340e3de5728402fd3b",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "q": {
+      "dtype": "BF16",
+      "file": "q-head0-pos7.bf16.bin",
+      "first8_hex": [
+        "0xbf97",
+        "0x3ed4",
+        "0x3f55",
+        "0xbe8e",
+        "0x3d37",
+        "0xbf7a",
+        "0x3ee8",
+        "0xc02a"
+      ],
+      "sha256": "25b43be35acb0abf1e6edda2939be82eb2843bf45913937155e8bedcb515b8c7",
+      "shape": [
+        512
+      ]
+    },
+    "topk": {
+      "dtype": "I32",
+      "file": "combined-topk-row7.i32.bin",
+      "sha256": "29ec8ecbf2cd1994604aa7a01d0142de3964f5106301e04197399e1b31b63805",
+      "shape": [
+        10
+      ],
+      "values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        8
+      ]
+    }
+  },
+  "query_position": 7,
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "attention": "BF16 q/kv sink sparse attention -> inverse compressed YaRN",
+    "local_kv": "same active tokens -> real wkv/kv_norm -> compressed YaRN -> K64 FP8 simulation",
+    "main_compressor": "real BF16 1024x4096 wkv/wgate + F32 APE -> previous-first/current-second overlap -> BF16 -> norm -> compressed YaRN -> K64 FP8 simulation first448",
+    "q": "real main head0 wq_b on frozen real q-rank -> direct BF16 head norm -> compressed YaRN pos7",
+    "selection": "window row7 [0..7] followed by frozen real indexer top-k [8/9]"
+  },
+  "stability_guards": {
+    "main_overlap": "forward/reverse eight-slot softmax reductions must agree at BF16",
+    "main_wq_b": "forward/reverse K128 and lane reductions must agree for all 512 BF16 head0 outputs"
+  }
+}
