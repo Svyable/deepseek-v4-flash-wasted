@@ -30,8 +30,8 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #9 ratio-0 attention + grouped output projection | **E/V5 partial** | **DONE**, `093081efc4a9f583a1962bcb69e05a20d57c1585` |
 | ratio-128 compressor | **E/V5 partial** | **CHECKPOINT-PASSED**, 4,096 exact BF16 diagnostics |
 | ratio-128 compressed-history composition | **E/V5 partial** | **CHECKPOINT-PASSED**, 130 indices + 512 BF16 exact |
-| coherent same-input ratio-128 forward | **E/V5** | **NEXT** |
-| ratio-4 CSA/indexer attention | **E/V5** | after ratio-128; completes Gate E |
+| coherent same-input ratio-128 forward | **E/V5 partial** | **CHECKPOINT-PASSED**, one head / row 255 through inverse compressed RoPE |
+| ratio-4 CSA/indexer attention | **E/V5** | **NEXT**; completes Gate E |
 | one full transformer layer | **H/V6** | after E/V5 attention variants |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
@@ -118,7 +118,7 @@ The output fixture uses a sparse structurally valid 8-head group seeded from rea
 
 See `docs/ATTENTION.md` for source cast boundaries, fixture provenance, and non-claims.
 
-**Immediate priority: coherent same-input ratio-128 forward through inverse compressed RoPE, then ratio-4 CSA/indexer.**
+**Immediate priority: ratio-4 CSA/indexer; coherent ratio-128 is now checkpoint-passed through inverse compressed RoPE.**
 
 ---
 

@@ -100,11 +100,11 @@ static float yarn_freq(size_t pair, size_t rope_dim,
     return freq / factor * (1.0f - smooth) + freq * smooth;
 }
 
-int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
-                                    size_t position,
-                                    size_t original_seq_len,
-                                    float base, float factor,
-                                    float beta_fast, float beta_slow)
+static int compressed_rope_apply(float *x, size_t dim, size_t rope_dim,
+                                 size_t position, size_t original_seq_len,
+                                 float base, float factor,
+                                 float beta_fast, float beta_slow,
+                                 int inverse)
 {
     if (!x || dim == 0 || rope_dim == 0 || rope_dim > dim ||
         (rope_dim & 1u) != 0 || original_seq_len == 0 ||
@@ -116,6 +116,8 @@ int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
         float freq = yarn_freq(pair, rope_dim, original_seq_len,
                                base, factor, beta_fast, beta_slow);
         float angle = (float)position * freq;
+        if (inverse)
+            angle = -angle;
         float c = cosf(angle);
         float s = sinf(angle);
         float re = tail[2u * pair];
@@ -124,6 +126,27 @@ int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
         tail[2u * pair + 1u] = bf16(re * s + im * c);
     }
     return 0;
+}
+
+int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
+                                    size_t position,
+                                    size_t original_seq_len,
+                                    float base, float factor,
+                                    float beta_fast, float beta_slow)
+{
+    return compressed_rope_apply(x, dim, rope_dim, position,
+                                 original_seq_len, base, factor,
+                                 beta_fast, beta_slow, 0);
+}
+
+int waste_ds_v4_compressed_inverse_rope_ref(
+    float *x, size_t dim, size_t rope_dim,
+    size_t position, size_t original_seq_len,
+    float base, float factor, float beta_fast, float beta_slow)
+{
+    return compressed_rope_apply(x, dim, rope_dim, position,
+                                 original_seq_len, base, factor,
+                                 beta_fast, beta_slow, 1);
 }
 
 static int all_zero_bf16(const float *x)
