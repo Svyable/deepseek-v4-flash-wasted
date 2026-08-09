@@ -29,13 +29,23 @@ int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
                                     float base, float factor,
                                     float beta_fast, float beta_slow);
 
+/* Exact inverse of the source's compressed YaRN rotation convention: the same
+ * frequencies and BF16 write boundary, but with a negated phase. This is the
+ * operation Attention.forward applies to sparse-attention output before the
+ * grouped output projection. */
+int waste_ds_v4_compressed_inverse_rope_ref(
+    float *x, size_t dim, size_t rope_dim,
+    size_t position, size_t original_seq_len,
+    float base, float factor, float beta_fast, float beta_slow);
+
 /* Fixed 0731 ratio-128 prefill compressor.
  *
  * x: [seqlen,4096] BF16-valued f32, seqlen a multiple of 128.
  * wkv/wgate: raw checkpoint BF16 matrices [512,4096]. The official module
  *            loads these checkpoint BF16 values into f32 Linear parameters.
  * ape:       checkpoint/source F32 [128,512].
- * norm:      checkpoint F32 [512].
+ * norm:      checkpoint BF16 [512], supplied here after the reference loader's
+ *            semantic upcast to f32.
  *
  * Optional diagnostics are [seqlen/128,512] f32 containers holding BF16 values:
  *   pooled_bf16_out — weighted f32 pool after explicit cast back to BF16;
