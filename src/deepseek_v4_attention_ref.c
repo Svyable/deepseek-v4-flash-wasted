@@ -45,6 +45,32 @@ int waste_ds_v4_rmsnorm_ref(const float *x, const float *weight,
     return 0;
 }
 
+int waste_ds_v4_head_rmsnorm_bf16_ref(const float *x, size_t n,
+                                      float eps, float *out)
+{
+    if (!x || !out || n == 0 || !(eps >= 0.0f) || !isfinite(eps))
+        return -1;
+
+    /* q.square() materializes a BF16 tensor. Mean uses f32 opmath/reduction
+     * but returns BF16 because no dtype override is requested. The remaining
+     * elementwise steps likewise write BF16 values before the final in-place
+     * q multiply. */
+    float sum = 0.0f;
+    for (size_t i = 0; i < n; i++) {
+        float xi = bf16(x[i]);
+        float square_bf16 = bf16(xi * xi);
+        sum += square_bf16;
+    }
+    float mean_bf16 = bf16(sum / (float)n);
+    float shifted_bf16 = bf16(mean_bf16 + eps);
+    if (!(shifted_bf16 > 0.0f) || !isfinite(shifted_bf16))
+        return -1;
+    float inv_bf16 = bf16(1.0f / sqrtf(shifted_bf16));
+    for (size_t i = 0; i < n; i++)
+        out[i] = bf16(bf16(x[i]) * inv_bf16);
+    return 0;
+}
+
 int waste_ds_v4_rope_ref(float *x, size_t dim, size_t position,
                          float theta, int inverse)
 {
@@ -208,13 +234,6 @@ int waste_ds_v4_sparse_attn_head_ref(const float *q,
     return 0;
 }
 
-static int copy_or_discard(float *dst, const float *src, size_t n)
-{
-    if (dst)
-        memcpy(dst, src, n * sizeof(float));
-    return 0;
-}
-
 int waste_ds_v4_attention_ratio0_prefill_ref(
     const float *x, size_t seqlen, size_t n_heads,
     const uint8_t *wq_a_weight, const uint8_t *wq_a_scale_e8m0,
@@ -275,8 +294,8 @@ int waste_ds_v4_attention_ratio0_prefill_ref(
         for (size_t h = 0; h < n_heads; h++) {
             float *qh = q + (t * n_heads + h) * DS_V4_HEAD_DIM;
             float tmp[DS_V4_HEAD_DIM];
-            if (waste_ds_v4_rmsnorm_ref(
-                    qh, NULL, DS_V4_HEAD_DIM, rms_eps, tmp) != 0)
+            if (waste_ds_v4_head_rmsnorm_bf16_ref(
+                    qh, DS_V4_HEAD_DIM, rms_eps, tmp) != 0)
                 goto done;
             memcpy(qh, tmp, sizeof tmp);
             if (waste_ds_v4_rope_ref(
@@ -326,9 +345,12 @@ int waste_ds_v4_attention_ratio0_prefill_ref(
         }
     }
 
-    copy_or_discard(q_after_rope, q, q_elems);
-    copy_or_discard(kv_after_qat, kv_norm, kv_elems);
-    copy_or_discard(attn_after_inverse_rope, attn, q_elems);
+    if (q_after_rope)
+        memcpy(q_after_rope, q, q_elems * sizeof(float));
+    if (kv_after_qat)
+        memcpy(kv_after_qat, kv_norm, kv_elems * sizeof(float));
+    if (attn_after_inverse_rope)
+        memcpy(attn_after_inverse_rope, attn, q_elems * sizeof(float));
     rc = 0;
 
 done:
