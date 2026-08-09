@@ -1,0 +1,95 @@
+name: Acquire real layer-2 CSA indexer evidence
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio4-csa
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-e-ratio4-indexer-acquire
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v5_csa_indexer_real
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cheap CSA and frozen baseline preflight
+        run: |
+          set -euo pipefail
+          python3 tests/test_v5_csa_scalar.py
+          make -j2
+          make check
+
+      - name: Fetch immutable 0731 safetensors headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" \
+            --revision "$REVISION" \
+            --out "$SNAPSHOT"
+
+      - name: Build bounded real CSA indexer fixture
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v5_csa_indexer_real_fixture.py "$SNAPSHOT" "$FIXTURE"
+
+          test "$(stat -c %s "$FIXTURE/wq-a.fp8.bin")" -eq 4194304
+          test "$(stat -c %s "$FIXTURE/wq-a-scale.e8m0.bin")" -eq 256
+          test "$(stat -c %s "$FIXTURE/q-norm.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/index-wq-b.fp8.bin")" -eq 8388608
+          test "$(stat -c %s "$FIXTURE/index-wq-b-scale.e8m0.bin")" -eq 512
+          test "$(stat -c %s "$FIXTURE/weights-proj.bf16.bin")" -eq 524288
+          test "$(stat -c %s "$FIXTURE/index-comp-wkv.bf16.bin")" -eq 2097152
+          test "$(stat -c %s "$FIXTURE/index-comp-wgate.bf16.bin")" -eq 2097152
+          test "$(stat -c %s "$FIXTURE/index-comp-ape.f32.bin")" -eq 4096
+          test "$(stat -c %s "$FIXTURE/index-comp-norm.bf16.bin")" -eq 256
+
+          test "$(stat -c %s "$FIXTURE/qr-pos7.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/index-q-pos7.bf16.bin")" -eq 16384
+          test "$(stat -c %s "$FIXTURE/index-comp-pooled.bf16.bin")" -eq 512
+          test "$(stat -c %s "$FIXTURE/index-comp-post-norm.bf16.bin")" -eq 512
+          test "$(stat -c %s "$FIXTURE/index-comp-post-rope.bf16.bin")" -eq 512
+          test "$(stat -c %s "$FIXTURE/index-comp-kv.bf16.bin")" -eq 512
+          test "$(stat -c %s "$FIXTURE/index-weights.bf16.bin")" -eq 128
+          test "$(stat -c %s "$FIXTURE/index-scores.bf16.bin")" -eq 4
+          test "$(stat -c %s "$FIXTURE/topk-row7.i32.bin")" -eq 8
+
+      - name: Replay real CSA indexer through scalar C
+        run: python3 tests/test_v5_csa_indexer_real.py
+
+      - name: Upload real CSA indexer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-e-ratio4-indexer-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v5_csa_indexer_real/
+
+      - name: Freeze verified real indexer fixture
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE"
+          if git diff --cached --quiet; then
+            echo "real CSA indexer fixture already frozen"
+            exit 0
+          fi
+          git commit -m "fixtures: freeze real 0731 ratio-4 CSA indexer [skip ci]"
+          git push origin HEAD:agent/gate-e-attention-ratio4-csa
