@@ -1,4 +1,4 @@
-name: Gate F router primitive
+name: Gate F router + routed expert primitive
 
 on:
   push:
@@ -10,24 +10,25 @@ permissions:
   contents: write
 
 concurrency:
-  group: gate-f-router
+  group: gate-f-router-moe
   cancel-in-progress: true
 
 jobs:
-  router:
+  router-expert:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
       REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
       SNAPSHOT: reference/deepseek-v4-flash-0731
-      FIXTURE: tests/fixtures/deepseek_v4/v3_router_real
+      ROUTER_FIXTURE: tests/fixtures/deepseek_v4/v3_router_real
+      EXPERT_FIXTURE: tests/fixtures/deepseek_v4/v4_routed_expert_real
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Existing A-D regression suite
+      - name: Existing A-D regression suite + router invariants
         run: |
           make -j2
           make check
@@ -42,39 +43,57 @@ jobs:
 
       - name: Build real learned + hash router fixture
         run: |
-          rm -rf "$FIXTURE"
-          python3 tools/make_v3_router_fixture.py "$SNAPSHOT" "$FIXTURE"
-          test "$(stat -c %s "$FIXTURE/layer3-gate-weight.bf16.bin")" -eq 2097152
-          test "$(stat -c %s "$FIXTURE/layer3-gate-bias.f32.bin")" -eq 1024
-          test "$(stat -c %s "$FIXTURE/layer0-gate-weight.bf16.bin")" -eq 2097152
-          test "$(stat -c %s "$FIXTURE/layer0-tid2eid-token4242.i64.bin")" -eq 48
-          test "$(stat -c %s "$FIXTURE/input.bf16.bin")" -eq 8192
+          rm -rf "$ROUTER_FIXTURE"
+          python3 tools/make_v3_router_fixture.py "$SNAPSHOT" "$ROUTER_FIXTURE"
+          test "$(stat -c %s "$ROUTER_FIXTURE/layer3-gate-weight.bf16.bin")" -eq 2097152
+          test "$(stat -c %s "$ROUTER_FIXTURE/layer3-gate-bias.f32.bin")" -eq 1024
+          test "$(stat -c %s "$ROUTER_FIXTURE/layer0-gate-weight.bf16.bin")" -eq 2097152
+          test "$(stat -c %s "$ROUTER_FIXTURE/layer0-tid2eid-token4242.i64.bin")" -eq 48
+          test "$(stat -c %s "$ROUTER_FIXTURE/input.bf16.bin")" -eq 8192
 
       - name: Replay real routers through scalar C
         run: python3 tests/test_v3_router_real.py
 
+      - name: Build selected real routed-expert fixture
+        run: |
+          rm -rf "$EXPERT_FIXTURE"
+          python3 tools/make_v4_routed_expert_fixture.py "$SNAPSHOT" "$EXPERT_FIXTURE"
+          test "$(stat -c %s "$EXPERT_FIXTURE/w1.fp4.bin")" -eq 4194304
+          test "$(stat -c %s "$EXPERT_FIXTURE/w1-scale.e8m0.bin")" -eq 262144
+          test "$(stat -c %s "$EXPERT_FIXTURE/w3.fp4.bin")" -eq 4194304
+          test "$(stat -c %s "$EXPERT_FIXTURE/w3-scale.e8m0.bin")" -eq 262144
+          test "$(stat -c %s "$EXPERT_FIXTURE/w2-rows0-8.fp4.bin")" -eq 8192
+          test "$(stat -c %s "$EXPERT_FIXTURE/w2-scale-rows0-8.e8m0.bin")" -eq 512
+          test "$(stat -c %s "$EXPERT_FIXTURE/hidden-after-route.bf16.bin")" -eq 4096
+          test "$(stat -c %s "$EXPERT_FIXTURE/expected-out8.bf16.bin")" -eq 16
+
+      - name: Replay selected real routed expert through scalar C
+        run: python3 tests/test_v4_routed_expert_real.py
+
       - name: Sanitizers
         run: make asan
 
-      - name: Upload router evidence
+      - name: Upload Gate F primitive evidence
         uses: actions/upload-artifact@v4
         with:
-          name: gate-f-router-real
+          name: gate-f-router-expert-real
           retention-days: 30
           if-no-files-found: error
-          path: tests/fixtures/deepseek_v4/v3_router_real/
+          path: |
+            tests/fixtures/deepseek_v4/v3_router_real/
+            tests/fixtures/deepseek_v4/v4_routed_expert_real/
 
-      - name: Freeze verified fixture
+      - name: Freeze verified fixtures
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- "$FIXTURE" && git ls-files --error-unmatch "$FIXTURE/provenance.json" >/dev/null 2>&1; then
-            echo "router fixture already frozen"
-            exit 0
-          fi
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FIXTURE"
-          git commit -m "fixtures: freeze real 0731 router fixture"
+          git add "$ROUTER_FIXTURE" "$EXPERT_FIXTURE"
+          if git diff --cached --quiet; then
+            echo "router/expert fixtures already frozen"
+            exit 0
+          fi
+          git commit -m "fixtures: freeze real 0731 router and routed-expert evidence"
           git push origin HEAD:agent/gate-f-router-moe
