@@ -10,8 +10,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Learned RMSNorm module: source explicitly upcasts x to f32, computes the
+ * norm and f32 weight multiply, then casts the result back to BF16. */
 int waste_ds_v4_rmsnorm_ref(const float *x, const float *weight,
                             size_t n, float eps, float *out);
+
+/* Per-head Q normalization is NOT the RMSNorm module. The pinned source does
+ * q *= rsqrt(q.square().mean(-1)+eps) directly on the BF16 q tensor. This
+ * reference preserves the visible BF16 boundaries of square/mean/+eps/rsqrt/
+ * final multiply while using f32 opmath/reduction internally. */
+int waste_ds_v4_head_rmsnorm_bf16_ref(const float *x, size_t n,
+                                      float eps, float *out);
 
 int waste_ds_v4_rope_ref(float *x, size_t dim, size_t position,
                          float theta, int inverse);
