@@ -1,0 +1,96 @@
+name: Acquire coherent real ratio-4 CSA attention
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio4-csa
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-e-ratio4-attention-acquire
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v5_csa_attention_real
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Frozen CSA preflight
+        run: |
+          set -euo pipefail
+          python3 tests/test_v5_csa_scalar.py
+          python3 tests/test_v5_csa_indexer_real.py
+          make -j2
+          make check
+
+      - name: Fetch immutable 0731 safetensors headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" \
+            --revision "$REVISION" \
+            --out "$SNAPSHOT"
+
+      - name: Build coherent real CSA attention fixture
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v5_csa_attention_real_fixture.py "$SNAPSHOT" "$FIXTURE"
+
+          test "$(stat -c %s "$FIXTURE/main-wq-b-head0.fp8.bin")" -eq 524288
+          test "$(stat -c %s "$FIXTURE/main-wq-b-scale-head0.e8m0.bin")" -eq 32
+          test "$(stat -c %s "$FIXTURE/main-wkv.fp8.bin")" -eq 2097152
+          test "$(stat -c %s "$FIXTURE/main-wkv-scale.e8m0.bin")" -eq 128
+          test "$(stat -c %s "$FIXTURE/main-kv-norm.bf16.bin")" -eq 1024
+          test "$(stat -c %s "$FIXTURE/attn-sink-head0.f32.bin")" -eq 4
+          test "$(stat -c %s "$FIXTURE/main-comp-wkv.bf16.bin")" -eq 8388608
+          test "$(stat -c %s "$FIXTURE/main-comp-wgate.bf16.bin")" -eq 8388608
+          test "$(stat -c %s "$FIXTURE/main-comp-ape.f32.bin")" -eq 16384
+          test "$(stat -c %s "$FIXTURE/main-comp-norm.bf16.bin")" -eq 1024
+
+          test "$(stat -c %s "$FIXTURE/q-head0-pos7.bf16.bin")" -eq 1024
+          test "$(stat -c %s "$FIXTURE/local-kv-active-3-7.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/main-comp-pooled.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/main-comp-post-norm.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/main-comp-post-rope.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/main-comp-kv.bf16.bin")" -eq 2048
+          test "$(stat -c %s "$FIXTURE/attn-pre-inverse.bf16.bin")" -eq 1024
+          test "$(stat -c %s "$FIXTURE/attn-post-inverse.bf16.bin")" -eq 1024
+          test "$(stat -c %s "$FIXTURE/combined-topk-row7.i32.bin")" -eq 40
+
+      - name: Replay coherent CSA attention through scalar C
+        run: python3 tests/test_v5_csa_attention_real.py
+
+      - name: Upload coherent CSA evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-e-ratio4-attention-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v5_csa_attention_real/
+
+      - name: Freeze verified coherent CSA fixture
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE"
+          if git diff --cached --quiet; then
+            echo "coherent CSA attention fixture already frozen"
+            exit 0
+          fi
+          git commit -m "fixtures: freeze coherent real 0731 ratio-4 CSA attention [skip ci]"
+          git push origin HEAD:agent/gate-e-attention-ratio4-csa
