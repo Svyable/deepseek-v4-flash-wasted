@@ -1,0 +1,257 @@
+{
+  "diagnostics": {
+    "column_sums": [
+      0.9999991147691685,
+      0.9999989167263266,
+      0.9999988906492945,
+      0.9999990985525073
+    ],
+    "comb": [
+      0.9182378053665161,
+      0.0024942553136497736,
+      0.0032845460809767246,
+      0.0001358425652142614,
+      1.0787827298130992e-09,
+      0.8969802856445312,
+      0.02427786774933338,
+      0.10951542854309082,
+      3.0947672202685794e-10,
+      0.10028696060180664,
+      0.9721224904060364,
+      8.450842869933695e-05,
+      0.08176130801439285,
+      0.0002374151663389057,
+      0.00031398641294799745,
+      0.8902633190155029
+    ],
+    "file": "expected-diagnostics.f32.bin",
+    "layout": "mixes[24], pre[4], post[4], comb[16] row-major",
+    "post": [
+      0.16204354166984558,
+      6.982701597735286e-05,
+      0.0002579470747150481,
+      0.0030834677163511515
+    ],
+    "pre": [
+      0.9625077247619629,
+      0.0043206294067204,
+      0.4064127206802368,
+      0.0966549813747406
+    ],
+    "row_sums": [
+      0.9241524493263569,
+      1.0307735830157383,
+      1.072493959746019,
+      0.9725760286091827
+    ],
+    "rsqrt": 41.05705642700195,
+    "sha256": "462f11c86d9aac3731bc25ecf827f923ff47d44ebbd8ff36f8e5ef6256e0065a"
+  },
+  "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+  "expected": {
+    "comparison": "final hc_pre/hc_post exact BF16; diagnostic f32 values use a fixed small absolute tolerance",
+    "post_file": "expected-post.bf16.bin",
+    "post_sha256": "2c56c2b2d65df15d450e6802d65f4308637bfb952e56f4e09d857859efa3ea9b",
+    "pre_file": "expected-pre.bf16.bin",
+    "pre_sha256": "aa3bd08cb7bd06e6cc58f7ea093df80a341c8114a1423a4eb7d11f04112cd747"
+  },
+  "fixture_class": "F3 official-source + real-checkpoint mHC primitive",
+  "gate": "Gate D / V3",
+  "inputs": {
+    "branch": {
+      "dtype": "BF16",
+      "file": "branch.bf16.bin",
+      "sha256": "d325039bdee18420eae83034714ea3f9513ca87e58f64cb5aaf852f34dccd73b",
+      "shape": [
+        4096
+      ],
+      "support": [
+        [
+          0,
+          0.125
+        ],
+        [
+          7,
+          -0.375
+        ],
+        [
+          17,
+          1.5
+        ],
+        [
+          999,
+          0.5
+        ],
+        [
+          1023,
+          -0.75
+        ],
+        [
+          2048,
+          -0.25
+        ],
+        [
+          3333,
+          0.625
+        ],
+        [
+          4095,
+          1.0
+        ]
+      ]
+    },
+    "residual": {
+      "dtype": "BF16",
+      "file": "residual.bf16.bin",
+      "sha256": "ea90f8b146d68fb7dd41a93d461977bc6ba8cc2849998ffee2dfe759de5a43a7",
+      "shape": [
+        4,
+        4096
+      ],
+      "support": [
+        [
+          0,
+          0,
+          1.0
+        ],
+        [
+          0,
+          2048,
+          0.75
+        ],
+        [
+          1,
+          17,
+          -0.5
+        ],
+        [
+          1,
+          3333,
+          -1.25
+        ],
+        [
+          2,
+          7,
+          0.125
+        ],
+        [
+          2,
+          1023,
+          0.25
+        ],
+        [
+          3,
+          999,
+          1.5
+        ],
+        [
+          3,
+          4095,
+          -2.0
+        ]
+      ]
+    }
+  },
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claim": "The fixture evaluates pinned source equations independently on CPU; it does not execute the official CUDA/TileLang kernels or a complete attention block.",
+  "operation": "layers.0 attention hc_pre + hc_split_sinkhorn + hc_post",
+  "parameters": {
+    "base": {
+      "absolute_end": 6378031,
+      "absolute_start": 6377936,
+      "dtype": "F32",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172232,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "hc_attn_base.f32.bin",
+      "payload_bytes": 96,
+      "payload_sha256": "edaa695cf5de59f919415f6e71dcb35be5ad817a06fa7222ee3021d9f388adda",
+      "relative_end": 6205792,
+      "relative_start": 6205696,
+      "remote_file_bytes": 3566321192,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 4,
+      "row_end": 24,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        24
+      ],
+      "shard": "model-00002-of-00048.safetensors",
+      "tensor": "layers.0.hc_attn_base",
+      "tensor_data_offsets": [
+        6205696,
+        6205792
+      ]
+    },
+    "fn": {
+      "absolute_end": 7950895,
+      "absolute_start": 6378032,
+      "dtype": "F32",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172232,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "hc_attn_fn.f32.bin",
+      "payload_bytes": 1572864,
+      "payload_sha256": "f5c1ffdfb92df2c04ac17e9a31e38701f2b7a5cac0cd427a2df2aa3e239987fc",
+      "relative_end": 7778656,
+      "relative_start": 6205792,
+      "remote_file_bytes": 3566321192,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 65536,
+      "row_end": 24,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        24,
+        16384
+      ],
+      "shard": "model-00002-of-00048.safetensors",
+      "tensor": "layers.0.hc_attn_fn",
+      "tensor_data_offsets": [
+        6205792,
+        7778656
+      ]
+    },
+    "scale": {
+      "absolute_end": 7950907,
+      "absolute_start": 7950896,
+      "dtype": "F32",
+      "endpoint": "https://huggingface.co",
+      "header_json_bytes": 172232,
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "output_file": "hc_attn_scale.f32.bin",
+      "payload_bytes": 12,
+      "payload_sha256": "0b0e327d2f4d1a104c53d6e0a9172cf532028383e82cdf6d70537cb83092c63f",
+      "relative_end": 7778668,
+      "relative_start": 7778656,
+      "remote_file_bytes": 3566321192,
+      "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "row_bytes": 4,
+      "row_end": 3,
+      "row_start": 0,
+      "schema_version": 1,
+      "shape": [
+        3
+      ],
+      "shard": "model-00002-of-00048.safetensors",
+      "tensor": "layers.0.hc_attn_scale",
+      "tensor_data_offsets": [
+        7778656,
+        7778668
+      ]
+    }
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "comb_orientation": "comb[source_hc, output_hc]; hc_post sums source_hc",
+    "hc_eps": 1e-06,
+    "hc_mult": 4,
+    "kernel_path": "inference/kernel.py hc_split_sinkhorn",
+    "mix_hc": 24,
+    "model_path": "inference/model.py Block.hc_pre/Block.hc_post",
+    "norm_eps": 1e-06,
+    "sinkhorn_iters": 20
+  }
+}
