@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Gate A/V0 inventory + acquisition checks.
+"""Gate A/V0 inventory checks.
 
 Every RAM and bytes-per-token claim in this port is supposed to descend from
 the checkpoint. That only holds if the inventory tool reports what it actually
-read and refuses to fill gaps with plausible numbers. This driver also runs the
-header-only Hugging Face acquisition test and the pinned 0731 FP4 convention
-fixture so `make check` covers the cheap Gate A -> Gate B handoff.
+read and refuses to fill gaps with plausible numbers.
 
 The synthetic inventory fixture proves tooling mechanics, not checkpoint truth.
-The release-convention fixture is separately sourced from the immutable
-DeepSeek 0731 release and is replayed through the actual scalar C FP4 path.
+
+This driver used to also call the header-fetch test and the Gate B/V1
+release-convention driver, which in turn ran the Gate C/D/F replays — the
+route by which all of them reached `make check`. Everything ran, but under
+this file's name, so a broken Gate F was reported as an inventory failure.
+`tests/run.sh` now calls each replay by name; this file tests inventory.
 
   python3 tests/test_inventory.py
 """
@@ -29,8 +31,6 @@ sys.path.insert(0, os.path.join(REPO, "tests"))
 
 import inventory                      # noqa: E402
 import make_inventory_fixture as fx   # noqa: E402
-import test_fetch_hf_headers as fetch_headers_test  # noqa: E402
-import test_release_quant_fixture as release_quant_test  # noqa: E402
 
 # Small enough to be fast, big enough that every rule fires: hash-routed
 # layers 0-2, a ratio-0 layer without compressor/indexer, and one attached
@@ -270,16 +270,6 @@ def main():
             f.write(b"\xff" * 64)
         rc_junk = inventory.main([junk])
         ck(rc_junk == 2, f"a corrupt shard is refused, not guessed ({rc_junk})")
-
-        # ------------------------------------------- acquisition + V1b --
-        # These are separate evidence classes from the synthetic inventory:
-        # fake HTTP validates transport/safety, while the F3 release fixture
-        # validates the actual scalar C path against pinned official source.
-        ck(fetch_headers_test.main() == 0,
-           "header-only Hugging Face fetcher passes its offline Range suite")
-        release_rc = release_quant_test.main()
-        ck(release_rc == 0,
-           "scalar FP4 path matches pinned 0731 nibble/scale convention fixture")
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -121,7 +121,7 @@ PR #3 satisfies only the public-format/model-free half of Gate B/V1. Official De
 Apache-2.0 §4(b) requires a modified file to say so, and each of these carries that notice in its own header/comment:
 
 - `Makefile` — `src/quant/` added to `SRC`; `test_quant` target added.
-- `tests/run.sh` — quantization decode and checkpoint inventory sections, plus a recursive SPDX check.
+- `tests/run.sh` — quantization decode, checkpoint inventory and DeepSeek gate replay sections, plus a recursive SPDX check.
 - `.github/workflows/ci.yml` — **not modified**, only moved to `.github/workflows-disabled/`; byte-identical to the import.
 
 ### DeepSeek-specific documentation
