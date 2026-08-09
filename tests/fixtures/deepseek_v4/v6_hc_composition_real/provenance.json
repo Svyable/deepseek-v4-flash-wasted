@@ -1,0 +1,132 @@
+{
+  "boundary": "two real HC transitions; deterministic branch stubs, not Attention/MoE proof",
+  "diagnostics": {
+    "file": "expected-diagnostics.f32.bin",
+    "float_count": 96,
+    "sha256": "c3ea5a6e8c0734c62a9a9987fd4b261e1d3f14fb67080fdb43494d227df4353b"
+  },
+  "gate": "H/V6 real layer-3 HC composition sub-seam",
+  "layer": 3,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "mutations": [
+    "ffn_pre_from_original_residual",
+    "ffn_branch_from_attn_pre"
+  ],
+  "official_block_order": [
+    "hc_attn_pre",
+    "attention_branch",
+    "hc_attn_post",
+    "hc_ffn_pre",
+    "moe_branch",
+    "hc_ffn_post"
+  ],
+  "parameters": {
+    "attn_base": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "attn-base.f32.bin",
+      "payload_sha256": "9e97fabd5809ad1242738854bde0561939fcf76ed95c588dd5e570f4ff8246f6",
+      "shape": [
+        24
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_attn_base"
+    },
+    "attn_fn": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "attn-fn.f32.bin",
+      "payload_sha256": "5c45cd7ce87e8bacd88218126ab9450b96fc8a9ad363c9dc8308b26596fa3358",
+      "shape": [
+        24,
+        16384
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_attn_fn"
+    },
+    "attn_scale": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "attn-scale.f32.bin",
+      "payload_sha256": "f0f344e644796e335ca1d0aed4eb0f64fb27e977e06ea6782e820cf1ea0a2583",
+      "shape": [
+        3
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_attn_scale"
+    },
+    "ffn_base": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "ffn-base.f32.bin",
+      "payload_sha256": "4a08d2e68f2439782e5c19850dbead4d96fc75bf283270e92b9572b349782f4e",
+      "shape": [
+        24
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_ffn_base"
+    },
+    "ffn_fn": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "ffn-fn.f32.bin",
+      "payload_sha256": "5efb3a40cc09f6ea8c58b2ad466c7b51a9b40b867d7744c14b10e1e79a7fa568",
+      "shape": [
+        24,
+        16384
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_ffn_fn"
+    },
+    "ffn_scale": {
+      "byte_range": null,
+      "dtype": "F32",
+      "file": "ffn-scale.f32.bin",
+      "payload_sha256": "c5d122a28253d3e15c57c7996a51cf4f737301646c5cbc12bbcd7dc21c83ebf4",
+      "shape": [
+        3
+      ],
+      "shard": "model-00005-of-00048.safetensors",
+      "tensor": "layers.3.hc_ffn_scale"
+    }
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "states": {
+    "after_attn": {
+      "bf16_count": 16384,
+      "file": "after-attn-post.bf16.bin",
+      "sha256": "2d648d3acdd328e1d190940e5d8cacaf12b97e2146fd063ee7a214fb052a12d2"
+    },
+    "attn_branch": {
+      "bf16_count": 4096,
+      "file": "attn-stub-branch.bf16.bin",
+      "sha256": "bae3c9830d059e4f7e5517e4ad77f7bb88b02f450147677f635f43381d5f1ab6"
+    },
+    "attn_pre": {
+      "bf16_count": 4096,
+      "file": "attn-pre.bf16.bin",
+      "sha256": "0e2897157b2815db37eec1d195c2b1ffd4fad02e19bcea65922c2330aade78c7"
+    },
+    "ffn_branch": {
+      "bf16_count": 4096,
+      "file": "ffn-stub-branch.bf16.bin",
+      "sha256": "91bc4d482cc7fce2bf3f3aa9e3a6f1bb924a49bad93df6ce654deda8841eb480"
+    },
+    "ffn_pre": {
+      "bf16_count": 4096,
+      "file": "ffn-pre.bf16.bin",
+      "sha256": "e97139f4fa21dd2227d7a664fc891a8f064fa160354258ef4d33e403df6c463b"
+    },
+    "final": {
+      "bf16_count": 16384,
+      "file": "expected-final.bf16.bin",
+      "sha256": "cbbaf8f198a593afcaeaa0e65bdf62c778794f087b2f8abb357593397c36b974"
+    },
+    "residual": {
+      "bf16_count": 16384,
+      "file": "input-residual.bf16.bin",
+      "sha256": "cfe444e78a946d71fbe5e3a9605b39157dd067016b60d21d3b2b3ffe1f50098d"
+    }
+  }
+}
