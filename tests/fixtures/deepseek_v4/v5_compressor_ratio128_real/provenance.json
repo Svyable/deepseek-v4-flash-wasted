@@ -1,0 +1,245 @@
+{
+  "compress_ratio": 128,
+  "evidence_state": "CHECKPOINT-WEIGHTS + STRUCTURAL-SPARSE-INPUT + SOURCE-ORACLE",
+  "gate": "Gate E / V5 ratio-128 compressor sub-seam",
+  "input": {
+    "active": [
+      {
+        "bf16_hex": "0x3da0",
+        "bits": 15776,
+        "lane": 17,
+        "source_lane": 17,
+        "token": 0
+      },
+      {
+        "bf16_hex": "0x3e20",
+        "bits": 15904,
+        "lane": 2053,
+        "source_lane": 2053,
+        "token": 128
+      }
+    ],
+    "dtype": "BF16",
+    "file": "input.bf16.bin",
+    "sha256": "fe03222fb49c3163c630bbd62302842e88f12a47045593d333c299af77711347",
+    "shape": [
+      256,
+      4096
+    ]
+  },
+  "layer": 3,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "does not execute official GPU kernels",
+    "does not yet include compressed-history attention scores",
+    "does not prove ratio-4 CSA/indexer",
+    "therefore does not complete Gate E/V5"
+  ],
+  "oracle_independence": {
+    "producer": "tools/make_v5_compressor_ratio128_fixture.py independent Python source equations",
+    "reduction_design": "one nonzero hidden lane/token eliminates wkv/wgate reduction ambiguity",
+    "shares_waste_runtime_helpers": false
+  },
+  "outputs": {
+    "compressed_kv": {
+      "chunk0_first8_hex": [
+        "0x3a60",
+        "0x3b90",
+        "0x3c70",
+        "0x3960",
+        "0x3a10",
+        "0xb9c0",
+        "0xb860",
+        "0xbaf0"
+      ],
+      "chunk1_first8_hex": [
+        "0x3b40",
+        "0xba40",
+        "0xbbf0",
+        "0x3b00",
+        "0x3ba0",
+        "0xbb20",
+        "0x3a20",
+        "0x3a60"
+      ],
+      "dtype": "BF16",
+      "file": "compressed-kv.bf16.bin",
+      "sha256": "61dba51c0f59a6f0b93fbed1d0416e5be072f86a3f84da3725ebb18a04419fe5",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "pooled_before_norm": {
+      "chunk0_first8_hex": [
+        "0x36ff",
+        "0x378c",
+        "0x37bc",
+        "0x35b9",
+        "0x36a2",
+        "0xb634",
+        "0xb4ec",
+        "0xb6ee"
+      ],
+      "chunk1_first8_hex": [
+        "0x37e1",
+        "0xb63b",
+        "0xb736",
+        "0x3759",
+        "0x3825",
+        "0xb797",
+        "0x36a5",
+        "0x3660"
+      ],
+      "dtype": "BF16",
+      "file": "pooled-before-norm.bf16.bin",
+      "sha256": "8200363fa47031d885e366e26c352bc9791d43db734eb1778f3b0e9b3681c67f",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "post_norm": {
+      "chunk0_first8_hex": [
+        "0x3a5c",
+        "0x3b92",
+        "0x3c74",
+        "0x3962",
+        "0x3a16",
+        "0xb9c4",
+        "0xb85c",
+        "0xbaec"
+      ],
+      "chunk1_first8_hex": [
+        "0x3b42",
+        "0xba43",
+        "0xbbec",
+        "0x3b04",
+        "0x3b98",
+        "0xbb25",
+        "0x3a1a",
+        "0x3a5e"
+      ],
+      "dtype": "BF16",
+      "file": "post-norm.bf16.bin",
+      "sha256": "21b091c84b9a9166201b251d8b140cf864da851976b7de5fa4bed1a1556b6eb6",
+      "shape": [
+        2,
+        512
+      ]
+    },
+    "post_yarn_rope": {
+      "chunk0_first8_hex": [
+        "0x3a5c",
+        "0x3b92",
+        "0x3c74",
+        "0x3962",
+        "0x3a16",
+        "0xb9c4",
+        "0xb85c",
+        "0xbaec"
+      ],
+      "chunk1_first8_hex": [
+        "0x3b42",
+        "0xba43",
+        "0xbbec",
+        "0x3b04",
+        "0x3b98",
+        "0xbb25",
+        "0x3a1a",
+        "0x3a5e"
+      ],
+      "chunk1_rope_tail8_hex": [
+        "0xbbe0",
+        "0xbc2a",
+        "0x3bd4",
+        "0xbbcd",
+        "0x3c0e",
+        "0x3ba1",
+        "0xbaf6",
+        "0x397a"
+      ],
+      "dtype": "BF16",
+      "file": "post-yarn-rope.bf16.bin",
+      "sha256": "ab8c974a21adabb3c108c4bd13633dca2f9cec6f0dedda806615eff8b20f0786",
+      "shape": [
+        2,
+        512
+      ]
+    }
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "norm": "RMSNorm checkpoint BF16 weight loaded/upcast to f32 parameter semantics; f32 normalization -> BF16 output",
+    "pool": "per-output-dimension f32 softmax(score+ape) over 128 tokens; f32 weighted pool then explicit BF16 cast",
+    "projection": "wkv/wgate checkpoint BF16 loaded into f32 Linear; sparse active token gives one product/output row",
+    "qat": "finite E4M3 quant/dequant first448 in K64 blocks, BF16 result",
+    "rope": "compressed YaRN base160000 factor16 beta_fast32 beta_slow1, chunk positions 0 and 128"
+  },
+  "tensors": {
+    "ape": {
+      "absolute_range": [
+        172920,
+        435063
+      ],
+      "dtype": "F32",
+      "file": "ape.f32.bin",
+      "name": "layers.3.attn.compressor.ape",
+      "payload_bytes": 262144,
+      "payload_sha256": "45dd77ea17251870d56afb429a0a76093fdadc290500aed27130d1ad32375716",
+      "shape": [
+        128,
+        512
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "norm": {
+      "absolute_range": [
+        3582032,
+        3583055
+      ],
+      "dtype": "BF16",
+      "file": "norm.bf16.bin",
+      "name": "layers.3.attn.compressor.norm.weight",
+      "payload_bytes": 1024,
+      "payload_sha256": "e69b27869126dd5e5e6eb96bfa92bdee4c7474ced3f7af8b909416860de765fe",
+      "shape": [
+        512
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wgate": {
+      "absolute_range": [
+        3583056,
+        7777359
+      ],
+      "dtype": "BF16",
+      "file": "wgate.bf16.bin",
+      "name": "layers.3.attn.compressor.wgate.weight",
+      "payload_bytes": 4194304,
+      "payload_sha256": "282fce242df3dd61eceb2ef751130dee076b83b55955849e1670bb53dc6e8883",
+      "shape": [
+        512,
+        4096
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    },
+    "wkv": {
+      "absolute_range": [
+        7777360,
+        11971663
+      ],
+      "dtype": "BF16",
+      "file": "wkv.bf16.bin",
+      "name": "layers.3.attn.compressor.wkv.weight",
+      "payload_bytes": 4194304,
+      "payload_sha256": "79cd97ab7621210200ea2b3161878f7e32633dbc3bdf6d27516e6518220b8637",
+      "shape": [
+        512,
+        4096
+      ],
+      "shard": "model-00005-of-00048.safetensors"
+    }
+  }
+}
