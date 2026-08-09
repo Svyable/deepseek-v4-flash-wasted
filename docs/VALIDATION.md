@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 routing+MoE are passed at their stated scalar/model-semantic evidence levels for the pinned 0731 release. Gate E/V5 attention is next. Storage/cache identity remains the separate Gate G systems proof.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention and the shared grouped-output projection are passed; ratio-128 compression and ratio-4 CSA/indexer remain. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -9,17 +9,18 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
 ```
 
-Validation proceeds from the smallest exact seam to final logits. A later gate may rely on an earlier one only at the evidence level actually proved.
+Validation moves from the smallest exact seam to final logits. A later gate may rely on an earlier one only at the evidence level actually proved.
 
-Primary maintained evidence docs:
+Primary evidence owners:
 
-- `INVENTORY-0731.md` — real Gate A checkpoint result;
-- `NUMERICS.md` — Gates B/C quantization + real projection;
-- `MHC.md` — real Gate D Hyper-Connection result;
-- `ROADMAP.md` — current passed/next milestone sequence;
+- `INVENTORY-0731.md` — Gate A checkpoint truth;
+- `NUMERICS.md` — Gates B/C quantization and projection;
+- `MHC.md` — Gate D Hyper-Connection evidence;
+- `ATTENTION.md` — Gate E attention-mode bring-up;
+- `ROADMAP.md` — passed/next schedule;
 - `FIXTURES.md` — independence/mutation policy;
 - `OFFICIAL-0731-SOURCE.md` — pinned source findings;
-- `REFERENCE_ACCESS.md` — bounded official-artifact acquisition.
+- `REFERENCE_ACCESS.md` — bounded artifact acquisition.
 
 ---
 
@@ -29,42 +30,43 @@ The numerical/model authority is the pinned official release plus exact checkpoi
 
 Different facts come from different evidence:
 
-- public format spec → E2M1/E8M0/E4M3FN code semantics;
-- pinned official source → DeepSeek operation semantics;
+- public specification → E2M1/E8M0/E4M3FN semantics;
+- pinned official source → DeepSeek operation/cast/order semantics;
 - real safetensors headers → exported names, dtypes, shapes, offsets and bytes;
-- bounded real payload slices → actual checkpoint parameter/weight bytes;
+- bounded real payload slices → checkpoint parameter bytes;
 - independent source oracle → expected model-semantic outputs;
 - end-to-end WASTE port → final model correctness and performance.
 
-Third-party runtimes are useful smoke/reference aids, not the numerical authority.
-
-Every frozen official fixture records model/revision, source operation/path, exact tensor/shard/range identity, raw-input hashes, output hashes, shapes/dtypes, and generator/port provenance.
-
-Do not describe a source-equation CPU oracle as an official GPU-kernel execution. Conversely, do not require a GPU to prove byte layout and scalar model semantics when independent checkpoint/source fixtures can settle them.
+Do not call a source-equation CPU oracle an official GPU-kernel execution. Conversely, a GPU is not required to establish byte layout or scalar model semantics when an independent checkpoint/source fixture can prove them.
 
 ### Fixture independence
 
-Expected values must not be generated through the WASTE implementation under test.
+Expected values may not be produced by the WASTE implementation under test.
 
-Round trips prove self-consistency. Silent conventions require independent literals, real checkpoint bytes, or independently evaluated official-source equations. Where practical, add a known-wrong mutation/orientation case that the fixture must reject.
+Round trips establish self-consistency, not external correctness. Silent semantics require independent literals, real checkpoint bytes, or independently evaluated source equations. When possible, each high-risk seam includes a known-wrong mutation/orientation case that must fail.
 
-Gate F adds one useful pattern for expensive fixtures: a standalone expected-value producer may be optimized for fixture generation only if it shares no WASTE runtime helpers and is first cross-validated against an earlier exact independent fixture. `tools/v4_moe_oracle.c` is anchored bit-for-bit to the Fraction-based expert-2 fixture before producing the other routed/shared expected values.
+Examples already enforced:
+
+- FP4 nibble order is pinned by a literal byte, not the runtime pack macro;
+- Gate F's fast standalone MoE oracle is cross-anchored to the earlier exact Fraction expert fixture;
+- Gate E's standalone ratio-0 oracle must reproduce Gate C's existing `wq_a` BF16 output before larger attention expectations are accepted;
+- grouped output projection requires sequential/reverse/exact reductions to agree at BF16 before freezing expected values.
 
 ---
 
 ## 2. Tolerance policy
 
-Prefer exact equality where the fixture can support it:
+Prefer exact equality whenever the fixture supports it:
 
 - tensor names/shapes/dtypes;
-- expert/token IDs and order;
-- nibble/block selection;
-- raw payload hashes;
-- BF16 output bits when the fixture is reduction-stable.
+- token/expert IDs and ordering;
+- nibble/block/group selection;
+- payload hashes;
+- BF16 bits when reduction-order stability is demonstrated.
 
-Introduce floating tolerances only after independent evidence demonstrates unavoidable backend/dtype/reduction differences. Record `max_abs`, `max_rel`, and RMS where useful, and keep a known-wrong mutation outside the accepted threshold.
+Introduce a tolerance only after independent evidence demonstrates an unavoidable backend/reduction difference. Record `max_abs`, `max_rel`, and RMS where useful; keep a known-wrong mutation outside the accepted threshold.
 
-Never loosen a tolerance merely to make a new implementation pass.
+Never loosen a tolerance simply to make a new path pass.
 
 ---
 
@@ -72,44 +74,35 @@ Never loosen a tolerance merely to make a new implementation pass.
 
 ### V0 — checkpoint inventory — **PASSED / Gate A**
 
-Owners:
-
-- `tools/fetch_hf_headers.py`;
-- `tools/inventory.py`;
-- `INVENTORY-0731.md`;
-- `reference/deepseek-v4-flash-0731.gate-a.json`.
-
 Pinned result:
 
 ```text
 48 / 48 shards
 72,317 tensors
 166,878,536,440 payload bytes = 155.417748 GiB
-0 unclassified tensors / 0 unexplained bytes
+0 unexplained main tensors / 0 unexplained bytes
 11,008 routed expert records
 13,369,344 B / routed expert record
-Gate A checks: 6 PASS, 0 FAIL, 0 SKIP
+6 PASS, 0 FAIL, 0 SKIP
 ```
 
-Checkpoint-resident bootstrap maps exist in layers 0–2 as `ffn.gate.tid2eid`, I64 `[129280,6]`.
+Bootstrap maps exist in layers 0–2 as `ffn.gate.tid2eid`, I64 `[129280,6]`.
 
 Any model-revision move reruns V0.
 
-### V1 — native quantization decode/conventions — **PASSED / Gate B**
+### V1 — native quantization — **PASSED / Gate B**
 
 Evidence includes:
 
-- exhaustive E2M1/E8M0/E4M3FN public-format tests;
-- FP4 K32 and FP8 128x128 scale-index tests;
-- pinned official low-nibble-first semantics;
-- pinned scale-multiplication semantics;
-- real checkpoint routed `I8` packed-FP4 + `F8_E8M0` shapes;
-- real checkpoint resident `F8_E4M3` + `F8_E8M0` layout;
-- independent F3 literal (`0x21`, E8M0 `0x80` → `[1,2]`).
+- exhaustive E2M1/E8M0/E4M3FN tests;
+- FP4 K32 / FP8 128×128 scale-index tests;
+- official low-nibble-first semantics;
+- official scale multiplication;
+- real routed `I8` packed-FP4 + `F8_E8M0` geometry;
+- real resident `F8_E4M3` + `F8_E8M0` geometry;
+- independent literal `0x21`, scale `0x80` → `[1,2]`.
 
-Optimized native kernels must continue matching this contract.
-
-### V2 — one real quantized resident projection — **PASSED / Gate C**
+### V2 — real resident quantized projection — **PASSED / Gate C**
 
 Real target:
 
@@ -118,35 +111,25 @@ layers.0.attn.wq_a.weight  F8_E4M3 [1024,4096]
 layers.0.attn.wq_a.scale   F8_E8M0 [8,32]
 ```
 
-Frozen fixture:
+Frozen fixture `tests/fixtures/deepseek_v4/v2_wq_a_real/` matches exact BF16:
 
 ```text
-tests/fixtures/deepseek_v4/v2_wq_a_real/
+3e79 bf84 3f8d 400a 3ff3 bf9b 3f82 3ff0
 ```
 
-It contains eight real weight rows, the corresponding scale row, deterministic BF16 input, and eight BF16 outputs. The independent source oracle implements K128 activation E4M3 quantization and scaled FP8 block accumulation.
-
-Scalar C matches exact BF16 output bits:
-
-```text
-0x3e79 0xbf84 0x3f8d 0x400a 0x3ff3 0xbf9b 0x3f82 0x3ff0
-```
-
-Gate C passes the scalar/model-semantic projection seam. Official accelerator execution was not claimed; optimized backends must match the frozen fixture later.
+This passes the scalar/model-semantic projection seam, not official accelerator bit parity.
 
 ### V3 — model primitives
 
-V3 is a bucket of independently provable primitive seams. It remains broader than any single README gate.
-
 #### README Gate D — mHC — **PASSED**
 
-Frozen real fixture:
+Frozen real layer-0 fixture:
 
 ```text
 tests/fixtures/deepseek_v4/v3_mhc_real/
 ```
 
-Real layer-0 attention-HC parameters:
+Real parameters:
 
 ```text
 layers.0.hc_attn_fn     F32 [24,16384]
@@ -154,133 +137,163 @@ layers.0.hc_attn_base   F32 [24]
 layers.0.hc_attn_scale  F32 [3]
 ```
 
-The independent source oracle covers:
+The independent oracle covers learned mixes, pre/post transforms, 4×4 row softmax, 20 Sinkhorn iterations, `hc_pre`, and `hc_post` orientation.
 
 ```text
-flatten [4,4096] -> F32
-rsqrt(mean(x^2)+1e-6)
-24 learned mixes
-pre/post sigmoid transforms
-4x4 row-softmax + 20-iteration Sinkhorn order
-hc_pre weighted collapse
-hc_post comb[source,output] residual expansion
+hc_pre  exact BF16 across 4,096 outputs
+hc_post exact BF16 across 16,384 outputs
+mix/pre/post/comb diagnostic max_abs 4.76837158e-07
 ```
 
-Scalar C result:
+See `MHC.md`.
 
-```text
-hc_pre:  exact BF16 equality at all 4,096 outputs
-hc_post: exact BF16 equality at all 16,384 outputs
-mixes/pre/post/comb diagnostic max_abs: 4.76837158e-07
-```
-
-Final real combination matrix columns sum to approximately one; final rows intentionally do not, because the pinned algorithm ends with column normalization. A separate non-symmetric model-free fixture pins `comb[source,output]` orientation.
-
-See `MHC.md` for hashes and exact diagnostics.
-
-#### Other V3 primitive seams
-
-Routing primitive semantics are now exercised as part of passed Gate F/V4. Still isolate as attention bring-up requires them:
-
-- normalization outside the mHC-specific RMS calculation;
-- RoPE + inverse RoPE;
-- K64 KV QAT;
-- attention projection/compression/indexer helpers.
+Other primitive seams are validated inside the attention/MoE gates where appropriate, but remain individually diagnosable: learned RMSNorm, direct per-head Q normalization, RoPE, K64 KV QAT, compressor/indexer primitives.
 
 ### V4 — routing + MoE — **PASSED / Gate F**
 
-Pinned real learned-router representative, layer 3:
+Learned layer-3 representative:
 
 ```text
-selected IDs = [2,29,225,220,108,69]
-weights      = [0.263384104,0.251154065,0.248866215,
-                0.247819692,0.244902447,0.243873596]
-top-k boundary margin = 0.00040531158447265625
+IDs     [2,29,225,220,108,69]
+weights [0.263384104,0.251154065,0.248866215,
+         0.247819692,0.244902447,0.243873596]
+top-k boundary margin 0.00040531158447265625
 ```
 
-Pinned bootstrap/hash representative, layer 0 token 4242:
+Hash layer-0 token 4242:
 
 ```text
-selected IDs = [150,142,245,248,174,119]
-weights      = [0.248431414,0.267507851,0.247496858,
-                0.241705239,0.246138424,0.248720214]
+IDs [150,142,245,248,174,119]
 ```
 
-The learned and hash scalar paths reproduce exact IDs/order. Float routing diagnostics have observed `max_abs = 9.53674316e-07` while retaining exact discrete decisions.
-
-#### Routed FP4 expert
-
-Frozen representative:
-
-```text
-layer 3 / expert 2
-route weight = 0.2633841037750244
-```
-
-Real full `w1`/`w3` packed FP4 bytes + E8M0 scales and real first-eight `w2` rows replay through scalar C with exact gate/up diagnostics, exact hidden BF16, and exact output BF16:
+Real routed expert 3/2 exact BF16 output:
 
 ```text
 b96c b83c 39bf ba1c b988 3a81 389d 3a46
 ```
 
-#### All six selected routed branches + shared resident FP8 expert
-
-Fixture:
-
-```text
-tests/fixtures/deepseek_v4/v4_moe_real/
-```
-
-All six selected routed experts were fetched from the pinned checkpoint and independently evaluated. To avoid freezing six redundant 12.75 MiB expert records, the extra five retain compact BF16 output slices plus source hashes; expert 2 remains the full permanent routed fixture.
-
-The shared expert is a distinct resident arithmetic path, so its full real `w1`/`w3` FP8 E4M3 weights + E8M0 scales and the first eight `w2` rows are frozen permanently. Scalar C reproduces its hidden and output BF16 exactly.
-
-Shared output first eight:
+Real shared FP8 expert first-eight output:
 
 ```text
 3a2f ba40 b9b8 bad6 bb24 3a2e ba32 ba3e
 ```
 
-#### Official combination order
+All six selected routed branches are independently evaluated. Official accumulation is ascending expert ID in f32, then shared BF16 add, then final BF16 cast.
 
-Pinned source semantics are tested explicitly:
-
-1. routed expert returns are BF16 values;
-2. selected branches accumulate into f32 in **ascending expert ID** because the source loops over expert IDs, not router top-k slots;
-3. the BF16 shared expert output is added once after routed accumulation;
-4. the result is finally cast to BF16.
-
-For the real representative the ascending-ID order is:
-
-```text
-[2,29,69,108,220,225]
-```
-
-The real top-k-versus-ID order happens to round to the same final BF16 vector. Therefore a separate model-free non-associativity mutation pins the ordering: IDs `[5,1,3]` with routed values `[1,2^30,-2^30]` yield `1` under official expert-ID order but `0` under top-k slot order in f32.
-
-Final complete real MoE first-eight output:
+Complete real first-eight output:
 
 ```text
 b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
 ```
 
-The successful branch gate also passed the inherited A–D suite and ASan/UBSan. The frozen Gate F fixtures are replayed by ordinary `make check`, not only by the temporary acquisition workflow.
+A model-free non-associativity fixture pins expert-ID ordering even though the selected real case hides that ordering after final BF16 rounding.
 
-**Evidence boundary:** Gate F proves routing and MoE arithmetic from direct real checkpoint bytes. It does not yet prove that a converted WASTE expert record/cache supplies identical bytes. That placement identity is canonical **Gate G**, and must be proven when the DeepSeek container/storage path lands.
+**Boundary:** direct checkpoint-byte MoE arithmetic is passed. Converted WASTE record/cache identity is Gate G.
 
-### V5 — attention by type — **NEXT / Gate E**
+### V5 — attention by type — **PARTIAL / Gate E**
 
-Create distinct fixtures for every proven attention mode. Operational order:
+Gate E has three structurally distinct attention modes plus a shared output projection. It closes only after all are independently proved.
 
-1. ratio-0 sliding-window-only layer — projections, normalization, K64 KV QAT, RoPE, causal 128-window, sink-softmax sparse attention, inverse RoPE, output seam;
-2. ratio-128 compressed-history attention;
-3. ratio-4 CSA compressor + indexer/top-k sparse attention.
+#### Ratio 0 — attention core — **PASSED sub-seam**
 
-Gate E passes only when all structurally distinct modes are independently checkpoint/source verified.
+Frozen real fixture:
+
+```text
+tests/fixtures/deepseek_v4/v5_attn_ratio0_real/
+```
+
+Scope: layer 0, two tokens × two heads, through inverse-RoPE sparse-attention output.
+
+The fixture proves:
+
+- `wq_a` / learned `q_norm`;
+- selected real `wq_b` heads;
+- distinct direct BF16 per-head Q normalization;
+- base RoPE on last 64 dimensions;
+- `wkv` / learned `kv_norm`;
+- K64 E4M3 QAT simulation on non-RoPE 448 KV dimensions;
+- causal window-128 indices;
+- sink-softmax sparse attention with 64-position online-softmax blocks;
+- inverse RoPE on the attention output.
+
+Exact comparisons:
+
+```text
+post-RoPE Q                 [2,2,512] 2,048 BF16 values
+post-K64-QAT KV             [2,512]   1,024 BF16 values
+post-inverse-RoPE attention [2,2,512] 2,048 BF16 values
+TOTAL                                    5,120 exact BF16 values
+```
+
+Representative signatures:
+
+```text
+Q pos0/head0
+bf2b 3f58 bfb6 beba bee2 bfaa be58 3da2
+
+Q pos1/head0 RoPE tail
+402f 3fb0 3fac bf83 bf8b 3fc3 bf46 bd40
+
+attention pos1/head0
+be21 3e02 be52 be33 3de1 3f07 3e54 3e27
+```
+
+The expected-value producer is standalone and must reproduce Gate C's prior token-0 `wq_a` output before the attention expectation is accepted.
+
+#### Shared grouped output projection — **PASSED sub-seam**
+
+Frozen fixture:
+
+```text
+tests/fixtures/deepseek_v4/v5_attn_output_group0_real/
+```
+
+The official converter dequantizes checkpoint `wo_a` E4M3×E8M0 to BF16 before the grouped einsum. `wo_b` remains quantized.
+
+A sparse structural 8-head group seeded from real ratio-0 heads 0/1 proves:
+
+- `[8 heads,512] -> group 4096` orientation;
+- real checkpoint `wo_a` group-0 FP8→BF16 block dequantization;
+- `[1024,4096]` group einsum;
+- `[8 groups,1024] -> 8192` group placement/flattening;
+- real checkpoint quantized `wo_b` rows;
+- group-index mutation changes output as required.
+
+Independent equations require sequential/reverse/exact reduction agreement at BF16.
+
+```text
+group latent first8
+3a65 3dcb 3d2b 3d09 3cba bc02 bcab 3d9e
+
+wo_b output first8
+ba34 bce1 bd35 3bd0 3d87 3d77 bc85 bd46
+```
+
+**Boundary:** heads 2–7 in this projection fixture are deterministic structural transforms seeded from real heads 0/1, not independently generated checkpoint attention heads. This proves the shared projection structure/arithmetic, not a full 64-head layer output.
+
+#### Ratio 128 — **NEXT**
+
+Prove the learned compressor independently from CSA:
+
+```text
+wkv / wgate
++ learned absolute position embedding over 128-token chunks
++ softmax-weighted pooling
++ learned RMSNorm
++ compressed-position RoPE
++ K64 QAT
++ dense attention over compressed history
+```
+
+#### Ratio 4 / CSA — **OPEN**
+
+After ratio 128, add compressor/indexer scoring, top-512 compressed-position selection/order, and sparse attention over selected history.
+
+See `ATTENTION.md` for detailed cast boundaries and fixture provenance.
 
 ### V6 — complete transformer layer — **Gate H**
 
-Compare layer input, attention/mHC merge, routing/MoE output and final layer output. Cover structurally distinct layer classes.
+After Gate E closes, compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
 
 ### V7 — multi-layer localization
 
@@ -288,7 +301,7 @@ Checkpoint hidden states across multiple layers and stop at the first divergent 
 
 ### V8 — final hidden/logits — **Gate I**
 
-Compare final hidden state, norm and logits. No model-correctness claim before this level.
+Compare final hidden state, final norm and logits. No model-correctness claim before this level.
 
 ### V9 — deterministic greedy generation — **Gate K**
 
@@ -296,11 +309,11 @@ With identical known-token inputs/stopping rules and sampling disabled, compare 
 
 ### V10 — encoder/parser — **Gate J**
 
-Port the official code-based encoding/parser semantics with official differential fixtures. Do not replace it with guessed Jinja behavior.
+Port official code-based encoding/parser semantics with official differential fixtures. Do not replace them with guessed Jinja behavior.
 
 ### V11 — OpenAI-compatible API
 
-Test direct-C versus API generation parity, streaming/non-streaming behavior, cancellation and only the structured/tool semantics supported by the official encoder.
+Test direct-C versus API generation parity, streaming/non-streaming behavior, cancellation and only structured/tool behavior supported by the official encoder.
 
 ---
 
@@ -312,7 +325,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **B** native quantization | **V1** | **PASSED** |
 | **C** quantized trunk linear | **V2** | **PASSED scalar/model-semantic** |
 | **D** mHC | **V3 mHC seam** | **PASSED scalar/model-semantic** |
-| **E** attention by type | **V5** | **NEXT — ratio 0 first** |
+| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output passed; ratio 128 next** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
 | **H** complete transformer block | **V6** | after E/V5 |
@@ -325,13 +338,13 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | — | **V7** multi-layer localization | base-model bring-up |
 | — | **V11** API parity | API phase |
 
-README letters remain stable design identifiers even where operational V-order differs.
+README letters remain stable even where operational V-order differs.
 
 ---
 
 ## 5. Cache/I/O correctness — Gate G
 
-For identical token/container inputs, these pairs must preserve selected experts and numerical output:
+For identical inputs/container bytes, these pairs must preserve selected experts and numerical output:
 
 | A | B |
 |---|---|
@@ -342,7 +355,7 @@ For identical token/container inputs, these pairs must preserve selected experts
 | prefetch off | prefetch on |
 | sequential prefill | chunked prefill |
 
-Storage placement is never allowed to change model meaning. Gate F's direct-byte arithmetic fixture is the oracle Gate G should reuse for the first converted expert-record identity test.
+Storage placement is never allowed to change model meaning. Reuse Gates C/F fixtures as initial converted-byte identity oracles.
 
 ---
 
@@ -354,14 +367,14 @@ When downstream outputs differ, diagnose:
 2. tensor binding/name/shape/transpose;
 3. quantized storage/scale/indexing;
 4. activation quantization / primitive arithmetic;
-5. mHC/residual order;
-6. attention state/position/compression/indexing;
+5. mHC/residual ordering;
+6. attention norm/RoPE/QAT/compression/indexing state;
 7. router IDs/order/weights;
 8. expert identity/data;
 9. layer-state persistence;
 10. final norm/head.
 
-Do not start by changing tolerances.
+Do not begin by changing tolerances.
 
 ---
 
@@ -377,7 +390,7 @@ An optimized path lands only when:
 - memory remains within the planner;
 - optional backend failure/fallback is safe.
 
-Gates C, D, and F now give later SIMD/backend work real checkpoint-backed arithmetic oracles. Gate E attention correctness is the next base-model priority before broad optimization.
+Gates C/D/F and the passed Gate-E sub-seams now provide real checkpoint-backed arithmetic oracles. Ratio-128 and CSA correctness remain higher priority than broad optimization.
 
 ---
 
@@ -394,7 +407,7 @@ README gate:
 Operational V-level:
 Operation:
 Fixture provenance:
-max_abs / max_rel / RMS (when applicable):
+max_abs / max_rel / RMS:
 exact semantic checks:
 known-wrong mutations tested:
 Verdict:
