@@ -36,9 +36,15 @@ int waste_ds_v4_compressed_rope_ref(float *x, size_t dim, size_t rope_dim,
  *            loads these checkpoint BF16 values into f32 Linear parameters.
  * ape:       checkpoint/source F32 [128,512].
  * norm:      checkpoint F32 [512].
- * out:       [seqlen/128,512] f32 container holding final BF16 values after
- *            pooling -> BF16 -> RMSNorm -> compressed YaRN RoPE -> K64 QAT
- *            on the first 448 non-RoPE dimensions.
+ *
+ * Optional diagnostics are [seqlen/128,512] f32 containers holding BF16 values:
+ *   pooled_bf16_out — weighted f32 pool after explicit cast back to BF16;
+ *   norm_out        — learned RMSNorm output;
+ *   rope_out        — compressed YaRN-RoPE output before KV QAT.
+ * Any diagnostic may be NULL.
+ *
+ * out: final [seqlen/128,512] BF16-valued compressed KV after K64 QAT on the
+ * first 448 non-RoPE dimensions.
  */
 int waste_ds_v4_compressor_ratio128_prefill_ref(
     const float *x, size_t seqlen,
@@ -47,6 +53,9 @@ int waste_ds_v4_compressor_ratio128_prefill_ref(
     const float *ape,
     const float *norm_weight,
     float norm_eps,
+    float *pooled_bf16_out,
+    float *norm_out,
+    float *rope_out,
     float *out);
 
 #endif /* WASTE_DEEPSEEK_V4_COMPRESSOR_REF_H */
