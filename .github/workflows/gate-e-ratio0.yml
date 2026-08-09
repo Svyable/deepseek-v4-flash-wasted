@@ -1,0 +1,29 @@
+name: Gate E ratio-0 attention
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-e-ratio0
+  cancel-in-progress: true
+
+jobs:
+  scalar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Existing suite
+        run: |
+          make -j2
+          make check
+      - name: Ratio-0 source-contract scalar tests
+        run: python3 tests/test_v5_attention_scalar.py
+      - name: Sanitizers
+        run: make asan
