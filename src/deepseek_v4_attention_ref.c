@@ -7,8 +7,17 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define DS_V4_SPARSE_BLOCK 64u
+#define DS_V4_HIDDEN 4096u
+#define DS_V4_Q_RANK 1024u
+#define DS_V4_KV_DIM 512u
+#define DS_V4_HEAD_DIM 512u
+#define DS_V4_ROPE_DIM 64u
+#define DS_V4_KV_QAT_DIM (DS_V4_KV_DIM - DS_V4_ROPE_DIM)
+#define DS_V4_KV_QAT_BLOCK 64u
+#define DS_V4_WINDOW 128u
 
 static float bf16(float x)
 {
@@ -52,10 +61,8 @@ int waste_ds_v4_rope_ref(float *x, size_t dim, size_t position,
         float s = sinf(angle);
         float re = x[2u * pair];
         float im = x[2u * pair + 1u];
-        float y0 = re * c - im * s;
-        float y1 = re * s + im * c;
-        x[2u * pair] = bf16(y0);
-        x[2u * pair + 1u] = bf16(y1);
+        x[2u * pair] = bf16(re * c - im * s);
+        x[2u * pair + 1u] = bf16(re * s + im * c);
     }
     return 0;
 }
@@ -199,4 +206,132 @@ int waste_ds_v4_sparse_attn_head_ref(const float *q,
 
     free(acc);
     return 0;
+}
+
+static int copy_or_discard(float *dst, const float *src, size_t n)
+{
+    if (dst)
+        memcpy(dst, src, n * sizeof(float));
+    return 0;
+}
+
+int waste_ds_v4_attention_ratio0_prefill_ref(
+    const float *x, size_t seqlen, size_t n_heads,
+    const uint8_t *wq_a_weight, const uint8_t *wq_a_scale_e8m0,
+    const float *q_norm_weight,
+    const uint8_t *wq_b_weight, const uint8_t *wq_b_scale_e8m0,
+    const uint8_t *wkv_weight, const uint8_t *wkv_scale_e8m0,
+    const float *kv_norm_weight,
+    const float *attn_sink,
+    float rms_eps, float rope_theta,
+    float *q_after_rope,
+    float *kv_after_qat,
+    float *attn_after_inverse_rope)
+{
+    if (!x || seqlen == 0 || n_heads == 0 || n_heads > 64u ||
+        !wq_a_weight || !wq_a_scale_e8m0 || !q_norm_weight ||
+        !wq_b_weight || !wq_b_scale_e8m0 ||
+        !wkv_weight || !wkv_scale_e8m0 || !kv_norm_weight || !attn_sink ||
+        !(rms_eps >= 0.0f) || !isfinite(rms_eps) ||
+        !(rope_theta > 0.0f) || !isfinite(rope_theta))
+        return -1;
+
+    const size_t q_elems = seqlen * n_heads * DS_V4_HEAD_DIM;
+    const size_t kv_elems = seqlen * DS_V4_KV_DIM;
+    const size_t window_cols = seqlen < DS_V4_WINDOW ? seqlen : DS_V4_WINDOW;
+    const size_t index_elems = seqlen * window_cols;
+
+    float *q_rank = malloc(seqlen * DS_V4_Q_RANK * sizeof(float));
+    float *q_rank_norm = malloc(seqlen * DS_V4_Q_RANK * sizeof(float));
+    float *q = malloc(q_elems * sizeof(float));
+    float *kv = malloc(kv_elems * sizeof(float));
+    float *kv_norm = malloc(kv_elems * sizeof(float));
+    float *attn = malloc(q_elems * sizeof(float));
+    int32_t *idxs = malloc(index_elems * sizeof(int32_t));
+    if (!q_rank || !q_rank_norm || !q || !kv || !kv_norm || !attn || !idxs) {
+        free(q_rank); free(q_rank_norm); free(q); free(kv); free(kv_norm); free(attn); free(idxs);
+        return -1;
+    }
+
+    int rc = -1;
+    if (waste_ds_v4_fp8_linear_e8m0_ref(
+            x, seqlen, DS_V4_HIDDEN,
+            wq_a_weight, wq_a_scale_e8m0, DS_V4_Q_RANK, q_rank) != 0)
+        goto done;
+    for (size_t t = 0; t < seqlen; t++) {
+        if (waste_ds_v4_rmsnorm_ref(
+                q_rank + t * DS_V4_Q_RANK, q_norm_weight,
+                DS_V4_Q_RANK, rms_eps,
+                q_rank_norm + t * DS_V4_Q_RANK) != 0)
+            goto done;
+    }
+    if (waste_ds_v4_fp8_linear_e8m0_ref(
+            q_rank_norm, seqlen, DS_V4_Q_RANK,
+            wq_b_weight, wq_b_scale_e8m0,
+            n_heads * DS_V4_HEAD_DIM, q) != 0)
+        goto done;
+
+    for (size_t t = 0; t < seqlen; t++) {
+        for (size_t h = 0; h < n_heads; h++) {
+            float *qh = q + (t * n_heads + h) * DS_V4_HEAD_DIM;
+            float tmp[DS_V4_HEAD_DIM];
+            if (waste_ds_v4_rmsnorm_ref(
+                    qh, NULL, DS_V4_HEAD_DIM, rms_eps, tmp) != 0)
+                goto done;
+            memcpy(qh, tmp, sizeof tmp);
+            if (waste_ds_v4_rope_ref(
+                    qh + DS_V4_HEAD_DIM - DS_V4_ROPE_DIM,
+                    DS_V4_ROPE_DIM, t, rope_theta, 0) != 0)
+                goto done;
+        }
+    }
+
+    if (waste_ds_v4_fp8_linear_e8m0_ref(
+            x, seqlen, DS_V4_HIDDEN,
+            wkv_weight, wkv_scale_e8m0, DS_V4_KV_DIM, kv) != 0)
+        goto done;
+    for (size_t t = 0; t < seqlen; t++) {
+        float *kr = kv_norm + t * DS_V4_KV_DIM;
+        if (waste_ds_v4_rmsnorm_ref(
+                kv + t * DS_V4_KV_DIM, kv_norm_weight,
+                DS_V4_KV_DIM, rms_eps, kr) != 0)
+            goto done;
+        if (waste_ds_v4_rope_ref(
+                kr + DS_V4_KV_DIM - DS_V4_ROPE_DIM,
+                DS_V4_ROPE_DIM, t, rope_theta, 0) != 0)
+            goto done;
+        if (waste_ds_v4_fp8_sim_inplace_ref(
+                kr, DS_V4_KV_QAT_DIM, DS_V4_KV_QAT_BLOCK) != 0)
+            goto done;
+    }
+
+    if (waste_ds_v4_window_indices_ref(
+            DS_V4_WINDOW, seqlen, 0, idxs, index_elems) != index_elems)
+        goto done;
+
+    const float softmax_scale = 1.0f / sqrtf((float)DS_V4_HEAD_DIM);
+    for (size_t t = 0; t < seqlen; t++) {
+        const int32_t *row_idxs = idxs + t * window_cols;
+        for (size_t h = 0; h < n_heads; h++) {
+            float *a = attn + (t * n_heads + h) * DS_V4_HEAD_DIM;
+            const float *qh = q + (t * n_heads + h) * DS_V4_HEAD_DIM;
+            if (waste_ds_v4_sparse_attn_head_ref(
+                    qh, kv_norm, seqlen, row_idxs, window_cols,
+                    DS_V4_HEAD_DIM, attn_sink[h], softmax_scale, a) != 0)
+                goto done;
+            if (waste_ds_v4_rope_ref(
+                    a + DS_V4_HEAD_DIM - DS_V4_ROPE_DIM,
+                    DS_V4_ROPE_DIM, t, rope_theta, 1) != 0)
+                goto done;
+        }
+    }
+
+    copy_or_discard(q_after_rope, q, q_elems);
+    copy_or_discard(kv_after_qat, kv_norm, kv_elems);
+    copy_or_discard(attn_after_inverse_rope, attn, q_elems);
+    rc = 0;
+
+done:
+    free(q_rank); free(q_rank_norm); free(q); free(kv); free(kv_norm); free(attn); free(idxs);
+    return rc;
 }
