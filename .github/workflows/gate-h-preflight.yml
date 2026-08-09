@@ -1,0 +1,30 @@
+name: Gate H layer-3 composition preflight
+
+on:
+  push:
+    branches:
+      - agent/gate-h-layer3-full
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-h-layer3-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Model-free two-HC composition
+        run: python3 tests/test_v6_layer_composition_scalar.py
+      - name: Frozen inherited suite
+        run: |
+          set -euo pipefail
+          make -j2
+          make check
+      - name: Sanitizers
+        run: make asan
