@@ -101,7 +101,7 @@ def main():
     wkv = u16("wkv.bf16.bin")
     wgate = u16("wgate.bf16.bin")
     ape = f32s("ape.f32.bin")
-    norm = f32s("norm.f32.bin")
+    norm = [bf16_to_f32(b) for b in u16("norm.bf16.bin")]
     if len(wkv) != 512*4096 or len(wgate) != 512*4096 or len(ape) != 128*512 or len(norm) != 512:
         raise AssertionError("compressor parameter shape drifted")
 
