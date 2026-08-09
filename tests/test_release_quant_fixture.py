@@ -4,13 +4,9 @@
 """Replay pinned 0731 source/checkpoint evidence through scalar C seams.
 
 This driver is reached by ``tests/test_inventory.py`` and therefore by
-``make check``. It keeps four evidence classes adjacent but distinct:
-
-- pinned source-level bootstrap-routing names;
-- the independent F3 FP4 nibble/scale convention fixture;
-- the model-free Gate C scalar-linear preflight;
-- the frozen real-checkpoint Gate C projection plus fail-closed Range-slice
-  transport used to acquire it.
+``make check``. It keeps source literals, acquisition mechanics, real
+checkpoint fixtures, and model-semantic scalar references adjacent while
+preserving their evidence boundaries.
 """
 
 import json
@@ -31,6 +27,8 @@ import inventory  # noqa: E402
 import test_fetch_hf_tensor_slice  # noqa: E402
 import test_v2_linear_ref  # noqa: E402
 import test_v2_real_projection  # noqa: E402
+import test_v3_mhc_scalar  # noqa: E402
+import test_v3_mhc_real  # noqa: E402
 
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
@@ -65,13 +63,24 @@ def check_release_router_names():
     return 0
 
 
+def run_gate(name, fn):
+    rc = fn()
+    if rc == 77:
+        print(f"SKIP {name}")
+        return 77
+    if rc != 0:
+        print(f"FAIL {name}")
+        return 1
+    return 0
+
+
 def main():
     if check_release_router_names() != 0:
         return 1
 
-    # The payload transport is a separate seam from quantized arithmetic.
-    if test_fetch_hf_tensor_slice.main() != 0:
-        print("FAIL: bounded safetensors payload Range transport")
+    # The payload transport is a separate seam from model arithmetic.
+    if run_gate("bounded safetensors payload Range transport",
+                test_fetch_hf_tensor_slice.main) != 0:
         return 1
 
     cc = compiler()
@@ -145,21 +154,23 @@ int main(void) {{
 
     print("PASS pinned 0731 FP4 nibble order + E8M0 scale application")
 
-    v2_preflight = test_v2_linear_ref.main()
-    if v2_preflight != 0:
-        if v2_preflight == 77:
-            print("SKIP Gate C scalar preflight: no compiler")
-            return 77
+    if run_gate("Gate C scalar linear preflight", test_v2_linear_ref.main) != 0:
         return 1
-
-    v2_real = test_v2_real_projection.main()
-    if v2_real != 0:
-        if v2_real == 77:
-            print("SKIP real Gate C projection fixture unavailable")
-            return 77
+    if run_gate("Gate C / V2 real checkpoint projection",
+                test_v2_real_projection.main) != 0:
         return 1
-
     print("PASS Gate C / V2 real checkpoint projection")
+
+    # Gate D is intentionally split into a model-free orientation/invariant
+    # test and a real checkpoint/source-oracle replay. Both must pass.
+    if run_gate("Gate D model-free mHC invariants",
+                test_v3_mhc_scalar.main) != 0:
+        return 1
+    if run_gate("Gate D / V3 real checkpoint mHC primitive",
+                test_v3_mhc_real.main) != 0:
+        return 1
+    print("PASS Gate D / V3 real checkpoint mHC primitive")
+
     return 0
 
 
