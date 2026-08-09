@@ -22,6 +22,19 @@ int waste_ds_v4_hadamard_bf16_ref(float *x, size_t n);
  */
 int waste_ds_v4_fp4_sim_inplace_ref(float *x, size_t n, size_t block_size);
 
+/* Source overlap_transform + per-dimension softmax pool, isolated from the
+ * projections. `kv` and `score` are [chunks,4,2*head_dim] f32 projection
+ * outputs; APE is [4,2*head_dim]. Output is [chunks,head_dim] BF16-valued.
+ * For chunk c, slots 0..3 come from chunk c-1's first half (unavailable/-inf
+ * for c=0), while slots 4..7 come from chunk c's second half. */
+int waste_ds_v4_csa_overlap_pool_ref(
+    const float *kv,
+    const float *score,
+    const float *ape,
+    size_t chunks,
+    size_t head_dim,
+    float *out);
+
 /* Ratio-4 overlapping compressor prefill. The checkpoint wkv/wgate matrices
  * are BF16 [2*head_dim,4096] and are semantically loaded as f32 linears.
  * APE is F32 [4,2*head_dim], norm_weight is checkpoint BF16 upcast to f32.
