@@ -1,6 +1,6 @@
 # DeepSeek V4 attention bring-up
 
-**Current state: Gate E / V5 is PARTIAL. Ratio-0 attention, the shared grouped output projection, the ratio-128 learned compressor, and a ratio-128 compressed-history composition seam are checkpoint/source verified at the scalar model-semantic level. A coherent same-input ratio-128 `Attention.forward` fixture and ratio-4 CSA/indexer attention remain open.**
+**Current state: Gate E / V5 is PARTIAL. Ratio-0 attention, the shared grouped output projection, and coherent same-input ratio-128 attention through inverse compressed RoPE are checkpoint/source verified at the scalar model-semantic level. Ratio-4 CSA/indexer is the remaining attention mode.**
 
 Pinned release:
 
@@ -359,28 +359,58 @@ Ordinary `make check` is expected to enumerate each DeepSeek gate replay by name
 - model-free ratio-128 pooling and pair-20 compressed-YaRN mutations;
 - real ratio-128 compressor stages;
 - model-free ratio-128 prefill/decode history index semantics;
-- real ratio-128 compressed-history composition.
+- real ratio-128 compressed-history composition;
+- model-free inverse compressed-YaRN pair-20 mutation;
+- coherent same-input real ratio-128 forward through inverse compressed RoPE.
 
 Acquisition workflows are temporary by design and are removed after fixtures freeze. They must never contain hard-coded PR readiness or merge actions.
 
-## 9. Next — coherent ratio-128 forward, then ratio-4 CSA/indexer
+## 9. Coherent same-input ratio-128 forward — PASSED real-checkpoint sub-seam
 
-The next ratio-128 fixture should use **one coherent input sequence** and prove, at minimum:
+Frozen fixture:
 
 ```text
-same input
- -> local Q/KV
- -> ratio-128 compressor KV
- -> local + compressed index namespace
- -> sparse attention
- -> inverse compressed RoPE
+tests/fixtures/deepseek_v4/v5_attention_ratio128_coherent_real/
 ```
 
-The already-proven shared grouped output projection can then be attached without rediscovering its orientation. Closing this coherent seam removes the current composition-fixture non-claim.
+One 256-token BF16 structural input has exactly two non-zero tokens: position 0 (`lane 17`, `0x3da0`) and position 255 (`lane 3340`, `0xbf20`). The same input drives real layer-3 head-0 Q/local KV, the real learned ratio-128 compressor, the 130-entry row-255 history namespace, sink sparse attention, and inverse compressed YaRN.
 
-After that, ratio-4 CSA adds:
+The fixture freezes the bounded real layer-3 attention slices, while compressor weights/APE/norm are dependency-hashed from the earlier real compressor fixture. The independent Python oracle shares no WASTE runtime code; the offline C replay reconstructs the whole chain from the same input.
 
-- the overlapping two-half compressor behavior;
+Exact representative evidence:
+
+```text
+coherent compressed KV first8
+3a60 3b90 3c70 3960 3a10 b9c0 b860 baf0
+
+pre-inverse attention first8
+3ba7 b9d9 b7a3 bb5f 3baf baf1 3ab3 ba71
+
+post-inverse attention first8
+3ba7 b9d9 b7a3 bb5f 3baf baf1 3ab3 ba71
+
+pair20 pre  3abf 3b49
+pair20 post 3add 3b41
+```
+
+The identical first eight values are expected because inverse RoPE touches only the final 64 dimensions; pair 20 is inside that tail and is the load-bearing discriminator. Replacing coherent compressed history with the older unrelated compressor fixture must change the pre-inverse result.
+
+Acquisition evidence:
+
+```text
+workflow run 31328790368
+artifact id 9042319671
+artifact sha256 b48e6518ce82dac74354325f16f1da80ddb4367624a313bdf9afbef9d4294497
+fixture freeze d12cb39a36973dab70a6005b05fffc664b0bec6d
+```
+
+**Boundary:** one head and one query row. The shared grouped output projection was proved independently in section 5 and is not redundantly re-opened here.
+
+## 10. Next — ratio-4 CSA/indexer
+
+Ratio-4 is now the only remaining Gate-E attention mode. It adds:
+
+- overlapping two-half compressor behavior;
 - its own 128-dimensional indexer compressor;
 - Hadamard rotation and FP4 simulation where the pinned source applies them;
 - 64 indexer heads × 128 dimensions;
@@ -388,4 +418,4 @@ After that, ratio-4 CSA adds:
 - exact top-512 compressed-position selection/order;
 - sparse attention over the selected compressed history.
 
-Gate E / V5 closes only after ratio 0, coherent ratio 128, ratio 4/CSA, and the shared output projection all have independent checkpoint/source evidence.
+Gate E / V5 closes only after that ratio-4/CSA seam has independent checkpoint/source evidence.

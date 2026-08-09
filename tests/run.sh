@@ -1157,9 +1157,8 @@ deepseek_replay "Gate F/V4 — real routed FP4 expert 3/2, exact gate/up and out
 deepseek_replay "Gate F/V4 — real shared FP8 expert and six-branch combination" \
                 "test_v4_moe_real.py"
 
-# Gate E/V5 — PARTIAL. Ratio-0 attention and the shared grouped-output
-# projection have real fixtures; ratio-128 compression and ratio-4 CSA do
-# not, and get their lines when they do. These three arrived on main while
+# Gate E/V5 — PARTIAL. Ratio-0, grouped output, and coherent ratio-128
+# now have real fixtures. Ratio-4 CSA/indexer remains the open attention mode. These three arrived on main while
 # this section was being written, added to the old import chain — the first
 # instance of the maintenance cost enumeration buys, paid immediately.
 deepseek_replay "Gate E/V5 — model-free ratio-0 attention semantics" \
@@ -1183,6 +1182,10 @@ deepseek_replay "Gate E/V5 — model-free ratio-128 compressed-history indexing"
                 "test_v5_attention_history_scalar.py"
 deepseek_replay "Gate E/V5 — real ratio-128 compressed-history composition" \
                 "test_v5_attention_history_real.py"
+deepseek_replay "Gate E/V5 — model-free inverse compressed YaRN pair20" \
+                "test_v5_compressed_inverse_scalar.py"
+deepseek_replay "Gate E/V5 — coherent same-input ratio-128 attention" \
+                "test_v5_attention_ratio128_coherent_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

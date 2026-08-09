@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, the real ratio-128 compressor, and a real ratio-128 compressed-history composition seam are passed. A coherent same-input ratio-128 forward and ratio-4 CSA/indexer remain. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, and a coherent same-input real ratio-128 forward through inverse compressed RoPE are passed. Ratio-4 CSA/indexer remains. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -307,9 +307,13 @@ The C replay matches **130/130 indices and 512/512 BF16 attention values exactly
 
 **Boundary:** the compressed KV and Q/local-KV fixtures use different structural input sequences. This proves checkpoint-derived cache/index/sparse-attention composition, not one coherent same-input `Attention.forward`.
 
-#### Ratio 128 coherent forward — **NEXT**
+#### Ratio 128 coherent forward — **PASSED real-checkpoint sub-seam**
 
-Use one input sequence for local Q/KV and compressor KV and prove through sparse attention plus inverse compressed RoPE. The already-proven shared output projection may then be attached without reopening its orientation.
+Frozen fixture: `tests/fixtures/deepseek_v4/v5_attention_ratio128_coherent_real/`. A single 256-token structural input has only positions 0 and 255 non-zero. The same input drives real layer-3 head-0 Q, local KV, both ratio-128 compressor chunks, row-255 local+compressed sparse attention, and inverse compressed YaRN.
+
+The offline C replay regenerates every stage from the frozen raw checkpoint slices and the already-proven compressor payload. The row-255 namespace is 130 exact indices (`128..255,256,257`). Pre-inverse and post-inverse attention are each 512 exact BF16 values. Pair 20 changes from `3abf 3b49` to `3add 3b41`; replacing coherent compressed KV with the older unrelated compressor fixture also changes attention.
+
+**Boundary:** one head / one query row only. The shared grouped output projection is already proved separately; ratio-4 CSA/indexer remains the final Gate-E attention mode.
 
 #### Ratio 4 / CSA — **OPEN**
 
@@ -351,7 +355,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **B** native quantization | **V1** | **PASSED** |
 | **C** quantized trunk linear | **V2** | **PASSED scalar/model-semantic** |
 | **D** mHC | **V3 mHC seam** | **PASSED scalar/model-semantic** |
-| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output passed; ratio-128 compressor model-free only, real fixture pending; CSA next** |
+| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output + coherent ratio-128 checkpoint-passed; ratio-4 CSA/indexer next** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
 | **H** complete transformer block | **V6** | after E/V5 |
