@@ -1,4 +1,4 @@
-name: Gate F router + routed expert primitive
+name: Gate F complete MoE primitive
 
 on:
   push:
@@ -16,13 +16,14 @@ concurrency:
 jobs:
   router-expert:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
       REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
       SNAPSHOT: reference/deepseek-v4-flash-0731
       ROUTER_FIXTURE: tests/fixtures/deepseek_v4/v3_router_real
       EXPERT_FIXTURE: tests/fixtures/deepseek_v4/v4_routed_expert_real
+      MOE_FIXTURE: tests/fixtures/deepseek_v4/v4_moe_real
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,18 +71,38 @@ jobs:
       - name: Replay selected real routed expert through scalar C
         run: python3 tests/test_v4_routed_expert_real.py
 
+      - name: Build all-six-routed plus shared-expert MoE fixture
+        run: |
+          rm -rf "$MOE_FIXTURE"
+          python3 tools/make_v4_moe_fixture.py "$SNAPSHOT" "$MOE_FIXTURE"
+          test "$(stat -c %s "$MOE_FIXTURE/routed-ids.u32.bin")" -eq 24
+          test "$(stat -c %s "$MOE_FIXTURE/routed-out8.bf16.bin")" -eq 96
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w1.fp8.bin")" -eq 8388608
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w1-scale.e8m0.bin")" -eq 512
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w3.fp8.bin")" -eq 8388608
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w3-scale.e8m0.bin")" -eq 512
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w2-rows0-8.fp8.bin")" -eq 16384
+          test "$(stat -c %s "$MOE_FIXTURE/shared-w2-scale-row0.e8m0.bin")" -eq 16
+          test "$(stat -c %s "$MOE_FIXTURE/shared-hidden.bf16.bin")" -eq 4096
+          test "$(stat -c %s "$MOE_FIXTURE/shared-out8.bf16.bin")" -eq 16
+          test "$(stat -c %s "$MOE_FIXTURE/combined-out8.bf16.bin")" -eq 16
+
+      - name: Replay shared expert and complete MoE through scalar C
+        run: python3 tests/test_v4_moe_real.py
+
       - name: Sanitizers
         run: make asan
 
-      - name: Upload Gate F primitive evidence
+      - name: Upload Gate F evidence
         uses: actions/upload-artifact@v4
         with:
-          name: gate-f-router-expert-real
+          name: gate-f-complete-real
           retention-days: 30
           if-no-files-found: error
           path: |
             tests/fixtures/deepseek_v4/v3_router_real/
             tests/fixtures/deepseek_v4/v4_routed_expert_real/
+            tests/fixtures/deepseek_v4/v4_moe_real/
 
       - name: Freeze verified fixtures
         shell: bash
@@ -90,10 +111,10 @@ jobs:
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$ROUTER_FIXTURE" "$EXPERT_FIXTURE"
+          git add "$ROUTER_FIXTURE" "$EXPERT_FIXTURE" "$MOE_FIXTURE"
           if git diff --cached --quiet; then
-            echo "router/expert fixtures already frozen"
+            echo "Gate F fixtures already frozen"
             exit 0
           fi
-          git commit -m "fixtures: freeze real 0731 router and routed-expert evidence"
+          git commit -m "fixtures: freeze complete real 0731 Gate F evidence"
           git push origin HEAD:agent/gate-f-router-moe
