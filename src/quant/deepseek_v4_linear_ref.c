@@ -8,6 +8,7 @@
 #include <float.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define DS_V4_ACT_BLOCK 128u
@@ -145,6 +146,37 @@ int waste_ds_v4_fp8_linear_ref(const float *x,
     return 0;
 }
 
+int waste_ds_v4_fp8_linear_e8m0_ref(const float *x,
+                                    size_t m, size_t k,
+                                    const uint8_t *weight,
+                                    const uint8_t *weight_scales_e8m0,
+                                    size_t n,
+                                    float *y)
+{
+    if (!x || !weight || !weight_scales_e8m0 || !y ||
+        m == 0 || n == 0 || k == 0 || k % DS_V4_ACT_BLOCK != 0)
+        return -1;
+
+    const size_t k_blocks = k / DS_V4_ACT_BLOCK;
+    const size_t scale_rows = (n + WASTE_FP8_BLOCK - 1u) / WASTE_FP8_BLOCK;
+    const size_t count = scale_rows * k_blocks;
+    float *decoded = malloc(count * sizeof(float));
+    if (!decoded)
+        return -1;
+
+    for (size_t i = 0; i < count; i++) {
+        decoded[i] = waste_ue8m0_decode(weight_scales_e8m0[i]);
+        if (!isfinite(decoded[i])) {
+            free(decoded);
+            return -1;
+        }
+    }
+
+    int rc = waste_ds_v4_fp8_linear_ref(x, m, k, weight, decoded, n, y);
+    free(decoded);
+    return rc;
+}
+
 static uint8_t packed_fp4_code(const uint8_t *row, size_t logical_k)
 {
     uint8_t byte = row[logical_k / 2u];
@@ -164,9 +196,7 @@ int waste_ds_v4_fp4_linear_ref(const float *x,
         k % DS_V4_ACT_BLOCK != 0 || k % DS_V4_FP4_WEIGHT_BLOCK != 0)
         return -1;
 
-    const size_t act_blocks = k / DS_V4_ACT_BLOCK;
     const size_t weight_blocks = k / DS_V4_FP4_WEIGHT_BLOCK;
-    (void)act_blocks;
 
     for (size_t mi = 0; mi < m; mi++) {
         const float *xr = x + mi * k;
