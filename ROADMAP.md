@@ -1,349 +1,240 @@
 # Roadmap — DeepSeek V4 Flash on WASTE
 
-This roadmap converts the implementation plan in `README.md` into gated PR-sized work. It is deliberately ordered so a cheap failure prevents an expensive download, conversion, or optimization.
+This roadmap turns the implementation plan into gated PR-sized work. The ordering is intentional: cheap exact gates precede expensive conversion, transformer integration, and performance work.
 
-Status values: **DONE**, **IN PROGRESS**, **BLOCKED**, **NEXT**, **LATER**.
+Gate vocabulary:
 
-## Gate vocabulary
-
-The phases below are a **schedule**, not a fourth gate vocabulary.
-
-- `README.md` §18 defines **14 stable design gates A–N**.
-- `docs/VALIDATION.md` defines operational `V0–V11` levels.
-- `docs/VALIDATION.md` §4a maps every README gate to its V-level or systems/performance owner.
-
-When both identifiers exist, cite both (`Gate B / V1`, `Gate H / V6`, `Gate K / V9`). README Gates `G/L/M/N` intentionally have no V-number. Operational `V7/V11` intentionally have no README letter.
+- `README.md` §18 — stable design Gates A–N;
+- `docs/VALIDATION.md` — operational V0–V11 levels;
+- roadmap phases — schedule only.
 
 ## Current snapshot
 
-| Work | Canonical gate | Status | Evidence |
-|---|---|---|---|
-| PR #1 — WASTE bootstrap + inventory tool | supports **Gate A / V0** | **DONE** | merged as `edd2a41b66332e5a54ed54bcbb196fec19664079` |
-| PR #2 — documentation foundation | process | **DONE** | merged as `7c5c8d95fa7e1a9588b744aba4a6389bf77e98f7` |
-| PR #3 — scalar public quantization | **Gate B / V1a** | **DONE** | merged as `91c36b8f4168349e6893a9911a3f60075d62d973`; exhaustive public-format conformance + mutation testing |
-| PR #4 — canonical gate/docs contract | process | **DONE** | merged as `3ce11ef4d391208d0c455796bf21803620910948` |
-| PR #5 — official header acquisition + quantization source gates | **A/V0, B/V1, C/V2 preflight** | **IN PROGRESS / DRAFT** | exact release/license pinned; Range-safe header fetcher; official FP4/FP8 conventions; scalar official-linear preflight |
-| Real 0731 48-shard header inventory | **Gate A / V0** | **NEXT / environment-dependent** | tooling exists; exact official headers have not yet been consumed in this repo |
-| Native DeepSeek convention replay | **Gate B / V1** | **SOURCE-VERIFIED; branch test pending** | pinned F3 fixture + C replay wired into `make check`; fresh PR #5 checkout run still required |
-| Official one-projection oracle | **Gate C / V2** | **NEXT** | source-derived scalar linear exists; real projection fixture still required |
-| DeepSeek transformer implementation | **Gates D/E/F/H/I/K; V3–V9** | **NOT STARTED** | no ported transformer forward path yet |
-| Encoding/server | **Gate J / V10 + V11** | **NOT STARTED** | official encoding path not ported |
-| Storage/cache feasibility | **Gates G/L/M** | **LATER** | mechanisms imported; DeepSeek measurements absent |
-| DSpark | **Gate N** | **LATER** | base model must pass Gate I/V8 and Gate K/V9 first |
-
-Last merged executable baseline remains PR #3:
-
-```text
-make check -> 34 passed, 0 failed, 12 skipped
-make asan  -> 33 passed, 0 failed
-```
-
-PR #5 deliberately remains draft until a checkout-capable environment runs the integrated suite. Narrow source-derived checks were executed during development, but they are not promoted to a full branch test.
-
-## Immediate priority
-
-The highest-leverage sequence has moved forward. Tier-0 licensing and the immutable release SHA are resolved. The next actions are now:
-
-1. run `tools/fetch_hf_headers.py` at the pinned release SHA from a Hub-capable checkout;
-2. run strict Gate A/V0 inventory over all 48 header stubs and reconcile every real tensor name/shape/byte;
-3. freeze one real resident quantized projection and pass Gate C/V2 against `deepseek_v4_linear_ref`;
-4. only then begin Gate D/V3 / Gate F/V4 transformer primitives.
-
-Pinned release baseline:
+Pinned model:
 
 ```text
 deepseek-ai/DeepSeek-V4-Flash-0731
 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
 ```
 
-Do not silently replace that baseline with a later model-card-only repository tip.
+| Work | Gate | Status |
+|---|---|---|
+| PR #1 WASTE bootstrap/inventory tooling | supports A/V0 | **DONE** |
+| PR #2 docs foundation | process | **DONE** |
+| PR #3 scalar public quantization | B/V1a | **DONE** |
+| PR #4 gate/docs concordance | process | **DONE** |
+| PR #5 real checkpoint inventory + official quant contracts | **A/V0 + B/V1** | **DONE**, merged as `fad91e7c7c9c9888670953b51d7e35338db9575e` |
+| PR #6 real resident quantized projection | **C/V2** | **IN PROGRESS; validation passed, merge pending** |
+| mHC/model primitives | **D/V3** | **NEXT** |
+| routing + one MoE block | **F/V4** | after D |
+| attention by type | **E/V5** | after primitive/MoE seams |
+| one full transformer layer | **H/V6** | later base bring-up |
+| multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
+| encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
+| storage/cache/performance | G/L/M | after container/base correctness |
+| DSpark | N | after base logits/generation |
 
----
-
-## Phase 0 — provenance and baseline
-
-**Status: DONE.**
-
-Delivered across PR #1 and PR #5:
-
-- WASTE imported at `d9b919a791148b571e643d0af666bf19b4d733ab`;
-- Apache-2.0 root license/notice preserved;
-- DeepSeek release MIT license now vendored exactly from the pinned release;
-- upstream/model-free baseline recorded;
-- parked CI documented rather than weakened.
-
-Exit condition is satisfied for provenance. This phase is prerequisite work, not a separate README gate.
-
----
-
-## Phase 1 — checkpoint inventory — README Gate A / V0
-
-**Status: IN PROGRESS in PR #5. Acquisition/inventory tooling exists; real 48-shard header truth is NEXT.**
-
-Delivered:
-
-- `tools/inventory.py` — header-only inventory and strict Gate A checks;
-- `tools/make_inventory_fixture.py` — synthetic structural fixture;
-- `tests/test_inventory.py` — model-free inventory/failure tests;
-- `tools/fetch_hf_headers.py` — immutable, Range-safe Hugging Face header acquisition;
-- `tests/test_fetch_hf_headers.py` — offline fake-Hub transport/safety tests;
-- classifier support for pinned official `tid2eid` and converter `tie2eid` bootstrap-route spellings;
-- `F8_E8M0` dtype awareness;
-- pinned full release SHA and exact DeepSeek license.
-
-The header fetcher intentionally writes native safetensors header-only stubs:
+Checkpoint gates now completed:
 
 ```text
-8-byte little-endian header length
-JSON safetensors header
-(no tensor payload)
+Gate A / V0
+  48 / 48 headers
+  72,317 tensors
+  155.417748 GiB payload
+  11,008 routed expert records
+  6 PASS, 0 FAIL, 0 SKIP
+
+Gate B / V1
+  public format semantics + official nibble/scale conventions
+  + real checkpoint storage geometry
+
+Gate C / V2
+  real layers.0.attn.wq_a bytes
+  independent pinned-source oracle
+  scalar C exact BF16 match on 8 outputs
 ```
 
-`inventory.py` therefore remains the single implementation of dtype/shape/byte accounting. The fetcher requires HTTP `206 Partial Content`; a server/proxy that ignores Range is refused rather than allowed to download a giant shard unexpectedly.
-
-Next Gate A run:
-
-```bash
-python3 tools/fetch_hf_headers.py \
-  --revision 9e165c30e2704aec5d9d593cce3eebd58bbef1cb \
-  --out reference/deepseek-v4-flash-0731
-
-python3 tools/inventory.py reference/deepseek-v4-flash-0731 \
-  --strict --by-layer --json docs/inventory-0731.json
-```
-
-Expected engineering behavior: the first real run may still fail on tensor names the current classifier has not seen. Fix only against official names; never add a generic main-stack catch-all.
-
-Exit gate — **Gate A / V0**:
-
-- zero unexplained main-stack names/bytes;
-- all 48 shard headers accounted for at the pinned SHA;
-- config and tensor shapes agree or docs/code are corrected;
-- routed expert triplets/scales are complete;
-- bootstrap-routing tensors are mapped exactly;
-- DSpark tensors are cleanly separable;
-- exact stored-byte totals exist;
-- generated inventory provenance is committed.
-
-No performance forecast is promoted to a project result before Gate A/V0.
+The immediate priority is no longer metadata or quantization. It is **Gate D/V3 mHC**.
 
 ---
 
-## Phase 2 — official reference/oracle harness
+## Phase 0 — provenance/baseline — DONE
 
-**Status: STARTED in PR #5. Source-level contracts are pinned; real numerical fixtures continue incrementally.**
-
-Delivered so far:
-
-- immutable official release baseline;
-- exact license/provenance;
-- `docs/OFFICIAL-0731-SOURCE.md`;
-- independent F3 FP4 convention fixture;
-- source-level routing, quantization and expert-clamp findings;
-- scalar official-linear-shaped Gate C preflight.
-
-Still needed:
-
-- `tools/deepseek_ref.py` or equivalent wrapper for named official intermediates;
-- real projection fixture for Gate C/V2;
-- subsequent mHC/router/attention/expert fixtures;
-- encoder/parser fixtures for Gate J/V10.
-
-Oracle seams, in increasing cost:
-
-1. FP4 nibble/scale convention — **Gate B / V1** — source established, F3 fixture added;
-2. activation quantization + one real trunk projection — **Gate C / V2** — source preflight exists, real fixture next;
-3. mHC/residual operation — **Gate D / V3**;
-4. RoPE/model primitives — **V3**;
-5. routing/shared/routed MoE — **Gate F / V4**;
-6. attention compression/indexer — **Gate E / V5**;
-7. one full transformer block — **Gate H / V6**;
-8. multi-layer localization — **V7**;
-9. final logits — **Gate I / V8**;
-10. greedy generation — **Gate K / V9**;
-11. encoder/parser — **Gate J / V10**.
-
-All fixtures follow `docs/FIXTURES.md`: expected values may not import the implementation/convention being tested.
+- WASTE baseline pinned at `d9b919a791148b571e643d0af666bf19b4d733ab`;
+- Apache-2.0 provenance preserved;
+- exact DeepSeek MIT release license vendored;
+- immutable 0731 model revision pinned.
 
 ---
 
-## Phase 3 — scalar quantization kernels — README Gates B/C, V1/V2
+## Phase 1 — checkpoint inventory — Gate A / V0 — DONE
 
-**Status: Gate B semantics substantially advanced in PR #5; Gate C real projection remains NEXT.**
+`tools/fetch_hf_headers.py` and `tools/inventory.py` have been run against every official shard header at the pinned revision.
+
+Durable evidence:
+
+- `docs/INVENTORY-0731.md`;
+- `reference/deepseek-v4-flash-0731.gate-a.json`.
+
+Exact highlights:
+
+```text
+48 shards
+72,317 tensors
+166,878,536,440 payload bytes
+147,169,738,752 B main routed expert payload
+13,369,344 B / expert record
+3.212402 GiB routed payload / cold all-miss decode token
+```
+
+Bootstrap `tid2eid` tables are checkpoint-resident in layers 0–2.
+
+Any future model-revision change reruns this phase.
+
+---
+
+## Phase 2 — reference/oracle harness — ACTIVE FOUNDATION
+
+Reusable oracle tooling now includes:
+
+- immutable header acquisition;
+- bounded row-range tensor payload acquisition;
+- provenance/SHA-256 recording;
+- independent source-equation fixture generation;
+- offline C replay.
+
+This same pattern should be reused for mHC, routing, MoE and attention rather than inventing a new oracle mechanism for each subsystem.
+
+Completed oracle seams:
+
+- FP4 nibble/scale convention — Gate B/V1;
+- real resident quantized projection — Gate C/V2.
+
+Next oracle seams:
+
+1. mHC/Sinkhorn transform — Gate D/V3;
+2. router score/selection/weighting primitives — V3 then Gate F/V4;
+3. shared/routed expert arithmetic — Gate F/V4;
+4. attention/compressor/indexer — Gate E/V5;
+5. complete block — Gate H/V6;
+6. final logits/generation — I/V8 + K/V9;
+7. encoder/parser — J/V10.
+
+---
+
+## Phase 3 — native quantization — Gates B/C — COMPLETE AT SCALAR MODEL-SEMANTIC LEVEL
 
 Delivered:
 
-- [x] scalar E2M1 FP4 decode/matvec — `src/quant/fp4_e2m1.*`;
-- [x] UE8M0 K32 scale decode/indexing;
-- [x] scalar finite E4M3FN + 128x128 block-scale decode/matvec — `src/quant/fp8_e4m3.*`;
-- [x] exhaustive public-format tests and PR #3 mutation coverage;
-- [x] official source confirms low-nibble-first FP4 packing;
-- [x] official source confirms routed `[out, in/32]` E8M0 scale geometry and multiplication semantics;
-- [x] official source confirms finite E4M3FN resident path and 128x128 weight-scale geometry;
-- [x] independent pinned F3 source-convention fixture;
-- [x] C replay test wired into the existing `make check` path;
-- [x] source-derived scalar activation quantization + FP8 linear reference in `deepseek_v4_linear_ref.*`;
-- [x] closed-form Gate C preflight test;
-- [ ] fresh full PR #5 checkout test run;
-- [ ] real Gate C/V2 official one-projection fixture + fixed tolerance.
+- scalar E2M1/E8M0 routed decode;
+- scalar finite E4M3FN resident decode;
+- source-verified nibble order and scale multiplication;
+- real checkpoint storage geometry;
+- official K128 activation quantization reference;
+- frozen real resident `wq_a` projection;
+- exact scalar-C BF16 replay;
+- fail-closed bounded Range payload fetcher.
 
-Important distinction:
+PR #6's real Gate C fixture expected bits:
 
-**Gate B source semantics are no longer blocked on nibble order or scale direction.** Exact checkpoint tensor storage remains Gate A, and Gate C still needs actual numerical projection evidence.
+```text
+0x3e79 0xbf84 0x3f8d 0x400a 0x3ff3 0xbf9b 0x3f82 0x3ff0
+```
 
-Exit gates:
-
-- **Gate B / V1:** integrated pinned convention replay passes on the branch and remains consistent with Gate A checkpoint truth;
-- **Gate C / V2:** one real official quantized projection matches the scalar official-linear-shaped path under a justified fixed tolerance and catches known-wrong scale/activation/rounding mutations.
-
-No SIMD before Gate C/V2.
+Do not reinterpret this as optimized backend parity. SIMD/accelerator paths may now use the frozen Gate C fixture as a real arithmetic oracle.
 
 ---
 
-## Phase 4 — DeepSeek-specific container and converter
+## Phase 4 — DeepSeek-specific container/converter
 
-**Status: DESIGN; exact schema waits on Gate A/V0 tensor truth.**
+**Status: DESIGN / can now use real Gate A schema.**
+
+Next converter/container work can stop guessing tensor names and record sizes.
 
 Deliverables:
 
-- format/model-family discriminator that cannot be confused with WASTE Kimi v0;
-- manifest schema/provenance fields;
-- resident trunk layout preserving native quantization;
-- one independently readable aligned record per routed expert containing the exact matrices/scales required at inference;
-- resumable converter;
-- header/record verification;
-- synthetic DeepSeek-shaped container generator;
-- conversion dry-run that calculates required disk space before writing model data.
+- DeepSeek-specific model-family/format discriminator;
+- resident trunk mapping from real tensor names;
+- one independently readable aligned routed-expert record containing the six real payload tensors (`w1/w3/w2` + E8M0 scales);
+- resumable conversion and provenance;
+- bounds/checksum/header validation;
+- conversion dry-run and disk-space accounting;
+- selected real tensor round-trip to proven scalar/oracle seams.
 
-Exit condition:
-
-- converter round-trips selected real tensors to the scalar/official oracle;
-- synthetic container is fully exercised in model-free tests;
-- corruption/bounds tests fail safely;
-- converter records source and code revisions.
-
-See `docs/CONTAINER_V4.md` and `docs/CONVERSION.md`.
+Container work may proceed in parallel with arithmetic gates, but it must not become the only way to supply bytes to correctness tests.
 
 ---
 
-## Phase 5 — base model arithmetic — README Gates D/E/F/H/I/K, V3–V9
+## Phase 5 — base model arithmetic — D/F/E/H/I/K, V3–V9
 
-**Status: NOT STARTED; do not begin full transformer integration until Gate C/V2 is real.**
+**Next milestone: Gate D / V3 — mHC.**
 
-Recommended operational order:
+Recommended order:
 
-1. config loader + exact tensor binding from Gate A;
-2. mHC and primitive seams — **Gate D / V3**;
-3. router primitives — V3-level localization;
-4. routing/shared/routed MoE — **Gate F / V4**;
-5. RoPE and attention projections;
-6. sliding-window attention;
-7. compression + compressed attention;
-8. CSA indexer/selection — **Gate E / V5**;
-9. one full block — **Gate H / V6**;
-10. multi-block localization — **V7**;
-11. final norm/head/logits — **Gate I / V8**;
-12. greedy raw/known-token generation — **Gate K / V9**.
+1. exact mHC/Sinkhorn primitive fixture and scalar C implementation — **D/V3**;
+2. normalization/RoPE/SwiGLU/router primitives — remaining V3 seams;
+3. routing + shared/routed expert combination — **F/V4**;
+4. sliding-window attention;
+5. compressed attention + compressor;
+6. CSA indexer/selection — completing **E/V5**;
+7. complete layer — **H/V6**;
+8. multi-layer localization — **V7**;
+9. final norm/head/logits — **I/V8**;
+10. deterministic known-token greedy generation — **K/V9**.
 
-Each implementation PR gets an independent official-oracle differential test before moving downstream.
+Each implementation PR gets an independent frozen source/checkpoint fixture before becoming part of a full layer.
 
-Exit condition:
-
-- selected intermediate tensors pass;
-- full base-model forward matches logits within the agreed budget;
-- greedy token sequence matches a deterministic official fixture;
-- cache-on/cache-off remains numerically equivalent (Gate G).
+No “generated text looks plausible” debugging until the smaller gates pass.
 
 ---
 
-## Phase 6 — memory planner and streaming behavior — README Gates G/L/M
+## Phase 6 — memory planner + streaming — G/L/M
 
-**Status: PARTLY REUSED, DEEPSEEK MEASUREMENT NOT STARTED.**
-
-Reuse WASTE's bounded-cache/direct-I/O design, then re-derive every size for DeepSeek.
+Reuse WASTE's systems mechanisms, but use DeepSeek checkpoint-derived sizes and real routing traces.
 
 Deliverables:
 
 - exact resident trunk accounting;
-- exact attention/state/context accounting;
-- scratch/thread accounting;
-- minimum expert-buffer requirement;
-- direct-I/O record-size/alignment validation;
-- **Gate G** cache/disk/prefetch identity tests;
-- **Gate L** real target-volume storage measurement;
-- real routing trace and **Gate M** cache sweep/recommendation;
-- learned/preload/prefetch experiments only after baseline correctness.
-
-Exit gates:
-
-- `plan` accounts for every persistent allocation;
-- budgets below the floor fail before loading;
-- no benchmark relies on uncontrolled swap/page cache;
-- **Gate G:** cache placement/prefetch never changes output;
-- **Gate L:** real aligned record reads are measured on target storage;
-- **Gate M:** cache recommendations come from a real 0731 routing curve, not Kimi or synthetic traffic.
+- scratch/context/state accounting;
+- expert cache minimum and recommended sizes;
+- Gate G cache/disk/prefetch identity;
+- Gate L real aligned-record I/O measurement;
+- Gate M real routing-derived cache curve;
+- chunked prefill/read-ahead only after numerical identity is proven.
 
 ---
 
-## Phase 7 — encoding, CLI and OpenAI-compatible server — Gate J / V10 + V11
+## Phase 7 — encoding/server — J/V10 + V11
 
-**Status: NOT STARTED.**
+Port official `encoding/` semantics separately from raw model arithmetic. Extend WASTE's existing OpenAI-compatible server rather than adding an unrelated serving stack.
 
-Deliverables:
-
-- official DeepSeek encoding/parser port with differential tests — **Gate J / V10**;
-- public C API remains model-agnostic;
-- CLI features required by the model are exposed through the public API first;
-- existing Python `serve/` path is extended, not replaced by an unrelated runtime;
-- streaming/tool/structured-output behavior is enabled only where official encoding semantics support it;
-- OpenAI-compatible request/response parity — **V11**.
-
-Exit gates:
-
-- token-for-token encoder parity — Gate J/V10;
-- parser parity including malformed/truncated output — Gate J/V10;
-- `/v1/chat/completions` deterministic smoke tests — V11;
-- user-facing generation still rests on Gate K/V9 model correctness.
+Entry condition: enough raw model arithmetic exists to distinguish encoder bugs from model bugs.
 
 ---
 
-## Phase 8 — performance work — reinforce Gates G/L/M
+## Phase 8 — optimization
 
-**Status: LATER.**
+Only optimize a seam with a proven scalar/oracle path.
 
-Only begin after base correctness.
+Candidates:
 
-Candidate work:
-
-- SIMD FP4/FP8 kernels — compare to scalar and official oracle;
+- FP4/FP8 SIMD;
 - expert-parallel execution;
-- chunked prefill adapted to real routing;
-- asynchronous read-ahead;
-- deterministic bootstrap prefetch after Gate A confirms exact mapping;
-- cache-policy/routing trace study;
-- CPU placement/thread tuning;
-- Metal/CUDA only when profiling justifies it.
+- async read-ahead;
+- deterministic prefetch for the first three `tid2eid` layers;
+- routing-informed cache policy;
+- CPU/thread placement;
+- accelerator backends where profiling justifies them.
 
-Every result goes to `docs/BENCHMARKS.md`; rejected ideas/test blind spots go to `docs/EXPERIMENTS.md`.
-
-Exit condition: performance changes pass the same numerical tests, remain within the planner, preserve Gate G, and use Gate L/M methodology.
+Every optimization must preserve the frozen correctness fixtures and Gate G.
 
 ---
 
-## Phase 9 — DSpark — README Gate N
+## Phase 9 — DSpark — Gate N
 
-**Status: LATER / explicitly blocked on base-model correctness.**
+Begin only after base-model Gate I/V8 logits and Gate K/V9 greedy generation pass with DSpark disabled.
 
-Minimum entry condition:
-
-- base path passes **Gate I / V8** and **Gate K / V9** with DSpark disabled.
-
-Exit gate — **Gate N**:
-
-- disabling DSpark reproduces base behavior;
-- acceptance/rejection semantics match the official reference;
-- speedup is reported with acceptance rate and memory cost;
-- wrong speculative tokens can never alter committed output.
+Wrong speculative tokens must never alter final committed output.
 
 ---
 
@@ -351,12 +242,11 @@ Exit gate — **Gate N**:
 
 A PR is complete when:
 
-- implementation and relevant tests are in the same change;
-- README §18 gate letter(s) are named where applicable;
-- operational V-level/system gate and roadmap phase are named separately;
-- claims have an evidence state from `docs/README.md`;
-- expected fixture values are independent of the implementation/convention under test;
-- matching docs are updated in the same PR;
-- manual gates run while CI is parked;
-- licensing/provenance for copied/adapted material is explicit;
-- a cheaper unresolved gate is not skipped for a more expensive next step.
+- implementation and relevant tests land together;
+- the README gate/V-level is named;
+- expected values are independent of the implementation under test;
+- immutable model/source provenance is recorded;
+- the maintained docs are updated;
+- model-free and relevant real-fixture gates pass;
+- a cheaper unresolved gate is not skipped for a more expensive downstream step;
+- evidence boundaries/non-claims are explicit.

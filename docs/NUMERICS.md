@@ -1,103 +1,65 @@
 # Numerics — native DeepSeek quantization reference contract
 
-**Status: public E2M1/UE8M0/E4M3FN format conformance is SYNTHETIC-VERIFIED, and the highest-risk DeepSeek-specific FP4/FP8 storage conventions are now SOURCE-VERIFIED against the pinned 0731 release. Gate B/V1 has an independent pinned fixture and C replay test wired into `make check`, but this branch has not had a fresh full checkout run yet. Gate A/V0 real checkpoint headers and Gate C/V2 one real quantized projection remain open.**
+**Status: Gates B/V1 and C/V2 are passed at the scalar/model-semantic level for the pinned 0731 release. Gate A/V0 has already established the real checkpoint layout. The first real resident FP8 projection now uses frozen checkpoint bytes and an independent pinned-source oracle, and scalar C matches all eight outputs exactly at BF16. GPU/TileLang backend parity is explicitly not claimed.**
 
-This document is the arithmetic contract for the scalar native-quantization path introduced in PR #3 and extended by PR #5. Keep three evidence layers separate:
-
-1. **public numeric format semantics** — E2M1, UE8M0, finite E4M3FN;
-2. **official DeepSeek operation/storage semantics** — packing order, scale direction, block geometry, activation quantization;
-3. **real checkpoint/oracle evidence** — exact exported tensors and one actual projection.
-
-They are related, but they are not interchangeable.
-
-Canonical gate ownership:
-
-- **Gate A / V0** — exact checkpoint tensor names, dtypes, shapes, shards and bytes;
-- **Gate B / V1** — native number-format decode plus official DeepSeek packing/scale convention agreement;
-- **Gate C / V2** — one real official quantized trunk projection, including activation quantization and accumulation.
-
-Pinned official release used for source evidence:
+Pinned release:
 
 ```text
 deepseek-ai/DeepSeek-V4-Flash-0731
 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
 ```
 
-See `OFFICIAL-0731-SOURCE.md` for the source-level findings and `FIXTURES.md` for fixture independence rules.
+Evidence layers stay separate:
+
+1. **public format semantics** — E2M1, UE8M0, finite E4M3FN;
+2. **official source semantics** — packing order, block geometry, scale application, activation quantization;
+3. **checkpoint evidence** — exact exported tensor/storage bytes;
+4. **projection oracle evidence** — real checkpoint bytes + independently evaluated pinned source equations;
+5. **backend evidence** — future optimized CPU/SIMD/GPU paths compared to the proven scalar/model-semantic seam.
+
+See `OFFICIAL-0731-SOURCE.md`, `INVENTORY-0731.md`, `FIXTURES.md`, and `VALIDATION.md`.
 
 ---
 
-## 1. Implementations and evidence split
+## 1. Current gate result
 
-Scalar/reference code:
-
-- `src/quant/fp4_e2m1.{c,h}` — E2M1 + UE8M0 K32 routed-expert decode/matvec;
-- `src/quant/fp8_e4m3.{c,h}` — finite E4M3FN + 128x128 block-scale decode/matvec;
-- `src/quant/deepseek_v4_linear_ref.{c,h}` — deliberately slow official-linear-shaped activation quantization + scaled FP8 block accumulation + BF16 output rounding;
-- `tests/test_quant.c` — exhaustive public-format and model-free indexing tests;
-- `tests/fixtures/deepseek_v4/fp4_release_convention.json` — pinned F3 official-source convention fixture;
-- `tests/test_release_quant_fixture.py` — compiles the real scalar FP4 implementation against the pinned fixture;
-- `tests/test_v2_linear_ref.py` — source-derived Gate C preflight with closed-form activation/block-scale arithmetic.
-
-| Claim | Current evidence | Gate |
+| Claim | Evidence | Gate |
 |---|---|---|
-| E2M1 code values | **SYNTHETIC-VERIFIED** — all 16 codes | B / V1a |
-| UE8M0 values | **SYNTHETIC-VERIFIED** — all 256 states | B / V1a |
-| finite E4M3FN values | **SYNTHETIC-VERIFIED** — all 256 byte encodings | B / V1a |
-| FP4 K32 indexing | **SYNTHETIC-VERIFIED** | B / V1a |
-| FP8 128x128/ragged scale indexing | **SYNTHETIC-VERIFIED** | B / V1a |
-| FP4 low-nibble-first along K | **OFFICIAL-SOURCE-VERIFIED** | B / V1b |
-| routed FP4 scale `[out, in/32]` E8M0 | **OFFICIAL-SOURCE-VERIFIED** | B / V1b |
-| stored weight scale is multiplied | **OFFICIAL-SOURCE-VERIFIED** | B / V1b |
-| resident weight dtype is finite E4M3FN | **OFFICIAL-SOURCE-VERIFIED** | B / V1b |
-| resident weight scales are 128x128 blocks | **OFFICIAL-SOURCE-VERIFIED** | B / V1b |
-| official activation quantization rule | **OFFICIAL-SOURCE-VERIFIED**, scalar preflight implemented | C preflight |
-| exact exported checkpoint storage for every tensor | **NOT YET CHECKPOINT-VERIFIED** | A / V0 |
-| one real official quantized projection output | **NOT VERIFIED** | C / V2 |
+| E2M1 code values | exhaustive model-free tests | B/V1 |
+| UE8M0 values | exhaustive model-free tests | B/V1 |
+| finite E4M3FN values | exhaustive model-free tests | B/V1 |
+| FP4 K32 indexing | model-free boundary tests | B/V1 |
+| FP8 128x128 indexing | model-free exact/ragged tests | B/V1 |
+| FP4 low-nibble-first | pinned official source + independent literal fixture | B/V1 |
+| routed E8M0 `[out,in/32]` scale layout | official source + real Gate A headers | A/V0 + B/V1 |
+| FP4/FP8 weight-scale multiplication | pinned official source | B/V1 |
+| real resident E4M3/E8M0 projection layout | real checkpoint headers | A/V0 |
+| activation K128 E4M3 quantization | pinned official source | C/V2 |
+| one real quantized resident projection | real checkpoint bytes + independent source oracle + exact scalar-C BF16 replay | **C/V2 PASSED** |
+| official TileLang/GPU kernel execution | not run | later backend validation |
 
-A source-level fact does not replace Gate A header truth, and a source-derived closed-form projection does not replace Gate C's real fixture.
-
----
-
-## 2. Scalar reference policy
-
-Every optimized quantized path keeps an auditable scalar implementation.
-
-The hierarchy is:
-
-```text
-public numeric specification
-        ↓
-independent exhaustive/literal tests
-        ↓
-scalar decode/reference implementation
-        ↓
-pinned official DeepSeek source semantics
-        ↓
-independent pinned source/oracle fixture
-        ↓
-real checkpoint/oracle projection
-        ↓
-optimized SIMD/backend implementation
-```
-
-Rules:
-
-- an implementation may not generate its own expected values;
-- round trips prove self-consistency, not external correctness;
-- scale/block/nibble selection is a discrete semantic check and should be exact;
-- optimized kernels must remain comparable to the scalar path;
-- no SIMD optimization is accepted merely because it matches a scalar path that has not passed the relevant official gate.
-
-PR #3's mutation result remains the cautionary example: exhaustive FP4 code coverage initially missed a nibble-order bug because fixture generation and decode shared the same macro.
+The Gate C result is deliberately stronger than a synthetic round trip and deliberately narrower than end-to-end model parity.
 
 ---
 
-## 3. E2M1
+## 2. Scalar/reference code
 
-E2M1 has one sign bit, two exponent bits and one mantissa bit. The independent tests derive values from the bit definition rather than from the implementation table.
+- `src/quant/fp4_e2m1.{c,h}` — routed E2M1 + E8M0 K32 decode/reference matvec.
+- `src/quant/fp8_e4m3.{c,h}` — finite E4M3FN + 128x128 weight-scale decode/reference matvec.
+- `src/quant/deepseek_v4_linear_ref.{c,h}` — official-linear-shaped K128 activation quantization, FP8 block accumulation, and BF16 output rounding.
+- `tests/test_quant.c` — exhaustive public-format/model-free indexing checks.
+- `tests/fixtures/deepseek_v4/fp4_release_convention.json` — pinned source convention literal.
+- `tests/fixtures/deepseek_v4/v2_wq_a_real/` — frozen real Gate C projection.
+- `tests/test_v2_real_projection.py` — exact scalar-C replay of the real Gate C fixture.
+- `tests/test_fetch_hf_tensor_slice.py` — fail-closed bounded payload Range acquisition test.
 
-Important values:
+`make check` reaches the real Gate C replay through `tests/test_release_quant_fixture.py`; no network is needed after the fixture is frozen.
+
+---
+
+## 3. E2M1 and E8M0
+
+E2M1 important values:
 
 | code | value |
 |---:|---:|
@@ -108,20 +70,14 @@ Important values:
 | `0x8` | `-0.0` |
 | `0xF` | `-6.0` |
 
-All 16 codes are finite. Negative zero is tested by sign.
-
----
-
-## 4. UE8M0
-
-Scalar definition:
+E8M0 scalar definition:
 
 ```text
 scale(e) = 2^(e - 127), e = 0x00..0xFE
 0xFF     = NaN
 ```
 
-Landmarks:
+Important scale codes:
 
 | code | value |
 |---:|---:|
@@ -132,24 +88,33 @@ Landmarks:
 | `0xFE` | `2^127` |
 | `0xFF` | NaN |
 
-`2^-127` is binary32 subnormal and must stay non-zero. The implementation uses `ldexpf` rather than constructing only normal IEEE exponents.
+All public-format cases remain exact tests.
 
 ---
 
-## 5. Routed FP4 storage — official 0731 convention
+## 4. Routed FP4 — Gate B / V1 result
 
-For a logical routed-expert matrix `[out, in]`, the pinned official model binds:
+The real checkpoint and pinned source agree on the routed format. For logical `[out,in]`:
 
 ```text
-weight: [out, in/2]   torch.float4_e2m1fn_x2
-scale:  [out, in/32]  torch.float8_e8m0fnu
+packed weight: [out, in/2]  byte plane (checkpoint dtype I8)
+scale:         [out, in/32] F8_E8M0
 ```
 
-Therefore one weight scale applies to 32 consecutive logical K values.
+Checkpoint examples:
 
-### Nibble order — resolved
+```text
+layers.0.ffn.experts.0.w1.weight  I8        [2048,2048]
+layers.0.ffn.experts.0.w1.scale   F8_E8M0  [2048,128]
+layers.0.ffn.experts.0.w2.weight  I8        [4096,1024]
+layers.0.ffn.experts.0.w2.scale   F8_E8M0  [4096,64]
+```
 
-The pinned official converter views each packed byte as unsigned, then expands it as:
+The `I8` dtype is storage framing for packed nibbles; the bytes are not signed arithmetic values.
+
+### Nibble order
+
+Pinned official conversion expands each byte as:
 
 ```text
 low  = byte & 0x0f
@@ -157,50 +122,27 @@ high = (byte >> 4) & 0x0f
 stack([low, high]) along K
 ```
 
-Thus:
+Thus even/lower K is the low nibble. The independent fixture:
 
 ```text
-even/lower K index -> LOW nibble
-odd/next K index   -> HIGH nibble
+packed byte 0x21
+E8M0 scale 0x80 = 2
+expected logical values [1.0, 2.0]
 ```
 
-`WASTE_FP4_LOW_NIBBLE_IS_EVEN == 1` is no longer a handoff guess; it is source-verified for the pinned release.
+catches both nibble reversal and multiply-vs-divide scale errors.
 
-### Scale direction — resolved
+### Scale application
 
-The official FP4 kernel operates on 32-wide K sub-blocks and accumulates:
+The official kernel multiplies block partials by activation scale × weight scale. The converter's `weight_scale_inv -> scale` rename does not perform a reciprocal.
 
-```text
-partial_dot * activation_scale * weight_scale
-```
-
-The stored E8M0 weight scale is a multiplier.
-
-The converter also renames `weight_scale_inv` to `scale` without numerically reciprocating it. A tensor name containing `_inv` was never sufficient evidence for divide semantics; the operation is now settled by source.
-
-### Independent pinned literal
-
-`tests/fixtures/deepseek_v4/fp4_release_convention.json` records:
-
-```text
-packed byte = 0x21
-scale byte  = 0x80 = 2.0
-
-low nibble  0x1 -> 0.5 * 2 = 1.0
-high nibble 0x2 -> 1.0 * 2 = 2.0
-
-expected logical values = [1.0, 2.0]
-```
-
-The expected side does not invoke WASTE's packer or nibble macro. Reversing the nibble order or changing multiply to divide makes the fixture fail.
-
-A locally reconstructed compile of the same scalar logic produced exactly `1 2`. The committed branch test still needs a full checkout run before merge.
+Gate B/V1 is no longer an unresolved storage-convention gate for this pinned release.
 
 ---
 
-## 6. Finite E4M3FN
+## 5. Finite E4M3FN
 
-The resident/trunk decoder uses the finite E4M3 variant (`torch.float8_e4m3fn` in the pinned source):
+The resident quantized path uses finite E4M3FN:
 
 ```text
 sign = bit 7
@@ -209,7 +151,7 @@ mant = bits 2..0
 bias = 7
 ```
 
-Only `S.1111.111` is NaN; there are no infinities. The top exponent retains finite values.
+Only `S.1111.111` is NaN; there are no infinities.
 
 | code | value |
 |---:|---:|
@@ -221,206 +163,128 @@ Only `S.1111.111` is NaN; there are no infinities. The top exponent retains fini
 | `0x7C` | `384.0` |
 | `0x7E` | `448.0` |
 | `0x7F` | NaN |
-| `0x80` | `-0.0` |
-| `0xFF` | NaN |
 
-`448`, not `240`, is a critical format discriminator.
+`448`, not `240`, remains the important format discriminator.
 
 ---
 
-## 7. Resident FP8 block scales — official 0731 convention
+## 6. Official quantized linear semantics
 
-For E4M3 resident weights, the pinned model uses a scale grid:
-
-```text
-scale rows = ceil(out / 128)
-scale cols = ceil(in  / 128)
-```
-
-The scalar decoded-weight helper models:
+For each activation row and each K128 block, pinned source semantics are:
 
 ```text
-value(r,c) = e4m3(weight[r,c]) * scale[r/128,c/128]
+amax = max(max(abs(x_block)), 1e-4)
+scale = next_power_of_two(amax / 448)
+qx = E4M3FN(clamp(x_block / scale, -448, +448))
 ```
 
-The pinned converter does not reciprocal-transform `weight_scale_inv`, and the official FP8 GEMM multiplies activation scale by weight scale before applying each accumulated block result.
+For resident FP8 weights, each K128 block contributes:
 
-`tests/test_quant.c` already covers exact and ragged 128 boundaries with a synthetic `200 x 300` matrix. The source review upgrades the **direction and target variant** from assumptions to official-source facts; Gate A still has to show how the released checkpoint stores every particular tensor family.
+```text
+dot(qx, qw) * activation_scale * weight_scale
+```
+
+with FP32 accumulation and BF16 reference output.
+
+`waste_ds_v4_fp8_linear_ref()` implements that model-semantic path separately from the simpler decoded-weight `waste_fp8_matvec()`. Both are retained because they isolate different failure classes.
 
 ---
 
-## 8. Official activation quantization — Gate C preflight
+## 7. Gate C / V2 real fixture — PASSED
 
-The pinned `linear()` does not simply dequantize resident weights and multiply by the original activation. For FP8 and FP4 quantized weights it first calls the official activation quantizer.
-
-For each activation row and each 128-wide K block:
+Target selected from the real Gate A inventory:
 
 ```text
-amax = max(abs(x_block))
-amax = max(amax, 1e-4)
-raw_scale = amax / 448
+layers.0.attn.wq_a.weight  F8_E4M3 [1024,4096]
+layers.0.attn.wq_a.scale   F8_E8M0 [8,32]
+shard: model-00002-of-00048.safetensors
 ```
 
-With the release's non-null `scale_fmt`/UE8M0 path, the scale is rounded **upward to a power of two** using the source's `fast_log2_ceil` / `fast_pow2` rule.
-
-Then:
+The frozen fixture contains only:
 
 ```text
-q = E4M3FN(clamp(x / scale, -448, +448))
+32,768 B  first 8 real weight rows
+    32 B  matching first real scale row
+ 8,192 B  deterministic BF16 input
+    16 B  expected 8-element BF16 output
 ```
 
-The FP8 GEMM processes 128 K values per block and accumulates:
+Real payload SHA-256s:
 
 ```text
-dot(q_activation, q_weight) * activation_scale * weight_scale
+weight rows  : bb329d4d1ebd10458795fca07dcdee5d78b2a90a45c770f7fc44f24f1ea24d65
+weight scales: cb945324f5d26ec47059a4d4d589c9579237ff51b7e4058fe44faddcd4c1fbbe
+input        : d3cf4913260c0c97c8efabf0a71b91ee2c65fdbe61cc4b617a68ca3acf91337e
+expected     : 3fd1660da111fa10ea36469600386281c52926d03ee4e5133ebb9653ec2c7351
 ```
 
-with FP32 accumulation and BF16 output in the reference path.
-
-### Scalar implementation
-
-`src/quant/deepseek_v4_linear_ref.{c,h}` implements a correctness-first version:
-
-- exhaustive-search E4M3FN encoder with round-to-nearest-even tie handling;
-- source-shaped power-of-two activation scale;
-- 128-wide activation quantization;
-- scaled FP8 block-dot accumulation;
-- explicit BF16 final rounding.
-
-The exhaustive E4M3 encoder is intentionally slow. It exists to be obvious and independently reviewable, not to run a model quickly.
-
-### Closed-form preflight
-
-`tests/test_v2_linear_ref.py` uses two K blocks whose normalized values are exactly representable:
+Expected BF16 bits:
 
 ```text
-block 0: x = 1.0
-  activation scale = 2^-8
-  normalized x = 256 = E4M3 0x78
-  weight scale = 1
-
-block 1: x = 0.75
-  activation scale = 2^-9
-  normalized x = 384 = E4M3 0x7C
-  weight scale = 2
-
-all raw weights = E4M3 1.0 (0x38)
+0x3e79 0xbf84 0x3f8d 0x400a 0x3ff3 0xbf9b 0x3f82 0x3ff0
 ```
 
-Expected result:
+The independent Python source oracle rejected any case whose final BF16 result differed across:
+
+1. sequential f32 reduction;
+2. reverse f32 reduction;
+3. exact dyadic accumulation.
+
+The chosen real fixture is stable across all three. Scalar C then matched all eight BF16 values **exactly**.
+
+Validation run `31286320991` on Ubuntu 24.04.4 also reported:
 
 ```text
-128 * 1.0 * 1 + 128 * 0.75 * 2 = 320
+make check -> 32 passed, 0 failed, 13 skipped
+real Gate C C replay -> PASS, exact BF16
+make asan -> 31 passed, 0 failed, 14 skipped
 ```
 
-An independent local arithmetic probe produced `320 320` for two output rows.
+Artifact zip SHA-256:
 
-This proves the source-derived scalar seam is internally executable. It does **not** pass Gate C/V2 because the inputs and expected output are closed-form, not a real released projection.
+```text
+7ee27b46199f2b1a1c11a3a095d127aa52f550b69c7864d5b7727d6f08a710c9
+```
+
+Fixture provenance is frozen in `tests/fixtures/deepseek_v4/v2_wq_a_real/provenance.json`.
+
+### Evidence boundary
+
+Gate C/V2 is considered passed for the **scalar/model-semantic projection seam**: real checkpoint bytes + pinned source equations + independent oracle + exact C replay.
+
+It does **not** claim that the official TileLang GPU kernel was executed on this runner. Optimized CPU/SIMD/GPU backends must later match the now-proven scalar/oracle fixture; backend parity is not retroactively folded into Gate C.
 
 ---
 
-## 9. Existing decoded-weight matvec versus official linear
+## 8. Exactness and tolerance policy after Gate C
 
-`waste_fp8_matvec()` remains useful and should not be silently redefined. Its contract is:
+Gate C needed no loose numerical tolerance: the selected fixture is BF16-stable across independent reduction views and C matches exact output bits.
 
-```text
-y = dequantized_weight * f32_input
-```
+For downstream primitives:
 
-That isolates weight decoding and block-scale indexing.
+- selected IDs, layout decisions and exact-format values remain exact checks;
+- floating-point intermediate tolerances are introduced only when an independently generated fixture demonstrates unavoidable precision/reduction differences;
+- a known-wrong mutation must remain outside the accepted threshold;
+- optimized paths compare to both scalar C and independent official-source/checkpoint fixtures.
 
-`waste_ds_v4_fp8_linear_ref()` has a stronger, different contract matching the official quantized-linear shape:
-
-```text
-f32/BF16-like input
-  -> activation E4M3 quantization + scale
-  -> raw E4M3 weight block dot
-  -> activation_scale * weight_scale
-  -> FP32 accumulation
-  -> BF16-rounded output
-```
-
-The two functions answer different validation questions. Do not replace the simpler weight-decode seam with the full linear seam; both are useful when diagnosing an oracle mismatch.
+Never loosen a downstream tolerance merely because a new implementation misses the oracle.
 
 ---
 
-## 10. Exactness, tolerances, and mutations
+## 9. Gate status and next arithmetic rung
 
-Use exact equality for:
+### Gate A / V0
 
-- public format code tables;
-- nibble/block index selection;
-- literal source-convention fixtures;
-- activation scale cases chosen to be exact powers of two;
-- closed-form values exactly representable in the target format.
+**PASSED / CHECKPOINT-VERIFIED.** See `INVENTORY-0731.md` and `reference/deepseek-v4-flash-0731.gate-a.json`.
 
-Gate C real-projection tolerances are chosen only after observing the official fixture's actual dtype/reduction behavior. Do not pre-author a loose threshold.
+### Gate B / V1
 
-Mutation priorities remain:
+**PASSED for pinned native-format/storage semantics.** Public formats, nibble order, scale direction and real storage geometry are covered by independent tests/source/checkpoint evidence.
 
-- nibble reversal;
-- multiply versus divide scale;
-- K32 versus K128 indexing;
-- scale-grid transpose;
-- floor versus ceil block count;
-- `ceil(log2)` versus another activation-scale rule;
-- E4M3FN versus an IEEE-like E4M3 interpretation;
-- premature BF16 rounding;
-- accumulation/reset order.
+### Gate C / V2
 
-A known-wrong mutation that survives is a fixture defect to repair before moving downstream.
+**PASSED at the scalar/model-semantic level** on the frozen real `layers.0.attn.wq_a` projection described above.
 
----
+### Next: Gate D / V3
 
-## 11. Gate B / V1 current checklist
-
-Semantic/evidence checklist:
-
-- [x] E2M1 public semantics exhaustively tested.
-- [x] UE8M0 public semantics exhaustively tested.
-- [x] finite E4M3FN public semantics exhaustively tested.
-- [x] FP4 K32 indexing model-free tested.
-- [x] FP8 128x128/ragged indexing model-free tested.
-- [x] scalar FP4/FP8 decoded-weight paths exist.
-- [x] PR #3 mutation set is killed by the repaired fixture suite.
-- [x] official pinned source confirms FP4 low-nibble-first ordering.
-- [x] official pinned source confirms routed E8M0 `[out, in/32]` geometry.
-- [x] official pinned source confirms weight-scale multiplication.
-- [x] official pinned source confirms finite E4M3FN resident weight path and 128x128 block-scale geometry.
-- [x] independent pinned F3 convention fixture committed.
-- [x] committed C replay test consumes that fixture.
-- [ ] fresh full PR #5 checkout run records the integrated test result.
-
-Therefore the previous **“blocked on unknown nibble/scale semantics”** statement is obsolete. Gate B's model semantics are established; the remaining merge qualification is test execution/provenance, while real checkpoint-storage truth remains Gate A.
-
----
-
-## 12. Gate C / V2 completion path
-
-The next arithmetic gate must remain deliberately small.
-
-Required real fixture:
-
-```text
-source model/revision
-source tensor name + shard/header identity
-raw E4M3 weight bytes for a bounded projection/tile
-raw or decoded official weight-scale values
-BF16/f32 input activation used by the official call
-official activation quantized bytes + scales when practical
-official expected output
-reference device/dtype/kernel provenance
-```
-
-Procedure:
-
-1. complete Gate A name/header mapping for the chosen resident projection;
-2. select a representative quantized projection crossing a 128 K boundary;
-3. run the pinned official reference path;
-4. freeze expected artifacts independently of WASTE code;
-5. replay through `deepseek_v4_linear_ref`;
-6. explain the error budget and set a fixed tolerance;
-7. mutation-test scale/activation/rounding seams;
-8. only then expose the path to transformer code or add SIMD.
-
-Do not jump from the closed-form source preflight to mHC/full-layer integration and call the quantized linear proven.
+The next arithmetic milestone is mHC/model primitives. Gate D should begin with an independently generated fixture for the exact Hyper-Connection/Sinkhorn operation before it is embedded inside a transformer block. Router/MoE work follows as Gate F/V4; attention modes remain Gate E/V5.

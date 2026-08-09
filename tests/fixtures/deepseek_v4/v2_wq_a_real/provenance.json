@@ -1,0 +1,126 @@
+{
+  "activation_quantization": {
+    "block_k": 128,
+    "distinct_scale_values": [
+      0.0009765625,
+      0.001953125,
+      0.00390625,
+      0.0078125,
+      0.015625
+    ],
+    "dtype": "E4M3FN",
+    "quantized_input_sha256": "2db5640a849e09dbfc092624c18508ce07b359e69ff980e78792a7ec4667d31c",
+    "scale": "next_power_of_two(max(max(abs(x)),1e-4)/448)"
+  },
+  "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+  "expected": {
+    "bf16_hex": [
+      "0x3e79",
+      "0xbf84",
+      "0x3f8d",
+      "0x400a",
+      "0x3ff3",
+      "0xbf9b",
+      "0x3f82",
+      "0x3ff0"
+    ],
+    "dtype": "BF16",
+    "file": "expected.bf16.bin",
+    "reduction_stability": "same BF16 under sequential-f32, reverse-f32, and exact dyadic accumulation",
+    "sha256": "3fd1660da111fa10ea36469600386281c52926d03ee4e5133ebb9653ec2c7351",
+    "shape": [
+      1,
+      8
+    ],
+    "source_oracle_f32_before_bf16": [
+      0.24331039190292358,
+      -1.0337059497833252,
+      1.1010520458221436,
+      2.1496639251708984,
+      1.9002413749694824,
+      -1.2131153345108032,
+      1.0164918899536133,
+      1.8782410621643066
+    ]
+  },
+  "fixture_class": "F3 official-source + real-checkpoint projection",
+  "gate": "Gate C / V2",
+  "input": {
+    "dtype": "BF16",
+    "file": "input.bf16.bin",
+    "formula": "(((lane*37+11)%31)-15)/16 * 2**((block%5)-2), then BF16 RN-even",
+    "sha256": "d3cf4913260c0c97c8efabf0a71b91ee2c65fdbe61cc4b617a68ca3acf91337e",
+    "shape": [
+      1,
+      4096
+    ]
+  },
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claim": "Fixture executes pinned official algebra independently on CPU; it does not execute the official TileLang GPU kernel. GPU/backend parity remains a later backend validation concern.",
+  "official_source_contract": {
+    "activation": "act_quant: K128 E4M3FN, max(amax,1e-4), power-of-two scale",
+    "gemm": "fp8_gemm: K128 FP8 dot, activation_scale * weight_scale, FP32 accumulation, BF16 output",
+    "kernel_path": "inference/kernel.py"
+  },
+  "operation": "layers.0.attn.wq_a quantized linear, first 8 output rows",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "weight": {
+    "absolute_end": 282213927,
+    "absolute_start": 282181160,
+    "dtype": "F8_E4M3",
+    "endpoint": "https://huggingface.co",
+    "header_json_bytes": 172232,
+    "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "output_file": "weight-rows0-8.e4m3.bin",
+    "payload_bytes": 32768,
+    "payload_sha256": "bb329d4d1ebd10458795fca07dcdee5d78b2a90a45c770f7fc44f24f1ea24d65",
+    "relative_end": 282041688,
+    "relative_start": 282008920,
+    "remote_file_bytes": 3566321192,
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "row_bytes": 4096,
+    "row_end": 8,
+    "row_start": 0,
+    "schema_version": 1,
+    "shape": [
+      1024,
+      4096
+    ],
+    "shard": "model-00002-of-00048.safetensors",
+    "tensor": "layers.0.attn.wq_a.weight",
+    "tensor_data_offsets": [
+      282008920,
+      286203224
+    ]
+  },
+  "weight_scale": {
+    "absolute_end": 11644743,
+    "absolute_start": 11644712,
+    "dtype": "F8_E8M0",
+    "endpoint": "https://huggingface.co",
+    "header_json_bytes": 172232,
+    "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "output_file": "weight-scale-row0.e8m0.bin",
+    "payload_bytes": 32,
+    "payload_sha256": "cb945324f5d26ec47059a4d4d589c9579237ff51b7e4058fe44faddcd4c1fbbe",
+    "relative_end": 11472504,
+    "relative_start": 11472472,
+    "remote_file_bytes": 3566321192,
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "row_bytes": 32,
+    "row_end": 1,
+    "row_start": 0,
+    "schema_version": 1,
+    "shape": [
+      8,
+      32
+    ],
+    "shard": "model-00002-of-00048.safetensors",
+    "tensor": "layers.0.attn.wq_a.scale",
+    "tensor_data_offsets": [
+      11472472,
+      11472728
+    ]
+  }
+}
