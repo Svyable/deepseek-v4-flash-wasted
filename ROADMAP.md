@@ -31,8 +31,9 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | ratio-128 compressor | **E/V5 partial** | **CHECKPOINT-PASSED**, 4,096 exact BF16 diagnostics |
 | ratio-128 compressed-history composition | **E/V5 partial** | **CHECKPOINT-PASSED**, 130 indices + 512 BF16 exact |
 | coherent same-input ratio-128 forward | **E/V5 partial** | **CHECKPOINT-PASSED**, one head / row 255 through inverse compressed RoPE |
-| ratio-4 CSA/indexer attention | **E/V5** | **NEXT**; completes Gate E |
-| one full transformer layer | **H/V6** | after E/V5 attention variants |
+| ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |
+| Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |
+| one full transformer layer | **H/V6** | **NEXT** |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |
@@ -79,7 +80,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 - official ascending-expert f32 accumulation + shared-add + final BF16 exact;
 - final representative out8 `b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982`.
 
-### Gate E / V5 — ratio-0 sub-seams PASSED, gate still PARTIAL
+### Gate E / V5 — PASSED at scalar/model-semantic evidence level
 
 Real layer-0 ratio-0 core:
 
@@ -118,7 +119,17 @@ The output fixture uses a sparse structurally valid 8-head group seeded from rea
 
 See `docs/ATTENTION.md` for source cast boundaries, fixture provenance, and non-claims.
 
-**Immediate priority: ratio-4 CSA/indexer; coherent ratio-128 is now checkpoint-passed through inverse compressed RoPE.**
+Ratio-4 CSA/indexer completion:
+
+```text
+model-free: normalized Hadamard + K32 FP4 + overlap + causal top-512
+real Indexer: layer 2, 64 heads x 128, scores bc8e / bc63, top-k [9,8]
+coherent CSA: same positions 3/7 input -> main overlap compressor -> selected sparse attention -> inverse compressed RoPE
+```
+
+The shared grouped output projection remains independently proved rather than duplicated inside each mode fixture. Gate H/V6 is the next numerical integration rung.
+
+**Immediate priority: Gate H/V6 — one complete transformer layer. Gate E attention-by-type is now checkpoint-passed at the stated scalar/model-semantic evidence level.**
 
 ---
 

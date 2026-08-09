@@ -1157,8 +1157,9 @@ deepseek_replay "Gate F/V4 — real routed FP4 expert 3/2, exact gate/up and out
 deepseek_replay "Gate F/V4 — real shared FP8 expert and six-branch combination" \
                 "test_v4_moe_real.py"
 
-# Gate E/V5 — PARTIAL. Ratio-0, grouped output, and coherent ratio-128
-# now have real fixtures. Ratio-4 CSA/indexer remains the open attention mode. These three arrived on main while
+# Gate E/V5 — PASSED at scalar/model-semantic evidence level. Ratio-0,
+# grouped output, coherent ratio-128, and coherent ratio-4 CSA all have
+# checkpoint-backed frozen fixtures. Full-layer composition is Gate H/V6. These three arrived on main while
 # this section was being written, added to the old import chain — the first
 # instance of the maintenance cost enumeration buys, paid immediately.
 deepseek_replay "Gate E/V5 — model-free ratio-0 attention semantics" \
@@ -1186,6 +1187,12 @@ deepseek_replay "Gate E/V5 — model-free inverse compressed YaRN pair20" \
                 "test_v5_compressed_inverse_scalar.py"
 deepseek_replay "Gate E/V5 — coherent same-input ratio-128 attention" \
                 "test_v5_attention_ratio128_coherent_real.py"
+deepseek_replay "Gate E/V5 — model-free ratio-4 CSA semantics" \
+                "test_v5_csa_scalar.py"
+deepseek_replay "Gate E/V5 — real ratio-4 CSA indexer" \
+                "test_v5_csa_indexer_real.py"
+deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \
+                "test_v5_csa_attention_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
