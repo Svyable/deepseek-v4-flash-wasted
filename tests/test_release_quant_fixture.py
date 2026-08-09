@@ -29,6 +29,7 @@ import test_v4_routed_expert_real  # noqa: E402
 import test_v4_moe_real  # noqa: E402
 import test_v5_attention_scalar  # noqa: E402
 import test_v5_attention_ratio0_real  # noqa: E402
+import test_v5_attention_output_real  # noqa: E402
 
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
@@ -161,16 +162,19 @@ int main(void) {{
         return 1
     print("PASS Gate F / V4 complete routing + MoE")
 
-    # Gate E remains a multi-mode gate. Ordinary CI permanently replays the
-    # model-free semantics plus the real ratio-0 sub-seam while ratio-128 and
-    # ratio-4/CSA remain explicit future sub-gates.
+    # Gate E remains multi-mode. Permanent CI now replays both the real ratio-0
+    # core and the shared grouped-output projection seam. Ratio-128 and ratio-4
+    # CSA/indexer remain explicit future sub-gates, so this is still partial E.
     if run_gate("Gate E ratio-0 model-free attention semantics",
                 test_v5_attention_scalar.main) != 0:
         return 1
     if run_gate("Gate E ratio-0 real checkpoint attention core",
                 test_v5_attention_ratio0_real.main) != 0:
         return 1
-    print("PASS Gate E / V5 ratio-0 attention core (partial Gate E)")
+    if run_gate("Gate E grouped attention output projection",
+                test_v5_attention_output_real.main) != 0:
+        return 1
+    print("PASS Gate E / V5 ratio-0 + output projection sub-seams (partial Gate E)")
 
     return 0
 
