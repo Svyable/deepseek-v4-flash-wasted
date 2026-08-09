@@ -158,6 +158,38 @@ This is recorded as an experiment because it is exactly the kind of self-confirm
 
 ---
 
+## 6 — 2026-08-09 — Eleven gate replays ran under one name, and the name was wrong
+
+**Question:** `make check` reported 34 passed before this entry and had reported 34 passed since PR #3, across four gate PRs that each froze a real-checkpoint fixture. Were Gates B, C, D and F actually being replayed?
+
+**Protects:** every gate verdict this project publishes. The gates are the whole claim — a frozen fixture nobody replays is a screenshot, and a replay whose failure names the wrong subsystem costs the debugging time the fixture was meant to save.
+
+**README gate letter(s):** A, B, C, D, F — the reporting of all of them, not their arithmetic.
+
+**Operational V-level / systems gate:** V0–V4 replay legibility. No model arithmetic changed.
+
+**Evidence state:** MEASURED on this checkout. No checkpoint access was required or used; Hugging Face remains CONNECT 403 here (entry 5).
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64, no container, `tests/run.sh /nonexistent`.
+
+**Method:** traced the call graph of every `tests/test_*.py`, then ran three mutations through the full suite: (A) flip bit 0 of the frozen Gate F expected output `v4_moe_real/combined-out8.bf16.bin`; (B) corrupt Gate D's `expected-post.bf16.bin` and Gate F's output together; (C) remove the `v3_mhc_real/` and `v4_moe_real/` fixture directories from the checkout.
+
+**Result:** they were running. `tests/run.sh` called `test_inventory.py`, which imported and called `test_fetch_hf_headers.main()` and `test_release_quant_fixture.main()`, which imported and called the other nine. The whole ladder arrived as one line: *"inventory measures what it read and refuses to guess the rest."* That is why the total never moved.
+
+Three defects followed from the shape, and the mutations pinned each:
+
+- **Misattribution.** Mutation A reported `FAIL inventory.py` with the sub-lines "all tensor names classified" and "no bytes in an unexplained bucket" — a fault in the MoE combination pointing a reader at the tensor classifier.
+- **Masking.** The driver returned on first failure, so under mutation B the earliest broken gate hid every later one; Gate F never ran.
+- **Invisibility.** Nothing in a green run said Gate C, D or F existed, so the count staying at 34 across four gate PRs read as normal.
+
+**Verdict:** not a coverage gap — a reporting defect, and the more dangerous kind, because the suite was green and the evidence was real. The count that should have raised it was visible for four PRs and was read as "unchanged" rather than "unchanged despite four gates landing".
+
+**Consequence:** `tests/run.sh` gained a "DeepSeek gate replays" section that invokes all eleven by name, mapping exit 77 to SKIP; the chaining was removed from `test_inventory.py` and `test_release_quant_fixture.py`, which now each test one thing. Re-running the mutations: A names Gate F/V4 and leaves inventory passing; B names Gate D/V3 and Gate F/V4 independently (43 passed, 2 failed); C reports both as SKIP with their reasons (43 passed, 0 failed, 14 skipped) rather than passing. Suite is now 45 passed, 0 failed, 12 skipped.
+
+**Follow-up:** the replays are enumerated rather than globbed, so a Gate E/V5 attention fixture is not covered until its line is added. That is deliberate — a glob hides an unreplayed fixture exactly as well as the import chain did — and it is the one maintenance cost this fix creates.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.

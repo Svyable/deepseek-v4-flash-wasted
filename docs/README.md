@@ -9,12 +9,23 @@ Read [`../UPSTREAM.md`](../UPSTREAM.md) before assuming that a document in this 
 
 ## Current evidence state
 
-Merged executable baseline remains PR #3 (`91c36b8f4168349e6893a9911a3f60075d62d973`):
+PR #3 (`91c36b8f4168349e6893a9911a3f60075d62d973`) reported:
 
 ```text
 make check -> 34 passed, 0 failed, 12 skipped
 make asan  -> 33 passed, 0 failed
 ```
+
+PRs #5–#8 have since merged Gates A/V0, B/V1, C/V2, D/V3 and F/V4 against
+real 0731 checkpoint fixtures. Current:
+
+```text
+make check -> 45 passed, 0 failed, 12 skipped
+```
+
+Those eleven gate replays were running under PR #3's count too — through an
+import chain that reported all of them as one "inventory" line. They are now
+invoked by name; `EXPERIMENTS.md` entry 6 has the mutation evidence.
 
 PR #4 merged the canonical gate/documentation contract as `3ce11ef4d391208d0c455796bf21803620910948`.
 

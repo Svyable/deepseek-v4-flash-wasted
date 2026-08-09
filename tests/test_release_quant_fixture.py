@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Replay pinned 0731 source/checkpoint evidence through scalar C seams.
+"""Replay the pinned 0731 FP4 nibble/scale convention through scalar C.
 
-This driver is reached by ``tests/test_inventory.py`` and therefore by
-``make check``. It keeps source literals, acquisition mechanics, real
-checkpoint fixtures, and model-semantic scalar references adjacent while
-preserving their evidence boundaries.
+Gate B/V1. This proves two things and deliberately no longer chains any
+other gate: the official bootstrap routing-name classification, and the F3
+literal fixture (packed byte 0x21, E8M0 scale 0x80 -> [1.0, 2.0]) compiled
+against the real ``src/quant/fp4_e2m1.c``.
+
+It used to import and run the Gate C/D/F replays as well, so that they
+reached ``make check`` transitively through ``tests/test_inventory.py``.
+They did run, but eleven gates arrived as one suite line labelled
+"inventory": corrupting a frozen Gate F output reported ``FAIL inventory.py
+/ all tensor names classified``, pointing at the classifier rather than at
+the MoE. ``tests/run.sh`` now invokes every replay by name, so the chaining
+is gone and each gate reports itself.
 """
 
 import json
@@ -24,15 +32,6 @@ for path in (TESTS, TOOLS):
         sys.path.insert(0, path)
 
 import inventory  # noqa: E402
-import test_fetch_hf_tensor_slice  # noqa: E402
-import test_v2_linear_ref  # noqa: E402
-import test_v2_real_projection  # noqa: E402
-import test_v3_mhc_scalar  # noqa: E402
-import test_v3_mhc_real  # noqa: E402
-import test_v3_router_scalar  # noqa: E402
-import test_v3_router_real  # noqa: E402
-import test_v4_routed_expert_real  # noqa: E402
-import test_v4_moe_real  # noqa: E402
 
 FIXTURE = os.path.join(
     REPO, "tests", "fixtures", "deepseek_v4", "fp4_release_convention.json")
@@ -67,24 +66,8 @@ def check_release_router_names():
     return 0
 
 
-def run_gate(name, fn):
-    rc = fn()
-    if rc == 77:
-        print(f"SKIP {name}")
-        return 77
-    if rc != 0:
-        print(f"FAIL {name}")
-        return 1
-    return 0
-
-
 def main():
     if check_release_router_names() != 0:
-        return 1
-
-    # The payload transport is a separate seam from model arithmetic.
-    if run_gate("bounded safetensors payload Range transport",
-                test_fetch_hf_tensor_slice.main) != 0:
         return 1
 
     cc = compiler()
@@ -157,40 +140,6 @@ int main(void) {{
             return 1
 
     print("PASS pinned 0731 FP4 nibble order + E8M0 scale application")
-
-    if run_gate("Gate C scalar linear preflight", test_v2_linear_ref.main) != 0:
-        return 1
-    if run_gate("Gate C / V2 real checkpoint projection",
-                test_v2_real_projection.main) != 0:
-        return 1
-    print("PASS Gate C / V2 real checkpoint projection")
-
-    if run_gate("Gate D model-free mHC invariants",
-                test_v3_mhc_scalar.main) != 0:
-        return 1
-    if run_gate("Gate D / V3 real checkpoint mHC primitive",
-                test_v3_mhc_real.main) != 0:
-        return 1
-    print("PASS Gate D / V3 real checkpoint mHC primitive")
-
-    # Gate F is deliberately layered. A routing-only success is insufficient:
-    # the ordinary suite permanently replays learned/hash routing, one full
-    # routed FP4 expert, the resident shared FP8 expert, all six selected branch
-    # outputs, and the official f32 accumulation/final-BF16 combination.
-    if run_gate("Gate F model-free routing invariants",
-                test_v3_router_scalar.main) != 0:
-        return 1
-    if run_gate("Gate F real learned + hash routing",
-                test_v3_router_real.main) != 0:
-        return 1
-    if run_gate("Gate F real routed FP4 expert",
-                test_v4_routed_expert_real.main) != 0:
-        return 1
-    if run_gate("Gate F real shared expert + complete MoE",
-                test_v4_moe_real.main) != 0:
-        return 1
-    print("PASS Gate F / V4 complete routing + MoE")
-
     return 0
 
 

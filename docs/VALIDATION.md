@@ -266,6 +266,8 @@ b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
 
 The successful branch gate also passed the inherited A–D suite and ASan/UBSan. The frozen Gate F fixtures are replayed by ordinary `make check`, not only by the temporary acquisition workflow.
 
+Since 2026-08-09 that replay is also *legible*: `tests/run.sh` invokes each Gate A–F replay as its own named line under "DeepSeek gate replays". Previously they were imported transitively from `tests/test_inventory.py`, so all eleven were reported as a single "inventory" line and a corrupted Gate F fixture failed under the tensor classifier's name. `docs/EXPERIMENTS.md` entry 6 records the mutation evidence. When a V5 attention fixture is frozen it needs its own line there — the list is enumerated, not globbed.
+
 **Evidence boundary:** Gate F proves routing and MoE arithmetic from direct real checkpoint bytes. It does not yet prove that a converted WASTE expert record/cache supplies identical bytes. That placement identity is canonical **Gate G**, and must be proven when the DeepSeek container/storage path lands.
 
 ### V5 — attention by type — **NEXT / Gate E**

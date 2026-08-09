@@ -6,8 +6,8 @@
 #
 # MODIFIED from the upstream WASTE import (sqliteai/waste @ d9b919a) by the
 # deepseek-v4-flash-wasted authors, as Apache-2.0 §4(b) requires. Added the
-# "quantization decode" and "checkpoint inventory" sections and a recursive
-# SPDX check. See UPSTREAM.md.
+# "quantization decode", "checkpoint inventory" and "DeepSeek gate replays"
+# sections and a recursive SPDX check. See UPSTREAM.md.
 #
 # Written after losing time twice to checks that silently did not run: once
 # to objects compiled against a stale header, once to a stale test binary.
@@ -1068,6 +1068,94 @@ else
     no "inventory.py"
     printf '%s\n' "$out" | grep -E "FAIL|Error|Traceback" | head -5
 fi
+
+# ------------------------------------------------- DeepSeek gate replays ----
+head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4)"
+
+# These eleven replays did run before this section existed, but not under
+# their own names. test_inventory.py imported the Gate B/V1 driver, which
+# imported the Gate C, D and F replays, so the whole ladder arrived as the
+# single line "inventory measures what it read and refuses to guess the
+# rest". That is why the suite total stayed at the 34 AGENTS.md records for
+# PR #3 across four gate PRs — the evidence was running and invisible.
+#
+# It was also misattributed. Flipping one bit in the frozen Gate F output
+# combined-out8.bf16.bin reported `FAIL inventory.py` with the sub-lines
+# "all tensor names classified" and "no bytes in an unexplained bucket",
+# which sends a reader to the tensor classifier for a fault in the MoE
+# combination. And the chain returned on first failure, so the earliest
+# broken gate hid every later one. This file already made the argument for
+# the serve suite: 140-odd checks reported as one line hides which half ran.
+#
+# So each replay is invoked here by name, and the chaining is gone from
+# test_inventory.py and test_release_quant_fixture.py. Enumerated rather
+# than globbed, because a glob hides an unreplayed fixture just as well: a
+# gate is covered when its line appears below, and adding a gate means
+# adding one.
+#
+# Exit 77 is the suite-wide "did not run" code (see the cpu-bind check
+# above), and these scripts use it when a frozen fixture or a C compiler is
+# absent. Mapping 77 to SKIP rather than PASS is the load-bearing half: a
+# checkout missing tests/fixtures/deepseek_v4/ must report unproven gates,
+# not green ones.
+deepseek_replay() {
+    local label=$1 script=$2 out rc reason
+    if ! command -v python3 >/dev/null 2>&1; then
+        sk "$label" "python3 not installed"
+        return
+    fi
+    out=$(python3 "tests/$script" 2>&1)
+    rc=$?
+    case $rc in
+        0)  ok "$label" ;;
+        77) reason=$(printf '%s\n' "$out" | grep -m1 'SKIP' | sed 's/^SKIP: *//')
+            sk "$label" "${reason:-prerequisite missing}" ;;
+        *)  no "$label"
+            printf '%s\n' "$out" \
+                | grep -E "FAIL|Error|Traceback|AssertionError" | head -5 ;;
+    esac
+}
+
+# Gate A/V0 — the acquisition layer. Both scripts are model-free: they drive
+# the fetchers against a local server, so they check the fail-closed
+# behaviour (a proxy answering 200 to a Range request must be refused) with
+# no network and no checkpoint.
+deepseek_replay "Gate A/V0 — safetensors header Range fetch fails closed" \
+                "test_fetch_hf_headers.py"
+deepseek_replay "Gate A/V0 — bounded tensor-row Range slicing fails closed" \
+                "test_fetch_hf_tensor_slice.py"
+
+# Gate B/V1 — the release's own nibble order and scale direction, frozen as
+# literal bytes rather than as a round trip through our packer, because a
+# round trip stayed green under the nibble mutation (AGENTS.md invariant 4).
+deepseek_replay "Gate B/V1 — release FP4 nibble order and scale direction" \
+                "test_release_quant_fixture.py"
+
+# Gate C/V2 — scalar preflight, then the real projection against an oracle
+# that shares no code with the implementation under test.
+deepseek_replay "Gate C/V2 — source-derived FP8/FP4 scalar linear preflight" \
+                "test_v2_linear_ref.py"
+deepseek_replay "Gate C/V2 — real 0731 wq_a projection vs independent oracle" \
+                "test_v2_real_projection.py"
+
+# Gate D/V3 — mHC. The model-free half pins Sinkhorn's invariants and
+# hc_post's orientation, which is where a transpose would hide.
+deepseek_replay "Gate D/V3 — model-free Sinkhorn invariants, hc_post orientation" \
+                "test_v3_mhc_scalar.py"
+deepseek_replay "Gate D/V3 — real layer-0 mHC, exact BF16 pre and post" \
+                "test_v3_mhc_real.py"
+
+# Gate F/V4 — routing then MoE. The scalar half pins that the correction
+# bias moves selection without contaminating the route weights, and that
+# routed results accumulate in ascending expert ID rather than top-k order.
+deepseek_replay "Gate F/V4 — model-free router bias-selection and hash-ID semantics" \
+                "test_v3_router_scalar.py"
+deepseek_replay "Gate F/V4 — real learned and hash routing, exact top-6 IDs" \
+                "test_v3_router_real.py"
+deepseek_replay "Gate F/V4 — real routed FP4 expert 3/2, exact gate/up and out8" \
+                "test_v4_routed_expert_real.py"
+deepseek_replay "Gate F/V4 — real shared FP8 expert and six-branch combination" \
+                "test_v4_moe_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

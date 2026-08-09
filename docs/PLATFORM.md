@@ -20,6 +20,7 @@ G/L/M are systems/performance gates with no V-number.
 - After PR #1 inventory test: `32 passed, 0 failed, 12 skipped`.
 - After PR #3 native quantization tests: **34 passed, 0 failed, 12 skipped**.
 - PR #3 ASan/UBSan run: **33 passed, 0 failed** with a clean warning-free rebuild.
+- After the Gate A–F replays were given their own suite lines: **45 passed, 0 failed, 12 skipped**. Same tests, individually reported — `docs/EXPERIMENTS.md` entry 6.
 - The imported GitHub Actions matrix is parked under `.github/workflows-disabled/` because jobs failed before steps executed in this private repository. This is an account/Actions environment problem, not evidence about source portability.
 
 Restore CI rather than shrinking its platform matrix once the account condition is resolved.

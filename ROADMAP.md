@@ -26,7 +26,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | PR #5 real checkpoint inventory + official quant contracts | **A/V0 + B/V1** | **DONE**, `fad91e7c7c9c9888670953b51d7e35338db9575e` |
 | PR #6 real resident quantized projection | **C/V2** | **DONE**, `8456aeef6ccdf417894c3ea97fc0aef9568ab7a1` |
 | PR #7 real layer-0 mHC | **D/V3 mHC** | **DONE**, `eac344236d5f3bd5544188ab2a229faa8e3ead6c` |
-| PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **PASSED; pending merge** |
+| PR #8 learned/hash routing + routed/shared MoE | **F/V4** | **DONE**, `632f0b3` |
 | attention by type | **E/V5** | **NEXT — ratio-0 layer-0 attention first** |
 | one full transformer layer | **H/V6** | after E/V5 attention variants |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
@@ -223,6 +223,8 @@ b848 ba7a 3b1a bb78 bbb7 3ab7 ba25 3982
 A model-free non-associativity pin distinguishes official expert-ID accumulation order from router top-k order even though that order difference happens to disappear after BF16 rounding in the selected real fixture.
 
 Permanent ordinary `make check` replay covers model-free routing, real learned/hash routing, one full routed expert, the shared expert, all six branch output slices, and the final combination.
+
+Each of those replays is now a named line in `tests/run.sh` under "DeepSeek gate replays". Until 2026-08-09 they reached `make check` only by being imported from `tests/test_inventory.py`, so the replay was real but every gate reported as one "inventory" line — and a corrupted Gate F fixture blamed the tensor classifier. `docs/EXPERIMENTS.md` entry 6 records the mutations. A new gate is replayed when its line is added; the list is deliberately not a glob.
 
 ### Next: Gate E / V5 attention by type
 
