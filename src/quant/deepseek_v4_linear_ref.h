@@ -19,7 +19,7 @@ float waste_ds_v4_act_scale_ref(const float *x, size_t n);
 /* Round an f32 value to the value represented by BF16, returned as f32. */
 float waste_ds_v4_bf16_round_ref(float x);
 
-/* Resident FP8 linear:
+/* Resident FP8 linear with already-decoded weight scales:
  *   activation: E4M3FN, one power-of-two scale / K128
  *   weight:     E4M3FN bytes, one decoded weight scale / 128x128 tile
  *   output:     FP32 accumulation -> BF16-rounded f32 container.
@@ -30,6 +30,16 @@ int waste_ds_v4_fp8_linear_ref(const float *x,
                                const float *weight_scales,
                                size_t n,
                                float *y);
+
+/* Same resident FP8 operation, but consumes the checkpoint's native raw
+ * F8_E8M0 scale grid directly. The grid is [ceil(n/128), k/128]. This keeps
+ * shared-expert/reference fixtures byte-faithful to the released checkpoint. */
+int waste_ds_v4_fp8_linear_e8m0_ref(const float *x,
+                                    size_t m, size_t k,
+                                    const uint8_t *weight,
+                                    const uint8_t *weight_scales_e8m0,
+                                    size_t n,
+                                    float *y);
 
 /* Routed-expert FP4 linear matching the pinned fp4_gemm shape:
  *   activation: E4M3FN, one power-of-two scale / K128
