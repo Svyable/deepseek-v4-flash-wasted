@@ -194,6 +194,7 @@ int main(int argc, char **argv)
             src,
             os.path.join(REPO, "src", "quant", "deepseek_v4_linear_ref.c"),
             os.path.join(REPO, "src", "quant", "fp8_e4m3.c"),
+            os.path.join(REPO, "src", "quant", "fp4_e2m1.c"),
             "-lm", "-o", exe,
         ]
         built = subprocess.run(cmd, capture_output=True, text=True)
