@@ -1,97 +1,166 @@
 # INVENTORY-0731 — exact checkpoint totals
 
-**Status: NOT YET MEASURED. This document contains no checkpoint-derived numbers. README Gate A / V0 is not yet complete.**
+**Status: CHECKPOINT-VERIFIED. README Gate A / V0 PASSED against all 48 safetensors headers from `deepseek-ai/DeepSeek-V4-Flash-0731 @ 9e165c30e2704aec5d9d593cce3eebd58bbef1cb`.**
 
-README §21 asks for this file to carry exact byte totals for `deepseek-ai/DeepSeek-V4-Flash-0731`. It cannot yet, and the reason is environmental rather than technical:
+The original bootstrap environment could not reach Hugging Face. PR #5 removed that blocker by adding a fail-closed Range-based header fetcher and running it on GitHub's Ubuntu runner. The first real inventory did exactly what the gate was designed to do: it exposed three narrow export-name assumptions (`layers.N` at the root, `ffn.gate`, and `head.weight`). Those were corrected against the checkpoint and the full run was repeated.
+
+Validation run:
 
 ```text
-huggingface.co:443 — the agent proxy answered 403 to CONNECT
-                     (organization egress policy denial)
+GitHub Actions run: 31285866894
+OS: Ubuntu 24.04.4 LTS
+pinned revision: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+48 / 48 shard headers fetched
+make: PASS
+make check: PASS
+make asan: PASS
+Gate A / V0: 6 PASS, 0 FAIL, 0 SKIP
 ```
 
-The checkpoint metadata — `config.json`, `model.safetensors.index.json`, and the shard headers — was unreachable from the machine that bootstrapped this repository. Per `/root/.ccr/README.md` a policy denial is reported, not retried or routed around.
+The compact machine-readable evidence is committed at:
 
-`tools/inventory.py` is finished and tested. What is missing is the input.
-
-Gate terminology follows `docs/VALIDATION.md` §4a: this document owns the checkpoint-inventory evidence for **README Gate A / V0**. “Gate 0” is historical shorthand and should not be used in new docs/PRs.
-
-## What to run
-
-From any environment that can reach Hugging Face:
-
-```bash
-python -m pip install 'huggingface_hub>=0.34'
-python - <<'PY'
-from huggingface_hub import snapshot_download
-snapshot_download(
-    'deepseek-ai/DeepSeek-V4-Flash-0731',
-    revision='9e165c3',
-    local_dir='reference/deepseek-v4-flash-0731',
-    allow_patterns=['config.json', 'model.safetensors.index.json',
-                    'tokenizer*', 'inference/*', 'encoding/*',
-                    'LICENSE*', 'README.md'],
-)
-PY
-
-# Names and counts, before a single weight byte is downloaded.
-python3 tools/inventory.py reference/deepseek-v4-flash-0731
-
-# Exact bytes, once the shards are present.
-python3 tools/inventory.py reference/deepseek-v4-flash-0731 \
-    --by-layer --strict --json docs/inventory-0731.json
+```text
+reference/deepseek-v4-flash-0731.gate-a.json
 ```
 
-The first run works on metadata alone and reports `mode: index-only`: it classifies every tensor name and evaluates the checks that do not need shapes, while byte totals stay explicitly unresolved rather than defaulting to zero. That is the run README §22 wants done before committing to a multi-hundred-GB download, because a mistaken tensor assumption is far cheaper to find there.
+The full per-tensor inventory was emitted and retained as the workflow artifact for the validating run; the repo keeps the compact summary rather than committing a tens-of-megabytes generated listing.
 
-Then replace this file with the output, and update `README.md` §1 with the measured figures.
+---
 
-## Expect README Gate A / V0 to fail on the first real run
+## Exact checkpoint totals
 
-The classification table in `tools/inventory.py` (`RULES`) was written from the architecture description in README §1, **not** from the checkpoint. The tensor names are inferred. Unrecognised names deliberately fail Gate A/V0 rather than landing in a catch-all bucket, so the first real run is expected to report unclassified tensors.
+| quantity | checkpoint result |
+|---|---:|
+| safetensors shards | **48** |
+| tensors | **72,317** |
+| payload bytes | **166,878,536,440 B** |
+| payload size | **155.417748 GiB** |
+| main layers | **43** |
+| routed experts / layer | **256** |
+| shared experts / layer | **1** |
+| routed experts / token / layer | **6** |
+| bootstrap hash layers | **3** |
 
-That is the tool working. Extend `RULES` against the actual names, re-run, and record what the checkpoint said. README §5 is explicit about precedence:
+Byte buckets from safetensors `data_offsets`:
 
-> If the inventory disagrees with this README, update this README.
-> The checkpoint wins.
+| bucket | tensors | exact bytes | GiB |
+|---|---:|---:|---:|
+| main routed experts | 66,048 | **147,169,738,752** | **137.062500** |
+| shared experts | 258 | 1,082,196,480 | 1.007874 |
+| attention / compressor / indexer | 784 | 5,400,422,016 | 5.029535 |
+| mHC | 261 | 135,537,756 | 0.126229 |
+| embedding + output head | 2 | 2,118,123,520 | 1.972656 |
+| DSpark | 4,705 | 10,862,838,300 | 10.116807 |
+| other resident tensors | 259 | 109,679,616 | 0.102147 |
+| unclassified | **0** | **0** | **0** |
 
-The same applies to this file and to every estimate in README §1.
+The base path excluding DSpark occupies approximately **145.300942 GiB of checkpoint payload**, of which **137.0625 GiB** is routed experts. This is storage accounting, not a runtime RAM floor: the point of the WASTE port is specifically not to resident-load that routed bank.
 
-## The estimates this file must replace
+---
 
-From README §1, all first-order and **none of them measured**:
+## Exact routed-expert result
 
-| quantity | estimate | status |
-|---|---:|---|
-| packed FP4 bytes per expert | 12,582,912 | unverified |
-| UE8M0 K32 scale bytes per expert | 786,432 | unverified |
-| bytes per expert record (pre-alignment) | 13,369,344 (12.75 MiB) | unverified |
-| main routed expert records | 11,008 | unverified |
-| routed experts per decode token | 258 | unverified |
-| routed bytes per all-miss decode token | ≈3.21 GiB | unverified |
+The handoff estimate was correct down to the byte, but it is no longer an estimate.
 
-Nothing in this repository may cite these as measurements, and no RAM, disk-size or tokens/sec claim may be built on them.
+For each routed expert the checkpoint contains:
 
-## What has been verified
+```text
+w1.weight  I8-packed FP4
+w1.scale   F8_E8M0
+w3.weight  I8-packed FP4
+w3.scale   F8_E8M0
+w2.weight  I8-packed FP4
+w2.scale   F8_E8M0
+```
 
-Only that the tool computes the right things given a checkpoint of the documented shape. `tests/test_inventory.py` builds a synthetic checkpoint from `tools/make_inventory_fixture.py` with the 0731 dimensions — 43 layers, 256 routed experts, hidden 4096, MoE intermediate 2048, FP4-packed expert matrices with UE8M0 K32 scales — and the tool reproduces the table above from it exactly: 11,008 records, 13,369,344 B each, 3.21 GiB per all-miss token.
+Representative layer-0 expert shapes:
 
-**This confirms the arithmetic, not the checkpoint.** The fixture was generated from the same README §1 numbers it reproduces, so the agreement says the packing and scale math is self-consistent and that the per-record and per-token roll-ups are right. It says nothing whatsoever about what DeepSeek actually shipped. A synthetic fixture cannot corroborate its own source.
+```text
+layers.0.ffn.experts.0.w1.weight  I8        [2048, 2048]
+layers.0.ffn.experts.0.w1.scale   F8_E8M0  [2048, 128]
+layers.0.ffn.experts.0.w3.weight  I8        [2048, 2048]
+layers.0.ffn.experts.0.w3.scale   F8_E8M0  [2048, 128]
+layers.0.ffn.experts.0.w2.weight  I8        [4096, 1024]
+layers.0.ffn.experts.0.w2.scale   F8_E8M0  [4096, 64]
+```
 
-The fixture's shards deliberately stop after the safetensors header, which is how the header-only guarantee is enforced rather than asserted: every tensor's `data_offsets` point past end-of-file, so any code path that tried to read tensor data would hit EOF instead of quietly succeeding.
+Exact record arithmetic:
 
-## README Gate A / V0 checks the real run must satisfy
+| quantity | result |
+|---|---:|
+| main routed expert records | **11,008** = 43 × 256 |
+| checkpoint payload / expert | **13,369,344 B** = **12.75 MiB** |
+| routed records touched / decode token | **258** = 43 × 6 |
+| all-miss routed payload / decode token | **3,449,290,752 B** = **3.212402 GiB** |
 
-From README §5, as implemented:
+These figures are payload only. A future WASTE container may add record headers and 4 KiB padding; cache hits will reduce actual read traffic.
 
-| check | what a failure means |
+This result strongly validates the core WASTE architecture choice: routed storage dominates the base checkpoint and access is top-k sparse.
+
+---
+
+## Exact dtype totals
+
+| dtype | tensors | bytes |
+|---|---:|---:|
+| `I8` | 35,328 | 148,176,371,712 |
+| `F8_E8M0` | 35,718 | 9,261,408,000 |
+| `F8_E4M3` | 390 | 6,304,038,912 |
+| `BF16` | 445 | 2,967,134,976 |
+| `F32` | 433 | 150,966,520 |
+| `I64` | 3 | 18,616,320 |
+
+The checkpoint uses `I8` storage for packed FP4 expert payloads. Treating that byte plane as signed arithmetic would be wrong; it is packed-bit storage whose nibble interpretation is owned by Gate B / V1.
+
+---
+
+## Bootstrap routing is checkpoint-resident
+
+Gate A confirms the first three layers carry exact token-ID-to-expert tables:
+
+```text
+layers.0.ffn.gate.tid2eid
+layers.1.ffn.gate.tid2eid
+layers.2.ffn.gate.tid2eid
+```
+
+Each is:
+
+```text
+dtype: I64
+shape: [129280, 6]
+```
+
+This upgrades deterministic bootstrap routing and its prefetch opportunity from source/design evidence to **CHECKPOINT-VERIFIED**. For an input token ID, the six routed expert IDs in each of the first three layers can be known before any router matmul. The routing weights still follow the official model semantics; the table establishes IDs, not all floating-point routing arithmetic.
+
+---
+
+## Resident projection selected for Gate C / V2
+
+Gate A identifies a compact representative quantized resident projection for the next numerical gate:
+
+```text
+layers.0.attn.wq_a.weight  F8_E4M3  [1024, 4096]
+layers.0.attn.wq_a.scale   F8_E8M0  [8, 32]
+```
+
+Both tensors are in `model-00002-of-00048.safetensors`.
+
+Gate C will freeze only a few real rows plus the corresponding scale row and compare a deterministic input against an independent pinned-source oracle and the scalar C `deepseek_v4_linear_ref` path. There is no reason to download the entire checkpoint to validate this projection.
+
+---
+
+## Gate A / V0 final checklist
+
+| check | result |
 |---|---|
-| all tensor names classified | `RULES` needs extending against real names |
-| no bytes in an unexplained bucket | a subsystem is unaccounted for |
-| dimensions agree with `config.json` | README §1's shape table is wrong |
-| one w1/w2/w3 per routed expert, with scales | the expert record design in §6 needs revisiting |
-| first three layers expose token-id → expert mapping | §11's deterministic-prefetch opportunity does not exist as described |
-| DSpark tensors separable from the main stack | the 43-layer path cannot be brought up independently, contradicting §15 |
+| all main tensor names classified | **PASS — 72,317 tensors total** |
+| no unexplained bytes | **PASS — 0 stray bytes** |
+| dimensions agree with config | **PASS** |
+| one `w1/w3/w2` + scales per routed expert | **PASS — 11,008 records** |
+| first three layers expose token-ID → expert mapping | **PASS — layers 0,1,2** |
+| DSpark separable from base stack | **PASS — 4,705 DSpark tensors, main layers 0..42** |
 
-The last two are the ones with architectural consequences, so read their detail lines rather than just the pass/fail.
+**Gate A / V0 is complete for the pinned 0731 release.**
 
-Passing this checklist supplies storage/tensor truth for Gate A/V0. It does **not** by itself complete Gate B/V1's official packing/scale arithmetic convention agreement; `NUMERICS.md` and `REFERENCE_ACCESS.md` own that distinction.
+If a future project change moves the model revision, this gate must be rerun; checkpoint-derived facts are revision-specific.
