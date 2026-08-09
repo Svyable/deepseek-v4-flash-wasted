@@ -1,0 +1,153 @@
+name: Integrate frozen ratio-4 CSA evidence
+
+on:
+  push:
+    branches:
+      - agent/gate-e-attention-ratio4-csa
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-e-ratio4-integrate
+  cancel-in-progress: true
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconcile permanent Gate E surfaces
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('tests/run.sh')
+          s = p.read_text()
+          anchor = 'deepseek_replay "Gate E/V5 — coherent same-input ratio-128 attention" \\\n                "test_v5_attention_ratio128_coherent_real.py"\n'
+          extra = (anchor
+                   + 'deepseek_replay "Gate E/V5 — model-free ratio-4 CSA semantics" \\\n                "test_v5_csa_scalar.py"\n'
+                   + 'deepseek_replay "Gate E/V5 — real ratio-4 CSA indexer" \\\n                "test_v5_csa_indexer_real.py"\n'
+                   + 'deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \\\n                "test_v5_csa_attention_real.py"\n')
+          if 'test_v5_csa_attention_real.py' not in s:
+              if anchor not in s:
+                  raise SystemExit('run.sh CSA insertion anchor missing')
+              s = s.replace(anchor, extra, 1)
+          s = s.replace(
+              '# Gate E/V5 — PARTIAL. Ratio-0, grouped output, and coherent ratio-128\n# now have real fixtures. Ratio-4 CSA/indexer remains the open attention mode.',
+              '# Gate E/V5 — PASSED at scalar/model-semantic evidence level. Ratio-0,\n# grouped output, coherent ratio-128, and coherent ratio-4 CSA all have\n# checkpoint-backed frozen fixtures. Full-layer composition is Gate H/V6.')
+          p.write_text(s)
+
+          p = Path('ROADMAP.md')
+          s = p.read_text()
+          s = s.replace(
+              '| ratio-4 CSA/indexer attention | **E/V5** | **NEXT**; completes Gate E |\n| one full transformer layer | **H/V6** | after E/V5 attention variants |',
+              '| ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |\n| Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |\n| one full transformer layer | **H/V6** | **NEXT** |')
+          s = s.replace(
+              '**Immediate priority: ratio-4 CSA/indexer; coherent ratio-128 is now checkpoint-passed through inverse compressed RoPE.**',
+              '**Immediate priority: Gate H/V6 — one complete transformer layer. Gate E attention-by-type is now checkpoint-passed at the stated scalar/model-semantic evidence level.**')
+          s = s.replace(
+              '### Gate E / V5 — ratio-0 sub-seams PASSED, gate still PARTIAL',
+              '### Gate E / V5 — PASSED at scalar/model-semantic evidence level')
+          marker = 'See `docs/ATTENTION.md` for source cast boundaries, fixture provenance, and non-claims.\n\n'
+          addition = (marker
+              + 'Ratio-4 CSA/indexer completion:\n\n'
+              + '```text\n'
+              + 'model-free: normalized Hadamard + K32 FP4 + overlap + causal top-512\n'
+              + 'real Indexer: layer 2, 64 heads x 128, scores bc8e / bc63, top-k [9,8]\n'
+              + 'coherent CSA: same positions 3/7 input -> main overlap compressor -> selected sparse attention -> inverse compressed RoPE\n'
+              + '```\n\n'
+              + 'The shared grouped output projection remains independently proved rather than duplicated inside each mode fixture. Gate H/V6 is the next numerical integration rung.\n\n')
+          if 'real Indexer: layer 2, 64 heads x 128' not in s:
+              if marker not in s:
+                  raise SystemExit('ROADMAP Gate E evidence insertion anchor missing')
+              s = s.replace(marker, addition, 1)
+          p.write_text(s)
+
+          p = Path('docs/VALIDATION.md')
+          s = p.read_text()
+          s = s.replace(
+              "**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E/V5 is PARTIAL: ratio-0 attention, the shared grouped-output projection, and a coherent same-input real ratio-128 forward through inverse compressed RoPE are passed. Ratio-4 CSA/indexer remains. Gate G still owns converted-record/cache identity.**",
+              "**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 one complete transformer layer is the next numerical integration rung. Gate G still owns converted-record/cache identity.**")
+          s = s.replace(
+              '### V5 — attention by type — **PARTIAL / Gate E**',
+              '### V5 — attention by type — **PASSED / Gate E**')
+          s = s.replace(
+              'Gate E has three structurally distinct attention modes plus a shared output projection. It closes only after all are independently proved.',
+              'Gate E has three structurally distinct attention modes plus a shared output projection. All are now independently checkpoint/source proved at the stated scalar/model-semantic evidence level.')
+          old = ('#### Ratio 4 / CSA — **OPEN**\n\n'
+                 'After ratio 128, add compressor/indexer scoring, top-512 compressed-position selection/order, and sparse attention over selected history.\n\n')
+          new = ('#### Ratio 4 / CSA — **PASSED real-checkpoint sub-seams**\n\n'
+                 'Frozen official layer-2 header inventory: `reference/deepseek-v4-flash-0731.layer2-csa.json`. It pins the separate 128-wide Indexer compressor, 64x128 Indexer query path, BF16 `weights_proj`, and 512-wide main overlapping compressor before arithmetic.\n\n'
+                 'Model-free fixtures pin normalized Walsh-Hadamard, K32 E2M1 FP4 simulation, previous-FIRST/current-SECOND overlap, BF16 score/ReLU/weight boundaries, causal masking before top-k, and a genuine 520-candidate -> 512 cutoff.\n\n'
+                 'Real Indexer fixture: `tests/fixtures/deepseek_v4/v5_csa_indexer_real/`. The same 8-token sparse input uses positions 3 and 7 so chunk-1 overlap is load-bearing. All 8,192 real Indexer `wq_b` outputs pass forward/reverse reduction stability. Real BF16 scores are `bc8e` and `bc63`, yielding compressed selection `[9,8]` after offset 8.\n\n'
+                 'Coherent main fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. The frozen real Indexer selection is consumed as a dependency; the main head-0 Q/local-KV path and 512-wide overlapping compressor are independently replayed from the same positions 3/7 input, followed by selected sink sparse attention and inverse compressed YaRN. Mutations that ignore overlap, drop Indexer-selected compressed entries, or omit inverse YaRN fail.\n\n'
+                 '**Boundary:** one main attention head / one query row. Shared grouped output projection is independently proved. Gate H/V6 now owns complete-layer composition.\n\n')
+          if old not in s:
+              raise SystemExit('VALIDATION ratio-4 section anchor missing')
+          s = s.replace(old, new, 1)
+          s = s.replace(
+              '| **E** attention by type | **V5** | **PARTIAL — ratio 0 + output + coherent ratio-128 checkpoint-passed; ratio-4 CSA/indexer next** |',
+              '| **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |')
+          p.write_text(s)
+
+          p = Path('docs/ATTENTION.md')
+          s = p.read_text()
+          s = s.replace(
+              '**Current state: Gate E / V5 is PARTIAL. Ratio-0 attention, the shared grouped output projection, and coherent same-input ratio-128 attention through inverse compressed RoPE are checkpoint/source verified at the scalar model-semantic level. Ratio-4 CSA/indexer is the remaining attention mode.**',
+              '**Current state: Gate E / V5 is PASSED at the stated scalar/model-semantic evidence level. Ratio-0, the shared grouped output projection, coherent ratio-128, and coherent ratio-4 CSA/indexer attention all have independent checkpoint/source evidence. Gate H/V6 complete-layer composition is next.**')
+          start = s.index('## 10. Next — ratio-4 CSA/indexer')
+          replacement = (
+              '## 10. Ratio-4 CSA/indexer — PASSED real-checkpoint sub-seams\n\n'
+              'Official immutable layer-2 header inventory:\n\n```text\nreference/deepseek-v4-flash-0731.layer2-csa.json\n```\n\n'
+              'It pins the actual exported split before arithmetic: the main compressor is BF16 `wkv/wgate [1024,4096]` + F32 APE `[4,1024]` + BF16 norm `[512]`; the separate Indexer compressor is BF16 `wkv/wgate [256,4096]` + F32 APE `[4,256]` + BF16 norm `[128]`; and the Indexer uses FP8 `wq_b [8192,1024]`, E8M0 scales `[64,8]`, and BF16 `weights_proj [64,4096]`.\n\n'
+              '### 10.1 Model-free source contract\n\n'
+              '`tests/test_v5_csa_scalar.py` independently pins normalized Walsh-Hadamard, K32 finite-E2M1 FP4 simulation, previous-FIRST/current-SECOND overlap, BF16 score/ReLU/weight boundaries, causal masking before top-k, and an actual 520-candidate -> 512 cutoff. Known-wrong K64 FP4, ignore-overlap, omitted-ReLU, and future-score leakage mutations fail.\n\n'
+              '### 10.2 Real Indexer\n\n'
+              'Frozen fixture: `tests/fixtures/deepseek_v4/v5_csa_indexer_real/`. The 8-token sparse input activates positions 3 and 7; position 3 is deliberately the last token of chunk 0 so its FIRST half must feed chunk-1 overlap, while position 7 supplies the current SECOND half and query. Forward/reverse stability agrees for q-norm, all 8,192 Indexer `wq_b` BF16 outputs, overlap softmax, and score reduction.\n\n'
+              'Real score/ranking evidence:\n\n```text\nentry 0 score bc8e\nentry 1 score bc63\ncompressed top-k [9, 8]\n```\n\n'
+              'Artifact evidence:\n\n```text\nworkflow run 31330024933\nartifact id 9042665069\nartifact sha256 01935f02bccd9679b71b9d6e5881813fe17db525c26b904b05aaa0ad61d064eb\nfixture freeze 5de641fe5fbcbb7643a9d3ec92ea88dc29954a5d\n```\n\n'
+              '### 10.3 Coherent main CSA attention\n\n'
+              'Frozen fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. It consumes only the frozen real Indexer q-rank/selection dependency, then independently replays the real main head-0 Q/local-KV path, 512-wide overlapping compressor, local row `[0..7] + [9,8]`, sink sparse attention, and inverse compressed YaRN from the same positions 3/7 structural input.\n\n'
+              'Representative evidence:\n\n```text\nmain compressor chunk1 first8\nbb80 ba60 bcc0 bca0 3c00 3b20 3c80 3c00\n\npre-inverse attention first8\n3c7e bc36 bbef bcc7 3c93 3b9a 3cb8 3a5f\n\npost-inverse attention first8\n3c7e bc36 bbef bcc7 3c93 3b9a 3cb8 3a5f\n\npair20 pre  bbca bc88\npair20 post bbcb bc88\n```\n\n'
+              'Artifact evidence:\n\n```text\nworkflow run 31330389738\nartifact id 9042766089\nartifact sha256 ea11e1688c74f0e2a78da53d854136a870751cf4d778d826787422d53dd87412\nfixture freeze 74a5026387e73b2607557699797995d41c209639\n```\n\n'
+              'Load-bearing mutations remove the previous overlap half, drop Indexer-selected compressed entries, or omit inverse compressed YaRN; all must change the final evidence. The identical first eight pre/post inverse values are expected because RoPE affects only the final 64 dimensions; pair 20 is in that tail.\n\n'
+              '**Boundary:** one main attention head / one query row. The shared grouped output projection is already independently proved in section 5 and is not redundantly duplicated.\n\n'
+              '## 11. Next — Gate H/V6 complete transformer layer\n\n'
+              'Gate E is now complete at the repository\'s stated scalar/model-semantic evidence level. Gate H must compose one full transformer layer — mHC attention merge, attention mode, routing/MoE, and final layer output — and compare checkpoint-derived boundaries before any full-model correctness claim.\n')
+          s = s[:start] + replacement
+          s = s.replace(
+              '- coherent same-input real ratio-128 forward through inverse compressed RoPE.\n',
+              '- coherent same-input real ratio-128 forward through inverse compressed RoPE;\n- model-free ratio-4 CSA/indexer semantics;\n- real ratio-4 CSA Indexer;\n- coherent real ratio-4 CSA selected attention.\n')
+          p.write_text(s)
+          PY
+
+      - name: Frozen no-network Gate E validation
+        run: |
+          set -euo pipefail
+          python3 tests/test_v5_csa_scalar.py
+          python3 tests/test_v5_csa_indexer_real.py
+          python3 tests/test_v5_csa_attention_real.py
+          make -j2
+          make check | tee /tmp/check.log
+          make asan | tee /tmp/asan.log
+          grep -q 'Gate E/V5 — model-free ratio-4 CSA semantics' /tmp/check.log
+          grep -q 'Gate E/V5 — real ratio-4 CSA indexer' /tmp/check.log
+          grep -q 'Gate E/V5 — coherent real ratio-4 CSA attention' /tmp/check.log
+
+      - name: Remove one-shot workflow and commit green Gate E integration
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/gate-e-ratio4-integrate.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh ROADMAP.md docs/VALIDATION.md docs/ATTENTION.md .github/workflows
+          git commit -m "validation: close Gate E attention-by-type [skip ci]"
+          git push origin HEAD:agent/gate-e-attention-ratio4-csa
