@@ -1,0 +1,596 @@
+{
+  "evidence_state": "CHECKPOINT-WEIGHTS + STRUCTURAL-REAL-SEEDED-INPUT",
+  "expected": {
+    "group_lora_file": "expected-group-lora.bf16.bin",
+    "group_lora_first8_hex": [
+      "0x3a65",
+      "0x3dcb",
+      "0x3d2b",
+      "0x3d09",
+      "0x3cba",
+      "0xbc02",
+      "0xbcab",
+      "0x3d9e"
+    ],
+    "group_lora_sha256": "157e04dd171e543268f8fff21e4a4a9aafb1fa32cbe89d6f8e2836aabecc56b2",
+    "out8_hex": [
+      "0xba34",
+      "0xbce1",
+      "0xbd35",
+      "0x3bd0",
+      "0x3d87",
+      "0x3d77",
+      "0xbc85",
+      "0xbd46"
+    ],
+    "out_file": "expected-out8.bf16.bin",
+    "out_sha256": "c0e8741e97763c165740b5e4994bf9dea438d6324f466f01eefd52c927d43ff0"
+  },
+  "gate": "Gate E / V5 grouped output-projection sub-seam",
+  "group_index": 0,
+  "input": {
+    "construction": "8 real-seeded sparse lanes per synthetic head; deterministic sign/permutation transform",
+    "dtype": "BF16",
+    "file": "group-input.bf16.bin",
+    "nonzero": [
+      {
+        "bf16_hex": "0x3e21",
+        "head": 0,
+        "lane": 0,
+        "source_head": 0,
+        "source_lane": 0
+      },
+      {
+        "bf16_hex": "0xbc5d",
+        "head": 0,
+        "lane": 63,
+        "source_head": 0,
+        "source_lane": 294
+      },
+      {
+        "bf16_hex": "0xbe5b",
+        "head": 0,
+        "lane": 64,
+        "source_head": 0,
+        "source_lane": 342
+      },
+      {
+        "bf16_hex": "0xbf0c",
+        "head": 0,
+        "lane": 127,
+        "source_head": 0,
+        "source_lane": 124
+      },
+      {
+        "bf16_hex": "0xbbbe",
+        "head": 0,
+        "lane": 255,
+        "source_head": 0,
+        "source_lane": 263
+      },
+      {
+        "bf16_hex": "0x3d84",
+        "head": 0,
+        "lane": 447,
+        "source_head": 0,
+        "source_lane": 210
+      },
+      {
+        "bf16_hex": "0xbefd",
+        "head": 0,
+        "lane": 448,
+        "source_head": 0,
+        "source_lane": 258
+      },
+      {
+        "bf16_hex": "0x3f35",
+        "head": 0,
+        "lane": 511,
+        "source_head": 0,
+        "source_lane": 40
+      },
+      {
+        "bf16_hex": "0xbe7c",
+        "head": 1,
+        "lane": 0,
+        "source_head": 1,
+        "source_lane": 29
+      },
+      {
+        "bf16_hex": "0x3e11",
+        "head": 1,
+        "lane": 63,
+        "source_head": 1,
+        "source_lane": 323
+      },
+      {
+        "bf16_hex": "0xbe33",
+        "head": 1,
+        "lane": 64,
+        "source_head": 1,
+        "source_lane": 371
+      },
+      {
+        "bf16_hex": "0x3e0f",
+        "head": 1,
+        "lane": 127,
+        "source_head": 1,
+        "source_lane": 153
+      },
+      {
+        "bf16_hex": "0x3e17",
+        "head": 1,
+        "lane": 255,
+        "source_head": 1,
+        "source_lane": 292
+      },
+      {
+        "bf16_hex": "0x3cc9",
+        "head": 1,
+        "lane": 447,
+        "source_head": 1,
+        "source_lane": 239
+      },
+      {
+        "bf16_hex": "0x3e6a",
+        "head": 1,
+        "lane": 448,
+        "source_head": 1,
+        "source_lane": 287
+      },
+      {
+        "bf16_hex": "0xbd84",
+        "head": 1,
+        "lane": 511,
+        "source_head": 1,
+        "source_lane": 69
+      },
+      {
+        "bf16_hex": "0x3cf5",
+        "head": 2,
+        "lane": 0,
+        "source_head": 0,
+        "source_lane": 58
+      },
+      {
+        "bf16_hex": "0x3d86",
+        "head": 2,
+        "lane": 63,
+        "source_head": 0,
+        "source_lane": 352
+      },
+      {
+        "bf16_hex": "0x3de6",
+        "head": 2,
+        "lane": 64,
+        "source_head": 0,
+        "source_lane": 400
+      },
+      {
+        "bf16_hex": "0xbe89",
+        "head": 2,
+        "lane": 127,
+        "source_head": 0,
+        "source_lane": 182
+      },
+      {
+        "bf16_hex": "0x3e0c",
+        "head": 2,
+        "lane": 255,
+        "source_head": 0,
+        "source_lane": 321
+      },
+      {
+        "bf16_hex": "0xbd80",
+        "head": 2,
+        "lane": 447,
+        "source_head": 0,
+        "source_lane": 268
+      },
+      {
+        "bf16_hex": "0xbe33",
+        "head": 2,
+        "lane": 448,
+        "source_head": 0,
+        "source_lane": 316
+      },
+      {
+        "bf16_hex": "0x3e8a",
+        "head": 2,
+        "lane": 511,
+        "source_head": 0,
+        "source_lane": 98
+      },
+      {
+        "bf16_hex": "0xbd3f",
+        "head": 3,
+        "lane": 0,
+        "source_head": 1,
+        "source_lane": 87
+      },
+      {
+        "bf16_hex": "0xbd3c",
+        "head": 3,
+        "lane": 63,
+        "source_head": 1,
+        "source_lane": 381
+      },
+      {
+        "bf16_hex": "0xbe30",
+        "head": 3,
+        "lane": 64,
+        "source_head": 1,
+        "source_lane": 429
+      },
+      {
+        "bf16_hex": "0x3d3a",
+        "head": 3,
+        "lane": 127,
+        "source_head": 1,
+        "source_lane": 211
+      },
+      {
+        "bf16_hex": "0xbe33",
+        "head": 3,
+        "lane": 255,
+        "source_head": 1,
+        "source_lane": 350
+      },
+      {
+        "bf16_hex": "0xbe53",
+        "head": 3,
+        "lane": 447,
+        "source_head": 1,
+        "source_lane": 297
+      },
+      {
+        "bf16_hex": "0xbe07",
+        "head": 3,
+        "lane": 448,
+        "source_head": 1,
+        "source_lane": 345
+      },
+      {
+        "bf16_hex": "0xbe5e",
+        "head": 3,
+        "lane": 511,
+        "source_head": 1,
+        "source_lane": 127
+      },
+      {
+        "bf16_hex": "0xbdb8",
+        "head": 4,
+        "lane": 0,
+        "source_head": 0,
+        "source_lane": 116
+      },
+      {
+        "bf16_hex": "0xbe7e",
+        "head": 4,
+        "lane": 63,
+        "source_head": 0,
+        "source_lane": 410
+      },
+      {
+        "bf16_hex": "0xbdfc",
+        "head": 4,
+        "lane": 64,
+        "source_head": 0,
+        "source_lane": 458
+      },
+      {
+        "bf16_hex": "0x3e46",
+        "head": 4,
+        "lane": 127,
+        "source_head": 0,
+        "source_lane": 240
+      },
+      {
+        "bf16_hex": "0xbf04",
+        "head": 4,
+        "lane": 255,
+        "source_head": 0,
+        "source_lane": 379
+      },
+      {
+        "bf16_hex": "0xbd69",
+        "head": 4,
+        "lane": 447,
+        "source_head": 0,
+        "source_lane": 326
+      },
+      {
+        "bf16_hex": "0xbe36",
+        "head": 4,
+        "lane": 448,
+        "source_head": 0,
+        "source_lane": 374
+      },
+      {
+        "bf16_hex": "0x3e24",
+        "head": 4,
+        "lane": 511,
+        "source_head": 0,
+        "source_lane": 156
+      },
+      {
+        "bf16_hex": "0x3e03",
+        "head": 5,
+        "lane": 0,
+        "source_head": 1,
+        "source_lane": 145
+      },
+      {
+        "bf16_hex": "0xbe13",
+        "head": 5,
+        "lane": 63,
+        "source_head": 1,
+        "source_lane": 439
+      },
+      {
+        "bf16_hex": "0xbde1",
+        "head": 5,
+        "lane": 64,
+        "source_head": 1,
+        "source_lane": 487
+      },
+      {
+        "bf16_hex": "0x3d5c",
+        "head": 5,
+        "lane": 127,
+        "source_head": 1,
+        "source_lane": 269
+      },
+      {
+        "bf16_hex": "0xbdf7",
+        "head": 5,
+        "lane": 255,
+        "source_head": 1,
+        "source_lane": 408
+      },
+      {
+        "bf16_hex": "0x3c8a",
+        "head": 5,
+        "lane": 447,
+        "source_head": 1,
+        "source_lane": 355
+      },
+      {
+        "bf16_hex": "0x3e58",
+        "head": 5,
+        "lane": 448,
+        "source_head": 1,
+        "source_lane": 403
+      },
+      {
+        "bf16_hex": "0xbcbc",
+        "head": 5,
+        "lane": 511,
+        "source_head": 1,
+        "source_lane": 185
+      },
+      {
+        "bf16_hex": "0x3ee0",
+        "head": 6,
+        "lane": 0,
+        "source_head": 0,
+        "source_lane": 174
+      },
+      {
+        "bf16_hex": "0x3d10",
+        "head": 6,
+        "lane": 63,
+        "source_head": 0,
+        "source_lane": 468
+      },
+      {
+        "bf16_hex": "0x3de1",
+        "head": 6,
+        "lane": 64,
+        "source_head": 0,
+        "source_lane": 4
+      },
+      {
+        "bf16_hex": "0x3dc6",
+        "head": 6,
+        "lane": 127,
+        "source_head": 0,
+        "source_lane": 298
+      },
+      {
+        "bf16_hex": "0xbe35",
+        "head": 6,
+        "lane": 255,
+        "source_head": 0,
+        "source_lane": 437
+      },
+      {
+        "bf16_hex": "0x3cd6",
+        "head": 6,
+        "lane": 447,
+        "source_head": 0,
+        "source_lane": 384
+      },
+      {
+        "bf16_hex": "0x3e20",
+        "head": 6,
+        "lane": 448,
+        "source_head": 0,
+        "source_lane": 432
+      },
+      {
+        "bf16_hex": "0x3aca",
+        "head": 6,
+        "lane": 511,
+        "source_head": 0,
+        "source_lane": 214
+      },
+      {
+        "bf16_hex": "0xbc2b",
+        "head": 7,
+        "lane": 0,
+        "source_head": 1,
+        "source_lane": 203
+      },
+      {
+        "bf16_hex": "0x3ea9",
+        "head": 7,
+        "lane": 63,
+        "source_head": 1,
+        "source_lane": 497
+      },
+      {
+        "bf16_hex": "0x3cf9",
+        "head": 7,
+        "lane": 64,
+        "source_head": 1,
+        "source_lane": 33
+      },
+      {
+        "bf16_hex": "0x3db1",
+        "head": 7,
+        "lane": 127,
+        "source_head": 1,
+        "source_lane": 327
+      },
+      {
+        "bf16_hex": "0xbbf5",
+        "head": 7,
+        "lane": 255,
+        "source_head": 1,
+        "source_lane": 466
+      },
+      {
+        "bf16_hex": "0xbdc6",
+        "head": 7,
+        "lane": 447,
+        "source_head": 1,
+        "source_lane": 413
+      },
+      {
+        "bf16_hex": "0x3d8e",
+        "head": 7,
+        "lane": 448,
+        "source_head": 1,
+        "source_lane": 461
+      },
+      {
+        "bf16_hex": "0xbe1a",
+        "head": 7,
+        "lane": 511,
+        "source_head": 1,
+        "source_lane": 243
+      }
+    ],
+    "nonzero_count": 64,
+    "sha256": "eeaf561a94d897c5c2c5dfac2e6a1622cd04076c3a9ac026894795d84e1fd785",
+    "shape": [
+      8,
+      512
+    ],
+    "source": "token-1 heads 0/1 from v5_attn_ratio0_real"
+  },
+  "layer": 0,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "heads 2..7 are structural transforms seeded from real heads 0/1, not independently computed real attention heads",
+    "other output groups are zero in the bounded wo_b input",
+    "this proves grouped output projection orientation/arithmetic, not full 64-head end-to-end output"
+  ],
+  "oracle": {
+    "producer": "tools/make_v5_attention_output_fixture.py independent Python equations",
+    "shares_waste_runtime_helpers": false,
+    "wo_a_reduction": "sequential/reverse/exact all required to agree at BF16",
+    "wo_b_reduction": "sequential/reverse/exact all required to agree at BF16"
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "source_contract": {
+    "flatten": "place 1024 group latent at group 0 of 8 x 1024; other seven groups zero for this bounded seam",
+    "reshape": "8 heads x 512 -> one 4096-value group",
+    "wo_a": "checkpoint E4M3*E8M0 block dequant -> BF16, then BF16 einsum [4096] x [1024,4096]",
+    "wo_b": "standard K128 activation-E4M3 quantized linear from 8192 to first eight real output rows"
+  },
+  "tensors": {
+    "wo_a": {
+      "absolute_range": [
+        215072296,
+        219266599
+      ],
+      "dtype": "F8_E4M3",
+      "file": "wo-a-group0.fp8.bin",
+      "name": "layers.0.attn.wo_a.weight",
+      "payload_bytes": 4194304,
+      "payload_sha256": "83d0486c13c49d5e0ba29da30c52a7f93070d066a8b4fc92de90be6ef792c16e",
+      "rows": [
+        0,
+        1024
+      ],
+      "shape": [
+        8192,
+        4096
+      ],
+      "shard": "model-00002-of-00048.safetensors"
+    },
+    "wo_a_scale": {
+      "absolute_range": [
+        11640616,
+        11640871
+      ],
+      "dtype": "F8_E8M0",
+      "file": "wo-a-group0-scale.e8m0.bin",
+      "name": "layers.0.attn.wo_a.scale",
+      "payload_bytes": 256,
+      "payload_sha256": "9238fba3734bdec6cab1f923ecacb56c148fe94fe58f2b8e70b53b248bf207df",
+      "rows": [
+        0,
+        8
+      ],
+      "shape": [
+        64,
+        32
+      ],
+      "shard": "model-00002-of-00048.safetensors"
+    },
+    "wo_b": {
+      "absolute_range": [
+        248626728,
+        248692263
+      ],
+      "dtype": "F8_E4M3",
+      "file": "wo-b-rows0-8.fp8.bin",
+      "name": "layers.0.attn.wo_b.weight",
+      "payload_bytes": 65536,
+      "payload_sha256": "cdbc5308ee3a722a637a33bd545ece77d0ce7adfc7d59e24ed121108340679c6",
+      "rows": [
+        0,
+        8
+      ],
+      "shape": [
+        4096,
+        8192
+      ],
+      "shard": "model-00002-of-00048.safetensors"
+    },
+    "wo_b_scale": {
+      "absolute_range": [
+        11642664,
+        11642727
+      ],
+      "dtype": "F8_E8M0",
+      "file": "wo-b-scale-row0.e8m0.bin",
+      "name": "layers.0.attn.wo_b.scale",
+      "payload_bytes": 64,
+      "payload_sha256": "2eba27a120e36a7e53c530277cc09e76e0c6559704a4cd849c6910b72ab57b7e",
+      "rows": [
+        0,
+        1
+      ],
+      "shape": [
+        32,
+        64
+      ],
+      "shard": "model-00002-of-00048.safetensors"
+    }
+  }
+}
