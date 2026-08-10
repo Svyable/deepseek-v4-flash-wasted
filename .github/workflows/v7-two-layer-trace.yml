@@ -1,72 +1,15 @@
-name: Build and validate real V7 two-layer trace
+name: Build and validate real V7 two-layer trace (parked)
 
 on:
-  push:
-    branches: [agent/v7-multilayer-localization]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: v7-two-layer-trace
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  trace:
+  parked:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      FIXTURE: tests/fixtures/deepseek_v4/v7_two_layer_real
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Register real two-layer replay
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tests/run.sh')
-          s=p.read_text()
-          needle='                "test_v7_layer4_full_real.py"\n'
-          title='V7 — real consecutive layer-3 to layer-4 localization trace'
-          marker='"test_v7_two_layer_real.py"'
-          block='deepseek_replay "' + title + '" ' + '\\' + '\n' + \
-                '                "test_v7_two_layer_real.py"\n'
-          if marker not in s:
-              if s.count(needle) != 1:
-                  raise SystemExit(f'two-layer registration needle count={s.count(needle)}')
-              s=s.replace(needle, needle+block, 1)
-          p.write_text(s)
-          PY
-          git diff --check
-
-      - name: Build trace from committed real evidence only
-        run: |
-          set -euo pipefail
-          python3 -m py_compile tools/make_v7_two_layer_trace.py tests/test_v7_two_layer_real.py
-          rm -rf "$FIXTURE"
-          python3 tools/make_v7_two_layer_trace.py "$FIXTURE"
-
-      - name: Replay and adversarially localize real trace
-        run: |
-          set -euo pipefail
-          python3 tests/test_v7_two_layer_real.py
-          python3 tools/v7_localize.py "$FIXTURE/expected/trace.json" "$FIXTURE/runtime/trace.json"
-
-      - name: Run complete frozen suites
-        run: |
-          set -euo pipefail
-          make check
-          make asan
-
-      - name: Freeze trace and permanent registration
-        run: |
-          set -euo pipefail
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FIXTURE" tests/run.sh
-          git commit -m "reference: freeze real consecutive V7 two-layer trace [skip ci]"
-          git push origin HEAD:agent/v7-multilayer-localization
+      - run: |
+          echo "Parked: bit-exact F32 HC review found the frozen Gate-H layer-3 endpoint differs from current C semantics."
+          echo "Correct Gate H and propagate the new layer-3 state before rebuilding the V7 trace."
