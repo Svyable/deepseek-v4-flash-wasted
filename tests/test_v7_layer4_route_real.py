@@ -23,6 +23,7 @@ import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 import test_v6_ffn_route_real as chain  # noqa: E402
 import v7_hc_oracle as hc_oracle  # noqa: E402

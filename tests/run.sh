@@ -1253,6 +1253,8 @@ deepseek_replay "V7 — correction bias operation vs input-specific top-k outcom
 # differing layer/boundary rather than reporting a downstream symptom.
 deepseek_replay "V7 — fail-closed first-divergence layer trace localizer" \
                 "test_v7_localize.py"
+deepseek_replay "V7 — real chained layer-3 output through layer-4 router" \
+                "test_v7_layer4_route_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
