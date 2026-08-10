@@ -1,0 +1,80 @@
+name: Acquire full real layer-3 Gate H MoE branch
+
+on:
+  push:
+    branches: [agent/gate-h-layer3-full]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-h-moe-branch-real
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v6_moe_branch_real
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cheap permanent-dependency preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v6_moe_branch_fixture.py \
+            tests/test_v6_moe_branch_real.py \
+            tests/test_v6_layer3_full_real.py
+          python3 tests/test_v6_shared_expert_full_rows_scalar.py
+          python3 tests/test_v4_routed_expert_real.py
+          python3 tests/test_v4_moe_real.py
+          python3 tests/test_v6_ffn_route_real.py
+          python3 tests/test_v6_attention_composition_real.py
+
+      - name: Fetch immutable 0731 headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Build and cross-check six routed experts plus shared expert
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v6_moe_branch_fixture.py "$SNAPSHOT" "$FIXTURE"
+
+      - name: Replay compact MoE branch and complete layer offline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v6_moe_branch_real.py
+          python3 tests/test_v6_layer3_full_real.py
+
+      - name: Upload compact checkpoint-derived Gate H fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-h-layer3-moe-branch-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v6_moe_branch_real/
+
+      - name: Freeze green compact fixture
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE"
+          if git diff --cached --quiet; then
+            echo "Gate H MoE fixture already frozen and unchanged"
+            exit 0
+          fi
+          git commit -m "reference: freeze full real layer-3 Gate H MoE branch [skip ci]"
+          git push origin HEAD:agent/gate-h-layer3-full
