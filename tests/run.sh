@@ -1235,6 +1235,11 @@ deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \
 # BF16 [4,4096] final state. This is the Gate H endpoint.
 deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
                 "test_v6_layer3_full_real.py"
+# V7 infrastructure: compare chained expected/runtime layer-boundary traces,
+# reject stale manifests/broken output->input chains, and stop at the first
+# differing layer/boundary rather than reporting a downstream symptom.
+deepseek_replay "V7 — fail-closed first-divergence layer trace localizer" \
+                "test_v7_localize.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
