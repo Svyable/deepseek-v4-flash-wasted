@@ -1245,6 +1245,8 @@ deepseek_replay "V7 — sparse FP8 scalar differential and signed-zero cases" \
                 "test_v7_sparse_fp8_oracle.py"
 deepseek_replay "V7 — one-row online-softmax signed-zero operation order" \
                 "test_v7_one_row_attention_signed_zero.py"
+deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \
+                "test_v7_router_bias_observation.py"
 
 # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
 # reject stale manifests/broken output->input chains, and stop at the first

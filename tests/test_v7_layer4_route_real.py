@@ -301,11 +301,34 @@ def main():
             return 1
         got_ids = list(ids)
         got_weights = list(weights)
+        got_scores = list(scores)
+        got_selection = list(selection)
         if got_ids != want_ids:
             print(f"FAIL: layer4 route IDs changed: {got_ids} != {want_ids}")
             return 1
         if [chain.f32_bits(x) for x in got_weights] != [chain.f32_bits(x) for x in want_weights]:
             print("FAIL: layer4 exact scalar route weights changed")
+            return 1
+
+        # Correction bias must be applied exactly as F32(score + bias), but
+        # it is legal for this particular input to keep the same top-k IDs.
+        bias = fparams["gate_bias"]
+        expected_selection = [chain.f32(got_scores[e] + bias[e]) for e in range(EXPERTS)]
+        if any(chain.f32_bits(a) != chain.f32_bits(b)
+               for a, b in zip(got_selection, expected_selection)):
+            print("FAIL: layer4 scalar correction-bias selection scores drifted")
+            return 1
+        unbiased = sorted(range(EXPERTS), key=lambda e: (-got_scores[e], e))[:TOPK]
+        bias_meta = (p.get("router") or {}).get("correction_bias") or {}
+        changed_count = sum(chain.f32_bits(got_selection[e]) != chain.f32_bits(got_scores[e])
+                            for e in range(EXPERTS))
+        nonzero_count = sum((chain.f32_bits(v) & 0x7fffffff) != 0 for v in bias)
+        if bias_meta.get("unbiased_ids") != unbiased or \
+           bias_meta.get("changes_topk_on_this_input") != (unbiased != got_ids) or \
+           bias_meta.get("changed_selection_score_f32_count") != changed_count or \
+           bias_meta.get("nonzero_f32_count") != nonzero_count or \
+           bias_meta.get("selection_scores_equal_score_plus_bias_f32") is not True:
+            print("FAIL: layer4 correction-bias provenance drifted")
             return 1
 
         py_ids, py_weights, _, _, margin = chain.oracle_router(

@@ -236,6 +236,37 @@ def c_route(score_fn, learned_fn, x, gate_bits, bias):
     return list(ids), list(weights), list(scores), list(selection)
 
 
+
+def observe_correction_bias(scores, bias, selection, biased_ids):
+    """Validate the mandatory bias operation and record its input-specific effect.
+
+    A correction bias is semantically load-bearing because learned routing selects
+    from ``score + bias``. It does *not* follow that every input must select a
+    different top-k set than unbiased scores would. Treat that as an observation,
+    never as a gate.
+    """
+    if not (len(scores) == len(bias) == len(selection) == EXPERTS):
+        raise ValueError("router bias observation geometry mismatch")
+    expected = [chain.f32(scores[e] + bias[e]) for e in range(EXPERTS)]
+    for e, (got, want) in enumerate(zip(selection, expected)):
+        if chain.f32_bits(got) != chain.f32_bits(want):
+            raise ValueError(
+                f"router correction-bias selection score mismatch at expert {e}: "
+                f"{chain.f32_bits(got):08x}!={chain.f32_bits(want):08x}")
+    unbiased_ids = sorted(range(EXPERTS), key=lambda e: (-scores[e], e))[:TOPK]
+    nonzero = sum((chain.f32_bits(v) & 0x7fffffff) != 0 for v in bias)
+    changed_scores = sum(
+        chain.f32_bits(selection[e]) != chain.f32_bits(scores[e])
+        for e in range(EXPERTS))
+    return {
+        "biased_ids": list(biased_ids),
+        "unbiased_ids": unbiased_ids,
+        "changes_topk_on_this_input": list(biased_ids) != unbiased_ids,
+        "nonzero_f32_count": nonzero,
+        "changed_selection_score_f32_count": changed_scores,
+        "selection_scores_equal_score_plus_bias_f32": True,
+    }
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("snapshot")
@@ -360,7 +391,7 @@ def main(argv=None) -> int:
                 f"layer4 HC-FFN post/comb F32 mismatch at {i}: "
                 f"{ffn_c_bits[i]:08x}!={ffn_o_bits[i]:08x}")
 
-        ids, weights, _, _ = c_route(
+        ids, weights, c_scores, c_selection = c_route(
             score_fn, learned_fn, ffn_pre, gate_bits, gate_bias)
         py_ids, py_weights, py_scores, py_selection, margin = chain.oracle_router(
             ffn_pre, gate_bits, gate_bias)
@@ -372,11 +403,16 @@ def main(argv=None) -> int:
         if not margin > 1e-4:
             raise ValueError(f"layer4 top-k boundary {margin} is not stable enough for acquisition")
 
-        unbiased_ids = sorted(range(EXPERTS), key=lambda e: (-py_scores[e], e))[:TOPK]
-        if unbiased_ids == ids:
-            # This is not mathematically impossible, but for this fixture we
-            # want correction bias to remain observably load-bearing.
-            raise ValueError("layer4 correction-bias selection is invisible on the chained input")
+        bias_observation = observe_correction_bias(
+            c_scores, gate_bias, c_selection, ids)
+        # Independent Python selection must implement the same semantic
+        # operation; numerical route weights remain a separate tolerance-bound
+        # transcendental cross-check, while exact C weights are frozen below.
+        py_expected_selection = [chain.f32(py_scores[e] + gate_bias[e])
+                                 for e in range(EXPERTS)]
+        if any(chain.f32_bits(a) != chain.f32_bits(b)
+               for a, b in zip(py_selection, py_expected_selection)):
+            raise ValueError("independent Python router did not apply correction bias as score+bias")
 
     outputs = {
         "input": ("input-layer3-final.bf16.bin", residual_bits, [HC, DIM]),
@@ -441,7 +477,8 @@ def main(argv=None) -> int:
             "independent_python_weights": py_weights,
             "runtime_vs_python_max_abs": weight_delta,
             "topk_boundary_margin": margin,
-            "selection_without_correction_bias": unbiased_ids,
+            "selection_without_correction_bias": bias_observation["unbiased_ids"],
+            "correction_bias": bias_observation,
             "ids_runtime_vs_python_exact": True,
             "ids_file": "router-ids.u32.bin",
             "ids_sha256": sha(ids_path),
