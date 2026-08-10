@@ -1,0 +1,77 @@
+name: Validate V7 trace localizer
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-localizer-preflight
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Standalone V7 localization contract
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/v7_localize.py tests/test_v7_localize.py
+          python3 tests/test_v7_localize.py
+
+      - name: Register V7 model-free localizer in permanent suite
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/run.sh')
+          s = p.read_text()
+          anchor = '''deepseek_replay "Gate H/V6 — complete real layer-3 composition" \\
+                          "test_v6_layer3_full_real.py"
+          '''
+          addition = anchor + '''# V7 infrastructure: compare chained expected/runtime layer-boundary traces,
+          # reject stale manifests/broken output->input chains, and stop at the first
+          # differing layer/boundary rather than reporting a downstream symptom.
+          deepseek_replay "V7 — fail-closed first-divergence layer trace localizer" \\
+                          "test_v7_localize.py"
+          '''
+          if addition in s:
+              print('V7 localizer already registered')
+          else:
+              if s.count(anchor) != 1:
+                  raise SystemExit(f'expected one Gate H endpoint anchor, found {s.count(anchor)}')
+              p.write_text(s.replace(anchor, addition, 1))
+          PY
+          git diff --check
+
+      - name: Frozen normal suite
+        run: |
+          set -euo pipefail
+          make -j4
+          make check
+
+      - name: Frozen ASan and UBSan suite
+        run: |
+          set -euo pipefail
+          make asan
+
+      - name: Freeze permanent V7 registration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh
+          if git diff --cached --quiet; then
+            echo "V7 localizer registration already frozen"
+            exit 0
+          fi
+          git commit -m "test: promote V7 first-divergence localizer [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
