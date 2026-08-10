@@ -1,0 +1,47 @@
+name: Validate V7 route replay import and registration
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply replay import fix
+        run: |
+          set -euo pipefail
+          python3 tools/apply_v7_route_replay_import_fix.py
+          python3 -m py_compile tests/test_v7_layer4_route_real.py
+          python3 - <<'PY'
+          import os, sys
+          repo = os.getcwd()
+          sys.path.insert(0, os.path.join(repo, 'tests'))
+          import test_v7_layer4_route_real
+          print('PASS V7 route replay imports tools and tests dependencies')
+          PY
+          git diff --check
+
+      - name: Run permanent suite with unfrozen route as explicit skip
+        run: |
+          set -euo pipefail
+          make check
+
+      - name: Freeze replay fix and remove temporary machinery
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_v7_layer4_route_real.py tests/run.sh
+          git rm tools/apply_v7_route_replay_import_fix.py .github/workflows/v7-route-replay-fix.yml
+          git diff --cached --check
+          git commit -m "test: make V7 layer-4 route replay permanent [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
