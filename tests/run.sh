@@ -1221,6 +1221,20 @@ deepseek_replay "Gate H/V6 — real attention branch composed through hc_post" \
 # boundary is too narrow to be a stable acquisition list.
 deepseek_replay "Gate H/V6 — real FFN hc_pre and layer-3 routing decision" \
                 "test_v6_ffn_route_real.py"
+# The full shared expert must cross E8M0 w2 scale-grid row boundaries; Gate F's
+# first-eight-row fixture never exercised row 128 or beyond.
+deepseek_replay "Gate H/V6 — shared FP8 full-output scale-grid boundary" \
+                "test_v6_shared_expert_full_rows_scalar.py"
+# Frozen from the exact real FFN hc_pre state and exact scalar-router F32
+# weights. Acquisition cross-checked six routed experts plus the shared
+# expert against an independent oracle for all 28,672 BF16 outputs.
+deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \
+                "test_v6_moe_branch_real.py"
+# The complete layer transition composes the two real HC stages, frozen
+# real 64-head attention branch, exact real router/MoE branch, and exact
+# BF16 [4,4096] final state. This is the Gate H endpoint.
+deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
+                "test_v6_layer3_full_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
