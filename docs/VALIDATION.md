@@ -437,9 +437,9 @@ real residual
   -> BF16 [4,4096] layer state
 ```
 
-The final 16,384 BF16 values are exact. The frozen final-state SHA-256 is `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`; representative first values are `3f93 3e9a 3ed7 bcba 3e11 3e57 bd52 bf2d`.
+The final 16,384 BF16 values are exact. The canonical final-state SHA-256 is `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`; representative first values are `3f93 3e9a 3ed7 bcba 3e11 3e57 bd52 bf2d`.
 
-One failed replay tightened the numerical contract rather than weakening it. The independent Python Sinkhorn initially carried `post`/`comb` in double precision into the final `hc_post`, while the model/runtime boundary is F32. That changed exactly one final BF16 value, index 13,648 (`378d` versus C `378e`). The fixture now explicitly rounds independent Sinkhorn `post`/`comb` to F32 before `hc_post`; no comparison tolerance was added. Provenance records that one boundary-sensitive value.
+A V7 consecutive-layer review tightened the numerical contract again. Merely rounding Python Sinkhorn `post`/`comb` to F32 at the boundary was insufficient because its internal reductions and normalizations had still executed in Python double precision. The canonical independent oracle now performs every HyperConnection operation in F32, including RMS reduction, mix dot products, sigmoid/softmax, every Sinkhorn row/column reduction and normalization, and `hc_pre`/`hc_post` accumulation. It is bit-exact with the scalar C reference. The corrected final state differs from the earlier frozen Gate-H endpoint at exactly 9 BF16 indices (1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717); `attn_pre` and `ffn_pre` are unchanged, so routing and all expert/MoE acquisition evidence remain valid. The permanent regression explicitly refuses the old SHA `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`; no comparison tolerance was added.
 
 The final replay also refuses replacing the FFN `hc_post` with an ordinary residual add and refuses substituting the old deterministic FFN stub for the real MoE branch.
 

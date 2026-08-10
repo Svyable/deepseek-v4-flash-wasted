@@ -1201,6 +1201,10 @@ deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \
 # parameter sets, feeding a correct branch output from the wrong branch input,
 # and replacing either hc_post with the ordinary residual add. The real half
 # replays that composition with layer-3 HC parameters from the checkpoint.
+deepseek_replay "Gate H/V6 — bit-exact independent F32 HyperConnection oracle" \
+                "test_v6_hc_oracle_f32.py"
+deepseek_replay "Gate H/V6 — corrected real layer-3 final HC precision boundary" \
+                "test_v6_layer3_hc_precision.py"
 deepseek_replay "Gate H/V6 — model-free layer block wiring and five refusals" \
                 "test_v6_layer_composition_scalar.py"
 deepseek_replay "Gate H/V6 — full eight-group attention output seam" \

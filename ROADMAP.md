@@ -261,15 +261,15 @@ residual -> hc_pre(attn) -> real 64-head attention -> hc_post
          -> exact BF16 [4,4096]
 ```
 
-Acquisition checked 28,672 expert BF16 outputs against an independent standalone oracle. The exact scalar-router F32 weights are recorded separately from the independent Python router (same IDs; max weight delta `1.49662139e-07`). Final state SHA-256: `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`.
+Acquisition checked 28,672 expert BF16 outputs against an independent standalone oracle. The exact scalar-router F32 weights are recorded separately from the independent Python router (same IDs; max weight delta `1.49662139e-07`). The canonical final state SHA-256 is `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`.
 
-A real numerical boundary was found and pinned rather than tolerated: independent Sinkhorn `post`/`comb` are rounded to F32 before final `hc_post`; doing the Python computation at double precision changed exactly one of 16,384 final BF16 values (index 13,648).
+A later V7 review exposed that Gate H's original Python Sinkhorn still executed its internal reductions/normalizations in double precision and only rounded `post`/`comb` at the boundary. That is not model-equivalent. `tools/deepseek_v4_hc_oracle.py` now executes every HC operation in F32 and is bit-exact with `src/deepseek_v4_mhc_ref.c`. The correction changes 9 of 16,384 final BF16 values (indices 1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717) while leaving `attn_pre`, `ffn_pre`, routing, all seven expert outputs, and the MoE branch unchanged. No checkpoint reacquisition was required.
 
-Permanent suite floor after Gate H registration:
+Permanent suite floor after the Gate H precision correction:
 
 ```text
-make check  63 passed, 0 failed, 13 skipped
-make asan   62 passed, 0 failed, 14 skipped
+make check  65 passed, 0 failed, 13 skipped
+make asan   64 passed, 0 failed, 14 skipped
 ```
 
 Continue in this order:

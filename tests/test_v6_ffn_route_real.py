@@ -45,8 +45,9 @@ import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, os.path.join(REPO, "tests"))
-from test_v6_layer_composition_scalar import split  # noqa: E402
+import deepseek_v4_hc_oracle as hc_oracle  # noqa: E402
 
 BASE = os.path.join(REPO, "tests", "fixtures", "deepseek_v4")
 HCFIX = os.path.join(BASE, "v6_hc_composition_real")
@@ -133,26 +134,16 @@ def attn_stub(x):
 
 
 def oracle_hc_params(x, fn, scale, base):
-    ss = sum(v * v for v in x)
-    r = 1.0 / math.sqrt(ss / len(x) + 1e-6)
-    mixes = [sum(fn[row * FLAT + c] * x[c] for c in range(FLAT)) * r
-             for row in range(MIX)]
-    return split(mixes, scale, base)
+    pre, post, comb, _ = hc_oracle.params(x, fn, scale, base, dim=DIM)
+    return pre, post, comb
 
 
 def oracle_hc_pre_y(x, pre):
-    return [sum(pre[j] * x[j * DIM + d] for j in range(HC)) for d in range(DIM)]
+    return hc_oracle.pre_y(x, pre, dim=DIM)
 
 
 def oracle_hc_post(branch, residual, post, comb):
-    out = [0.0] * FLAT
-    for k in range(HC):
-        for d in range(DIM):
-            acc = f32(post[k] * branch[d])
-            for j in range(HC):
-                acc = f32(acc + f32(comb[j][k] * residual[j * DIM + d]))
-            out[k * DIM + d] = acc
-    return out
+    return hc_oracle.post_y(branch, residual, post, comb, dim=DIM)
 
 
 def softplus(x):
