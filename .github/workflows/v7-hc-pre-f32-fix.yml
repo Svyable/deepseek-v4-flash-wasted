@@ -1,0 +1,75 @@
+name: Pin V7 hc_pre F32 oracle boundary
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-hc-pre-f32-fix
+  cancel-in-progress: true
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Make F32 hc_pre accumulation explicit in V7 independent oracles
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          helper = '''\n\ndef oracle_hc_pre_y_f32(x, pre):\n    """Independent HC-pre equation with the model's sequential F32 reduction."""\n    out = []\n    for d in range(DIM):\n        acc = chain.f32(0.0)\n        for j in range(HC):\n            acc = chain.f32(acc + chain.f32(pre[j] * x[j * DIM + d]))\n        out.append(acc)\n    return out\n'''
+
+          for filename in ('tools/make_v7_layer4_route_fixture.py',
+                           'tests/test_v7_layer4_route_real.py'):
+              p = Path(filename)
+              s = p.read_text()
+              if 'def oracle_hc_pre_y_f32(' not in s:
+                  anchor = '''def as_cf(values):\n    return (ctypes.c_float * len(values))(*values)\n'''
+                  if s.count(anchor) != 1:
+                      raise SystemExit(f'{filename}: as_cf insertion anchor count={s.count(anchor)}')
+                  s = s.replace(anchor, anchor + helper, 1)
+              s = s.replace('chain.oracle_hc_pre_y(residual, o_pre)',
+                            'oracle_hc_pre_y_f32(residual, o_pre)')
+              s = s.replace('chain.oracle_hc_pre_y(after_attn, fo_pre)',
+                            'oracle_hc_pre_y_f32(after_attn, fo_pre)')
+              s = s.replace('chain.oracle_hc_pre_y(residual, opre)',
+                            'oracle_hc_pre_y_f32(residual, opre)')
+              s = s.replace('chain.oracle_hc_pre_y(after, fpre)',
+                            'oracle_hc_pre_y_f32(after, fpre)')
+              p.write_text(s)
+          PY
+          git diff --check
+
+      - name: Validate the newly pinned boundary and inherited endpoints
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v7_layer4_route_fixture.py \
+            tests/test_v7_layer4_route_real.py \
+            tests/test_v7_hc_pre_f32_scalar.py
+          python3 tests/test_v7_hc_pre_f32_scalar.py
+          python3 tests/test_v7_localize.py
+          python3 tests/test_v6_layer3_full_real.py
+
+      - name: Freeze F32 oracle correction
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/make_v7_layer4_route_fixture.py tests/test_v7_layer4_route_real.py
+          if git diff --cached --quiet; then
+            echo "V7 hc_pre F32 correction already frozen"
+            exit 0
+          fi
+          git commit -m "test: pin F32 reduction at V7 hc_pre boundary [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
