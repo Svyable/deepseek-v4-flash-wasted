@@ -311,6 +311,52 @@ The weights are deliberately non-monotonic in selection order: selection ranks b
 
 ---
 
+## 10 — 2026-08-10 — Gate F's eight-row shared fixture hid a 128-row scale-grid boundary
+
+**Question:** can the already-proven shared FP8 expert helper be used unchanged for Gate H's full 4,096 output rows?
+
+**Evidence:** model-free scalar regression plus the existing real Gate-F fixture. Gate F only supplied eight `w2` rows and one E8M0 scale-grid row; the helper therefore carried a fixture-era `out_rows <= 128` rejection.
+
+**Result:** the limit was not a model semantic. A 129-row construction makes row 128 consume scale-grid row 1: row 127 is `0.75`, row 128 is `1.5` when the second scale is 2, and returns to `0.75` when that scale is changed to 1. Gate-F real routed/shared fixtures remain bit-exact after removing the cap.
+
+**Verdict:** passed only after making scale-grid coverage explicit. A bounded fixture must not silently become a runtime dimension limit.
+
+---
+
+## 11 — 2026-08-10 — Full real Gate H MoE arithmetic agrees on all 28,672 expert outputs
+
+**Question:** do the six experts selected by the real layer-3 FFN input and the shared expert reproduce independently at full model width?
+
+**Method:** derive the SHA-pinned real `ffn_pre`, fetch exactly experts `[255,30,99,40,44,238]` plus the shared expert from immutable 0731, evaluate all 4,096 outputs with a 4,096-row specialization of standalone `tools/v4_moe_oracle.c`, then replay the same bytes through WASTE's scalar expert refs. Raw checkpoint expert payloads are deleted after acquisition.
+
+**Result:** `6 x 4096 = 24,576` routed BF16 values plus `4,096` shared BF16 values agree exactly — **28,672 / 28,672**. The combined branch SHA-256 is `809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659`. Dropping any routed branch changes 4,070–4,075 BF16 values; dropping shared changes 4,087.
+
+**Verdict:** PASSED. Gate H's MoE half is a real checkpoint-backed branch, not a stub or a first-eight-row extrapolation.
+
+---
+
+## 12 — 2026-08-10 — One final BF16 exposed an unpinned F32 HyperConnection boundary
+
+**Question:** why did the first full-layer replay disagree at exactly one of 16,384 final BF16 values after every expert output had already matched?
+
+**Result:** final index 13,648 was `0x378d` in the independent Python calculation and `0x378e` in C. The Python Sinkhorn oracle retained double precision for `post`/`comb`; the model/runtime boundary consumes F32 tensors. Rounding independent `post`/`comb` to F32 before `hc_post` changes exactly that one BF16 value and restores exact agreement.
+
+**Verdict:** this was an oracle-boundary bug, not a checkpoint/expert mismatch. No tolerance was introduced. Provenance now records the F32 boundary and the one changed index explicitly.
+
+---
+
+## 13 — 2026-08-10 — Independent router weights were close enough numerically but still the wrong branch inputs
+
+**Question:** should Gate H feed experts the independently computed Python route weights or the exact scalar-runtime router weights?
+
+**Result:** IDs agree exactly at `[255,30,99,40,44,238]`, but the two F32 vectors differ by up to `1.49662139e-07`. Route weight is multiplied before the expert hidden BF16 cast, so the complete-layer fixture was reacquired using the scalar runtime's exact F32 weights while retaining the Python router as an independent ID/tolerance oracle.
+
+Reacquisition changed only the six-F32 weight file and provenance; the 24,576 routed BF16 outputs, 4,096 shared outputs, combined MoE branch, and final layer state were unchanged for this input.
+
+**Verdict:** semantic inputs should come from the implementation boundary being composed even when an independent oracle is numerically very close. Independence verifies the boundary; it does not replace it.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.

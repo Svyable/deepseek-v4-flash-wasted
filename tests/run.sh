@@ -1070,7 +1070,7 @@ else
 fi
 
 # ------------------------------------------------- DeepSeek gate replays ----
-head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, partial H/V6)"
+head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, H/V6)"
 
 # These eleven replays did run before this section existed, but not under
 # their own names. test_inventory.py imported the Gate B/V1 driver, which

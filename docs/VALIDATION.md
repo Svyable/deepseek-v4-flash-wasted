@@ -329,7 +329,7 @@ Coherent main fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. The 
 
 See `ATTENTION.md` for detailed cast boundaries and fixture provenance.
 
-### V6 — complete transformer layer — **Gate H** — **PARTIAL**
+### V6 — complete transformer layer — **Gate H** — **PASSED scalar/model-semantic**
 
 The target: compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
 
@@ -396,14 +396,61 @@ The weights are non-monotonic in selection order by design: selection ranks on `
 
 **This bounds the remaining work rather than doing it.** No expert is executed. What it settles is *which* experts the real composition selects — and that turns out to matter: the stub composition routes to `[217, 0, 172, 9, 241, 74]`, sharing **no** expert with the real one, so a MoE fixture frozen against the stub state would exercise six experts the real layer never touches. `EXPERIMENTS.md` entry 9 records it. The test also refuses a top-k margin below 1e-4, so a selection decided by rounding noise cannot become an acquisition list.
 
-#### What Gate H still needs
+#### Real full-width MoE branch — **PASSED real-checkpoint sub-seam**
 
-- the real routed experts evaluated at the `ffn_pre` state. This is now a bounded fetch rather than a search: **layer-3 routed experts 30, 40, 44, 99, 238 and 255, plus the shared expert** — six records at 13.4 MB each. It needs checkpoint access;
-- both halves in one composition, giving a complete layer-3 state transition replayable offline, under the normal and ASan/UBSan suites.
+Frozen fixture: `tests/fixtures/deepseek_v4/v6_moe_branch_real/`. The input is not a synthetic router vector: `ffn-pre.bf16.bin` is the exact BF16 state produced by the real attention half plus the layer-3 FFN HyperConnection pre-transition, pinned by SHA-256 `30e27b02c8a662ad5d1966d02d62afff6c4ffb2b367fb817d846c449eb8e7a21`.
 
-When those six records are fetched, the fixture should declare `ffn-pre.bf16.bin` as its `input_dependency` with the digest pinned, exactly as `v6_attention_branch_real` declares `attn-pre.bf16.bin`. That declaration is what let the attention half be composed offline afterwards, and it would make the final Gate H composition an offline step rather than another acquisition round.
+The scalar router selects `[255,30,99,40,44,238]`. Those exact scalar-runtime F32 route weights are used as expert inputs:
 
-Gate H does not close, and no full-layer claim is made, until those hold together.
+```text
+0.260602713 0.258183122 0.248908937 0.252534091 0.242217511 0.237553567
+```
+
+An independent Python router selects the same six IDs. Its maximum route-weight delta versus the scalar runtime is `1.49662139e-07`; the fixture records both vectors rather than substituting one for the other. Reacquiring with the exact runtime weights changed the F32 weight file/provenance but did **not** change any routed BF16 output, the combined MoE branch, or the final layer state for this input.
+
+Exactly those six routed FP4 experts plus the resident shared FP8 expert are evaluated for all 4,096 model outputs. A 4,096-row specialization of the standalone Gate-F oracle (no `src/` linkage) and the WASTE scalar implementation must agree bit-for-bit before the compact fixture can freeze:
+
+```text
+routed expert values checked   6 x 4096 = 24,576 BF16
+shared expert values checked   1 x 4096 =  4,096 BF16
+total independent comparisons              28,672 BF16 exact
+MoE branch SHA-256             809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659
+```
+
+The ordinary offline replay recombines routed branches in official ascending-expert-ID order and then adds the shared expert. Dropping any one branch changes thousands of final BF16 values: experts 255/30/99/40/44/238 change 4,074/4,070/4,072/4,075/4,073/4,070 values respectively; dropping the shared expert changes 4,087. Raw expert checkpoint payloads are transient acquisition evidence and are deliberately not committed.
+
+A fixture-era assumption also died here: Gate F's shared-expert test only needed eight `w2` rows, so the scalar helper rejected `out_rows > 128` and only one E8M0 scale-grid row was ever supplied. `tests/test_v6_shared_expert_full_rows_scalar.py` now crosses row 128 explicitly and proves row 128 consumes the second scale-grid row before the full 4,096-row shared path is allowed.
+
+#### Complete real layer-3 state transition — **PASSED**
+
+`tests/test_v6_layer3_full_real.py` is the Gate-H endpoint. It composes the complete real checkpoint-backed layer-3 transition offline:
+
+```text
+real residual
+  -> HC-attn-pre
+  -> real 64-head attention branch
+  -> HC-attn-post
+  -> HC-FFN-pre
+  -> real learned router
+  -> six routed FP4 experts + shared FP8 expert
+  -> HC-FFN-post
+  -> BF16 [4,4096] layer state
+```
+
+The final 16,384 BF16 values are exact. The frozen final-state SHA-256 is `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`; representative first values are `3f93 3e9a 3ed7 bcba 3e11 3e57 bd52 bf2d`.
+
+One failed replay tightened the numerical contract rather than weakening it. The independent Python Sinkhorn initially carried `post`/`comb` in double precision into the final `hc_post`, while the model/runtime boundary is F32. That changed exactly one final BF16 value, index 13,648 (`378d` versus C `378e`). The fixture now explicitly rounds independent Sinkhorn `post`/`comb` to F32 before `hc_post`; no comparison tolerance was added. Provenance records that one boundary-sensitive value.
+
+The final replay also refuses replacing the FFN `hc_post` with an ordinary residual add and refuses substituting the old deterministic FFN stub for the real MoE branch.
+
+Permanent no-network validation after registration:
+
+```text
+make check   63 passed, 0 failed, 13 skipped
+make asan    62 passed, 0 failed, 14 skipped
+```
+
+**Evidence boundary:** Gate H is passed at the scalar/model-semantic level for one real layer-3 state transition. This is not yet a 43-layer forward, final-hidden/logit proof, greedy-generation proof, converted-container proof, cache/disk identity proof, or performance result. V7/I/K and Gate G remain separate gates.
 
 ### V7 — multi-layer localization
 
@@ -438,7 +485,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
-| **H** complete transformer block | **V6** | **PARTIAL** — wiring, real HC composition and real attention half done; MoE half stubbed |
+| **H** complete transformer block | **V6** | **PASSED scalar/model-semantic** — one real layer-3 attention + mHC + router + six-routed/shared-MoE transition exact at BF16 |
 | **I** 43-layer base forward/logits | **V8** | base-model bring-up |
 | **J** tokenizer/encoding | **V10** | encoding/API phase |
 | **K** generation | **V9** | after logits |
