@@ -32,7 +32,10 @@ int waste_ds_v4_routed_expert_ref(
 
 /* Execute the one shared expert. Shared weights are resident FP8 E4M3FN with
  * checkpoint-native E8M0 128x128 scale grids. No route weight is applied.
- * w2_scale_rows supplies the first scale-grid row when out_rows <= 128. */
+ * w2_scale_rows_e8m0 must contain every scale-grid row touched by out_rows:
+ * ceil(out_rows/128) * (intermediate_dim/128) bytes. Gate F's <=128-row
+ * fixture therefore needs one grid row; Gate H's full 4096-row replay needs
+ * all 32. */
 int waste_ds_v4_shared_expert_ref(
     const float *x,
     size_t input_dim,
