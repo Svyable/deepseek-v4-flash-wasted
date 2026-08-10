@@ -1,0 +1,80 @@
+name: Promote Gate H permanent replays
+
+on:
+  push:
+    branches: [agent/gate-h-layer3-full]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-h-promote-tests
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add the three completed Gate H seams to tests/run.sh
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/run.sh')
+          s = p.read_text()
+          anchor = '''deepseek_replay "Gate H/V6 — real FFN hc_pre and layer-3 routing decision" \\
+                          "test_v6_ffn_route_real.py"
+          '''
+          addition = anchor + '''# The full shared expert must cross E8M0 w2 scale-grid row boundaries; Gate F's
+          # first-eight-row fixture never exercised row 128 or beyond.
+          deepseek_replay "Gate H/V6 — shared FP8 full-output scale-grid boundary" \\
+                          "test_v6_shared_expert_full_rows_scalar.py"
+          # Frozen from the exact real FFN hc_pre state and exact scalar-router F32
+          # weights. Acquisition cross-checked six routed experts plus the shared
+          # expert against an independent oracle for all 28,672 BF16 outputs.
+          deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \\
+                          "test_v6_moe_branch_real.py"
+          # The complete layer transition composes the two real HC stages, frozen
+          # real 64-head attention branch, exact real router/MoE branch, and exact
+          # BF16 [4,4096] final state. This is the Gate H endpoint.
+          deepseek_replay "Gate H/V6 — complete real layer-3 composition" \\
+                          "test_v6_layer3_full_real.py"
+          '''
+          if addition in s:
+              print('Gate H replays already present')
+          else:
+              if s.count(anchor) != 1:
+                  raise SystemExit(f'expected one Gate H route anchor, found {s.count(anchor)}')
+              p.write_text(s.replace(anchor, addition, 1))
+          PY
+          git diff --check
+
+      - name: Frozen normal suite
+        run: |
+          set -euo pipefail
+          make -j4
+          make check
+
+      - name: Frozen ASan and UBSan suite
+        run: |
+          set -euo pipefail
+          make asan
+
+      - name: Freeze permanent test registration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh
+          if git diff --cached --quiet; then
+            echo "Gate H permanent test registration already frozen"
+            exit 0
+          fi
+          git commit -m "test: promote complete Gate H layer replay [skip ci]"
+          git push origin HEAD:agent/gate-h-layer3-full
