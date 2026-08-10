@@ -1,0 +1,68 @@
+name: Preflight full V7 layer-4 replay
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-layer4-full-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Register full layer-4 replay
+        run: |
+          set -euo pipefail
+          python3 tools/register_v7_layer4_full_test.py
+          git diff --check
+
+      - name: Validate no-network fixture contracts
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v7_layer4_moe_fixture.py \
+            tests/test_v7_layer4_full_real.py
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          import make_v7_layer4_moe_fixture as full
+          s=full.checked_route_state()
+          print('PASS frozen route dependency for full layer4:', s['ids'])
+          print('ffn-pre:', full.sha256_file(s['ffn_path']))
+          print('after-attn:', full.sha256_file(s['after_path']))
+          PY
+          set +e
+          python3 tests/test_v7_layer4_full_real.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 77 ]; then
+            echo "expected unfrozen full-layer replay to skip with 77, got $rc" >&2
+            exit 1
+          fi
+          python3 tests/test_v7_layer4_route_real.py
+
+      - name: Run permanent suite with full layer as explicit skip
+        run: |
+          set -euo pipefail
+          make check
+
+      - name: Freeze registration only
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh
+          git rm tools/register_v7_layer4_full_test.py
+          git diff --cached --check
+          git commit -m "test: register complete V7 layer-4 replay [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
