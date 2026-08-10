@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The deepseek-v4-flash-wasted authors.
-"""Build the first real DeepSeek-V4 quantized-linear checkpoint fixture.
+"""Build the first real-checkpoint Gate C/V2 projection fixture.
 
-The fixture is intentionally bounded: one full 4096-wide input vector, eight
-rows of the real layer-0 wq_a FP8 weight, and the matching first E8M0 scale-grid
-row. Expected BF16 output is produced independently in Python from release-format
-E4M3/E8M0 equations; WASTE runtime code is not imported or executed here.
+The fixture uses eight real rows from the pinned resident projection
+``layers.0.attn.wq_a`` and its first real E8M0 scale row. Expected values are
+computed by an independent Python implementation of the pinned official 0731
+kernel equations -- it does not import or execute WASTE quantization code.
+
+This is intentionally a tiny payload exercise (~41 KiB including input), not a
+full-shard or full-checkpoint download.
 """
 
 import argparse
+from fractions import Fraction
 import hashlib
 import json
 import math
@@ -17,14 +21,14 @@ import os
 import shutil
 import struct
 import sys
-import tempfile
-from fractions import Fraction
 
 import fetch_hf_tensor_slice as slice_fetch
 
-REV = "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
-K = 4096
+
+WEIGHT = "layers.0.attn.wq_a.weight"
+SCALE = "layers.0.attn.wq_a.scale"
 ROWS = 8
+K = 4096
 BLOCK = 128
 K_BLOCKS = K // BLOCK
 
@@ -77,13 +81,8 @@ def e4m3_fraction(code):
 
 
 def e4m3_float(code):
-    """Decode finite E4M3 to Python float, preserving IEEE signed zero.
-
-    `Fraction` is useful for exact nonzero release-format arithmetic but has no
-    signed-zero representation. The E4M3 finite format does: 0x00 is +0 and
-    0x80 is -0. Preserve that bit here so QAT/oracle paths match the scalar C
-    decoder and the checkpoint runtime at exact-zero boundaries.
-    """
+    """Decode finite E4M3 while preserving the format's signed zero."""
+    # Fraction is exact for nonzero values but has no signed-zero state.
     if (code & 0x7F) == 0:
         return -0.0 if (code & 0x80) else 0.0
     return float(e4m3_fraction(code))
@@ -194,33 +193,61 @@ def source_projection(weight, weight_scales, qx, act_scales):
         seq_acc = f32(0.0)
         rev_acc = f32(0.0)
         exact_acc = Fraction(0, 1)
+        row_base = row * K
+
+        # Normal order, matching the scalar C reference's block walk.
         for block in range(K_BLOCKS):
             start = block * BLOCK
             part = f32(0.0)
-            rpart = f32(0.0)
             exact_part = Fraction(0, 1)
-            for j in range(BLOCK):
-                a = e4m3_float(qx[start + j])
-                w = e4m3_float(weight[row*K + start + j])
-                part = f32(part + f32(a*w))
-                exact_part += e4m3_fraction(qx[start + j]) * e4m3_fraction(weight[row*K + start + j])
-            for j in reversed(range(BLOCK)):
-                a = e4m3_float(qx[start + j])
-                w = e4m3_float(weight[row*K + start + j])
-                rpart = f32(rpart + f32(a*w))
-            ws = e8m0_float(weight_scales[block])
-            seq_acc = f32(seq_acc + f32(part * f32(act_scales[block] * ws)))
-            rev_acc = f32(rev_acc + f32(rpart * f32(act_scales[block] * ws)))
-            exact_acc += exact_part * Fraction.from_float(act_scales[block]) * e8m0_fraction(weight_scales[block])
-        sequential.append(bf16_bits(seq_acc))
-        reverse.append(bf16_bits(rev_acc))
-        exact.append(bf16_bits(float(exact_acc)))
+            for lane in range(BLOCK):
+                a_code = qx[start + lane]
+                w_code = weight[row_base + start + lane]
+                product = e4m3_fraction(a_code) * e4m3_fraction(w_code)
+                part = f32(part + f32(float(product)))
+                exact_part += product
+            scale = e8m0_fraction(weight_scales[block]) * Fraction(act_scales[block])
+            seq_acc = f32(seq_acc + f32(part * float(scale)))
+            exact_acc += exact_part * scale
 
-    if sequential != reverse or sequential != exact:
+        # Reverse block/lane order as a cheap reduction-order perturbation.
+        for block in reversed(range(K_BLOCKS)):
+            start = block * BLOCK
+            part = f32(0.0)
+            for lane in reversed(range(BLOCK)):
+                a = e4m3_float(qx[start + lane])
+                w = e4m3_float(weight[row_base + start + lane])
+                part = f32(part + f32(a * w))
+            scale = f32(act_scales[block] * e8m0_float(weight_scales[block]))
+            rev_acc = f32(rev_acc + f32(part * scale))
+
+        sequential.append(seq_acc)
+        reverse.append(rev_acc)
+        exact.append(float(exact_acc))
+
+    seq_bf16 = [bf16_bits(x) for x in sequential]
+    rev_bf16 = [bf16_bits(x) for x in reverse]
+    exact_bf16 = [bf16_bits(x) for x in exact]
+    if not (seq_bf16 == rev_bf16 == exact_bf16):
+        detail = [
+            {
+                "row": i,
+                "sequential": f"0x{seq_bf16[i]:04x}",
+                "reverse": f"0x{rev_bf16[i]:04x}",
+                "exact": f"0x{exact_bf16[i]:04x}",
+            }
+            for i in range(ROWS)
+            if not (seq_bf16[i] == rev_bf16[i] == exact_bf16[i])
+        ]
         raise ValueError(
-            "bounded projection is reduction-order-sensitive at BF16; "
-            f"sequential={sequential}, reverse={reverse}, exact={exact}")
-    return sequential
+            "chosen fixture is not BF16-stable across reduction views: " + json.dumps(detail))
+    return sequential, seq_bf16
+
+
+def write_u16(path, values):
+    with open(path, "wb") as f:
+        for value in values:
+            f.write(struct.pack("<H", value))
 
 
 def sha256_file(path):
@@ -231,107 +258,89 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def write_u16(path, values):
-    with open(path, "wb") as f:
-        f.write(struct.pack(f"<{len(values)}H", *values))
-
-
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("snapshot")
-    ap.add_argument("out_dir")
+    ap.add_argument("snapshot", help="header-only pinned 0731 snapshot")
+    ap.add_argument("out_dir", help="fixture output directory")
     ap.add_argument("--token", default=os.environ.get("HF_TOKEN"))
     args = ap.parse_args(argv)
 
-    shutil.rmtree(args.out_dir, ignore_errors=True)
     os.makedirs(args.out_dir, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="v2-real-") as td:
-        w_path = os.path.join(td, "weight.bin")
-        s_path = os.path.join(td, "scale.bin")
-        w_info = slice_fetch.fetch_slice(
-            args.snapshot, "layers.0.attn.wq_a.weight", f"0:{ROWS}", w_path,
-            token=args.token)
-        s_info = slice_fetch.fetch_slice(
-            args.snapshot, "layers.0.attn.wq_a.scale", "0:1", s_path,
-            token=args.token)
-        if w_info["revision"] != REV or s_info["revision"] != REV:
-            raise ValueError("checkpoint revision drifted")
-        if w_info["dtype"] != "F8_E4M3" or w_info["shape"] != [1024,4096]:
-            raise ValueError(f"wq_a contract drifted: {w_info['dtype']} {w_info['shape']}")
-        if s_info["dtype"] != "F8_E8M0" or s_info["shape"] != [8,32]:
-            raise ValueError(f"wq_a.scale contract drifted: {s_info['dtype']} {s_info['shape']}")
-        weight = open(w_path, "rb").read()
-        scales = open(s_path, "rb").read()
+    weight_path = os.path.join(args.out_dir, "weight-rows0-8.e4m3.bin")
+    scale_path = os.path.join(args.out_dir, "weight-scale-row0.e8m0.bin")
+    input_path = os.path.join(args.out_dir, "input.bf16.bin")
+    expected_path = os.path.join(args.out_dir, "expected.bf16.bin")
+
+    weight_info = slice_fetch.fetch_slice(
+        args.snapshot, WEIGHT, f"0:{ROWS}", weight_path, token=args.token)
+    scale_info = slice_fetch.fetch_slice(
+        args.snapshot, SCALE, "0:1", scale_path, token=args.token)
+
+    with open(weight_path, "rb") as f:
+        weight = f.read()
+    with open(scale_path, "rb") as f:
+        weight_scales = f.read()
 
     input_bits, input_values = build_input()
     qx, act_scales = quantize_input(input_values)
-    expected = source_projection(weight, scales, qx, act_scales)
+    output_f32, output_bf16 = source_projection(
+        weight, weight_scales, qx, act_scales)
 
-    input_path = os.path.join(args.out_dir, "input.bf16.bin")
-    weight_path = os.path.join(args.out_dir, "weight-rows0-8.e4m3.bin")
-    scale_path = os.path.join(args.out_dir, "weight-scale-row0.e8m0.bin")
-    expected_path = os.path.join(args.out_dir, "expected.bf16.bin")
     write_u16(input_path, input_bits)
-    shutil.copyfile(w_path, weight_path) if os.path.exists(w_path) else None
-    # weight/scales were in a TemporaryDirectory, so persist from bytes instead.
-    with open(weight_path, "wb") as f:
-        f.write(weight)
-    with open(scale_path, "wb") as f:
-        f.write(scales)
-    write_u16(expected_path, expected)
+    write_u16(expected_path, output_bf16)
 
-    prov = {
+    provenance = {
         "schema_version": 1,
-        "gate": "Gate C / V2 real quantized projection",
-        "evidence_state": "CHECKPOINT-WEIGHTS + INDEPENDENT-SOURCE-ORACLE",
-        "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
-        "revision": REV,
-        "tensor": w_info["tensor"],
-        "weight": {
-            "file": os.path.basename(weight_path),
-            "dtype": w_info["dtype"], "shape": w_info["shape"],
-            "rows": [w_info["row_start"], w_info["row_end"]],
-            "absolute_range": [w_info["absolute_start"], w_info["absolute_end"]],
-            "payload_sha256": w_info["payload_sha256"],
+        "fixture_class": "F3 official-source + real-checkpoint projection",
+        "gate": "Gate C / V2",
+        "evidence_state": "CHECKPOINT-VERIFIED_SOURCE-ORACLE",
+        "model": weight_info["model"],
+        "revision": weight_info["revision"],
+        "operation": "layers.0.attn.wq_a quantized linear, first 8 output rows",
+        "official_source_contract": {
+            "kernel_path": "inference/kernel.py",
+            "activation": "act_quant: K128 E4M3FN, max(amax,1e-4), power-of-two scale",
+            "gemm": "fp8_gemm: K128 FP8 dot, activation_scale * weight_scale, FP32 accumulation, BF16 output"
         },
-        "scale": {
-            "file": os.path.basename(scale_path),
-            "dtype": s_info["dtype"], "shape": s_info["shape"],
-            "rows": [s_info["row_start"], s_info["row_end"]],
-            "absolute_range": [s_info["absolute_start"], s_info["absolute_end"]],
-            "payload_sha256": s_info["payload_sha256"],
-        },
+        "weight": weight_info,
+        "weight_scale": scale_info,
         "input": {
-            "file": os.path.basename(input_path), "dtype": "BF16", "shape": [K],
+            "dtype": "BF16",
+            "shape": [1, K],
+            "file": os.path.basename(input_path),
             "sha256": sha256_file(input_path),
+            "formula": "(((lane*37+11)%31)-15)/16 * 2**((block%5)-2), then BF16 RN-even"
+        },
+        "activation_quantization": {
+            "dtype": "E4M3FN",
+            "block_k": BLOCK,
+            "scale": "next_power_of_two(max(max(abs(x)),1e-4)/448)",
+            "distinct_scale_values": sorted(set(act_scales)),
+            "quantized_input_sha256": hashlib.sha256(bytes(qx)).hexdigest()
         },
         "expected": {
-            "file": os.path.basename(expected_path), "dtype": "BF16", "shape": [ROWS],
+            "dtype": "BF16",
+            "shape": [1, ROWS],
+            "file": os.path.basename(expected_path),
             "sha256": sha256_file(expected_path),
-            "bf16_hex": [f"0x{x:04x}" for x in expected],
+            "bf16_hex": [f"0x{x:04x}" for x in output_bf16],
+            "source_oracle_f32_before_bf16": output_f32,
+            "reduction_stability": "same BF16 under sequential-f32, reverse-f32, and exact dyadic accumulation"
         },
-        "source_contract": {
-            "activation_quant": "K128 dynamic E4M3 with fast-round power-of-two scale",
-            "weight": "checkpoint-native E4M3 + E8M0 128x128 blocks",
-            "output": "f32 block accumulation -> BF16",
-            "reduction_guard": "sequential, reversed and exact rational views must agree at BF16",
-        },
-        "oracle_independence": {
-            "producer": "tools/make_v2_real_fixture.py using Fraction/int/struct equations",
-            "shares_waste_runtime_helpers": False,
-        },
-        "non_claims": [
-            "eight output rows only",
-            "does not prove attention composition",
-            "does not complete Gate C/V2 alone",
-        ],
+        "non_claim": "Fixture executes pinned official algebra independently on CPU; it does not execute the official TileLang GPU kernel. GPU/backend parity remains a later backend validation concern."
     }
     with open(os.path.join(args.out_dir, "provenance.json"), "w", encoding="utf-8") as f:
-        json.dump(prov, f, indent=2, sort_keys=True)
+        json.dump(provenance, f, indent=2, sort_keys=True)
         f.write("\n")
 
-    print("Gate C real projection fixture built")
-    print("expected:", " ".join(prov["expected"]["bf16_hex"]))
+    # Slice sidecars are useful during generation, but provenance.json embeds
+    # all required fields; remove duplicates from the final frozen fixture.
+    for path in (weight_path + ".json", scale_path + ".json"):
+        if os.path.exists(path):
+            os.remove(path)
+
+    print("Gate C real fixture built")
+    print("expected BF16:", " ".join(provenance["expected"]["bf16_hex"]))
     return 0
 
 
