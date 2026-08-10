@@ -17,6 +17,28 @@
     "values_changed_vs_unrounded_python_oracle": 1
   },
   "gate": "Gate H/V6 full real layer-3 MoE branch and final composition fixture",
+  "hc_precision_correction": {
+    "attn_pre_bf16_unchanged": true,
+    "bf16_diff_count": 9,
+    "bf16_diff_indices": [
+      1186,
+      10135,
+      10503,
+      10877,
+      11565,
+      11672,
+      11675,
+      13648,
+      13717
+    ],
+    "corrected_layer3_final_sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+    "exact_c_differential_test": "tests/test_v6_hc_oracle_f32.py",
+    "ffn_pre_bf16_unchanged": true,
+    "independent_f32_oracle": "tools/deepseek_v4_hc_oracle.py",
+    "old_layer3_final_sha256": "0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761",
+    "reason": "Gate-H Python Sinkhorn retained double precision before the model's F32 HC coefficient boundary; corrected oracle performs every HC operation in F32 and is bit-exact with src/deepseek_v4_mhc_ref.c",
+    "router_and_expert_acquisition_unchanged": true
+  },
   "input_dependency": {
     "derived_from": {
       "attention_branch_sha256": "e8d105fa930958028636a74c63e62577d0d670b5609f671a3d0b7075f8254068",
@@ -81,7 +103,7 @@
         "0xbd52",
         "0xbf2d"
       ],
-      "sha256": "0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761",
+      "sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
       "shape": [
         4,
         4096
