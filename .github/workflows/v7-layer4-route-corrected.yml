@@ -1,0 +1,87 @@
+name: Reacquire layer-4 route from corrected Gate-H state
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-layer4-route-corrected
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v7_layer4_route_real
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cheap corrected-state preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/make_v7_layer4_route_fixture.py tests/test_v7_layer4_route_real.py
+          python3 tests/test_v6_hc_oracle_f32.py
+          python3 tests/test_v6_layer3_hc_precision.py
+          python3 tests/test_v6_layer3_full_real.py
+          python3 tests/test_v7_hc_pre_f32_scalar.py
+          python3 tests/test_v7_sparse_fp8_oracle.py
+          python3 tests/test_v7_one_row_attention_signed_zero.py
+          python3 tests/test_v7_router_bias_observation.py
+          python3 tests/test_v7_localize.py
+          set +e
+          python3 tests/test_v7_layer4_route_real.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 77 ]; then
+            echo "expected corrected route fixture to be absent before reacquisition, got $rc" >&2
+            exit 1
+          fi
+
+      - name: Fetch immutable 0731 headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Build corrected layer-3 output to layer-4 router fixture
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v7_layer4_route_fixture.py "$SNAPSHOT" "$FIXTURE"
+
+      - name: Upload arithmetic-green corrected route fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-layer4-route-corrected
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v7_layer4_route_real/
+
+      - name: Replay corrected route offline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_layer4_route_real.py
+
+      - name: Run permanent suite with corrected route promoted to PASS
+        run: |
+          set -euo pipefail
+          make check
+
+      - name: Freeze corrected route fixture only
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE"
+          git commit -m "reference: freeze corrected chained layer-4 route [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
