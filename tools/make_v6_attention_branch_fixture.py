@@ -132,6 +132,39 @@ def sparse_quantized_linear(weight, scales, out_rows, k, input_bits):
     return out
 
 
+
+def one_row_online_attention(q_bits, kv_bits, sink):
+    """One valid KV row through the real online-softmax operation order.
+
+    Algebraically this looks like ``kv / (1 + exp(sink-score))``, but the
+    source kernel first accumulates ``BF16(exp(0)) * kv`` into a +0 F32
+    accumulator. That operation is observably different for a -0 KV lane:
+    +0 + -0 becomes +0 under round-to-nearest. Keep the operational order;
+    do not replace this with direct division.
+    """
+    if len(q_bits) != HEAD or len(kv_bits) != HEAD:
+        raise ValueError("one-row attention requires one full 512-value head")
+    qf = [qref.bf16_to_f32(b) for b in q_bits]
+    kvf = [qref.bf16_to_f32(b) for b in kv_bits]
+    scale = hist.f32(HEAD ** -0.5)
+    dot = hist.f32(0.0)
+    for a, b in zip(qf, kvf):
+        dot = hist.f32(dot + hist.f32(a * b))
+    score = hist.f32(dot * scale)
+
+    best = score
+    denom = hist.f32(0.0)
+    acc = [hist.f32(0.0)] * HEAD
+    e = hist.f32(math.exp(hist.f32(score - best)))
+    denom = hist.f32(denom + e)
+    e_bf16 = qref.bf16_to_f32(qref.bf16_bits(e))
+    for k, v in enumerate(kvf):
+        acc[k] = hist.f32(acc[k] + hist.f32(e_bf16 * v))
+
+    denom = hist.f32(denom + hist.f32(math.exp(hist.f32(sink - best))))
+    return [qref.bf16_bits(hist.f32(v / denom)) for v in acc]
+
+
 def one_token_heads(x_bits, paths):
     wq_a = open(paths["wq_a"], "rb").read()
     wq_as = open(paths["wq_a_scale"], "rb").read()
@@ -151,22 +184,13 @@ def one_token_heads(x_bits, paths):
     kv1 = hist.learned_rms(kv0, kv_norm)
     # position 0 => compressed YaRN angle exactly zero. QAT still applies to KV.
     kv = hist.qat_nope(kv1)
-    kvf = [qref.bf16_to_f32(b) for b in kv]
-    scale = hist.f32(HEAD ** -0.5)
 
     heads = []
     q_all = []
     for h in range(N_HEADS):
         qn = hist.head_norm(qb[h*HEAD:(h+1)*HEAD])
         q_all.extend(qn)
-        qf = [qref.bf16_to_f32(b) for b in qn]
-        dot = hist.f32(0.0)
-        for a, b in zip(qf, kvf):
-            dot = hist.f32(dot + hist.f32(a * b))
-        score = hist.f32(dot * scale)
-        # One valid KV row. Online softmax best=score, value weight BF16(exp(0))=1.
-        denom = hist.f32(1.0 + hist.f32(math.exp(hist.f32(sinks[h] - score))))
-        heads.extend(qref.bf16_bits(hist.f32(v / denom)) for v in kvf)
+        heads.extend(one_row_online_attention(qn, kv, sinks[h]))
     return q_all, kv, heads, sinks
 
 

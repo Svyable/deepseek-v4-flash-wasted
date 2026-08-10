@@ -1235,6 +1235,17 @@ deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \
 # BF16 [4,4096] final state. This is the Gate H endpoint.
 deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
                 "test_v6_layer3_full_real.py"
+# V7 precision boundaries found by real chained-layer acquisition. These are
+# permanent because each caught an otherwise plausible, near-bit-exact oracle.
+deepseek_replay "V7 — bit-exact independent F32 HyperConnection oracle" \
+                "test_v7_hc_oracle_f32.py"
+deepseek_replay "V7 — hc_pre sequential F32 reduction boundary" \
+                "test_v7_hc_pre_f32_scalar.py"
+deepseek_replay "V7 — sparse FP8 scalar differential and signed-zero cases" \
+                "test_v7_sparse_fp8_oracle.py"
+deepseek_replay "V7 — one-row online-softmax signed-zero operation order" \
+                "test_v7_one_row_attention_signed_zero.py"
+
 # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
 # reject stale manifests/broken output->input chains, and stop at the first
 # differing layer/boundary rather than reporting a downstream symptom.
