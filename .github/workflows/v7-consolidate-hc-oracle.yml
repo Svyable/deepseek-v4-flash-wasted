@@ -1,0 +1,62 @@
+name: Consolidate V7 onto canonical HC oracle
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-consolidate-hc-oracle
+  cancel-in-progress: true
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace duplicate V7 HC oracle consumers
+        run: |
+          set -euo pipefail
+          python3 tools/consolidate_v7_hc_oracle.py
+          if grep -R --line-number --exclude=v7_hc_oracle.py --exclude=test_v7_hc_oracle_f32.py \
+              'import v7_hc_oracle' tools tests; then
+            echo 'stale duplicate HC import remains' >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Verify corrected Gate-H and V7 precision baseline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v6_hc_oracle_f32.py
+          python3 tests/test_v6_layer3_hc_precision.py
+          python3 tests/test_v7_hc_pre_f32_scalar.py
+          python3 tests/test_v7_sparse_fp8_oracle.py
+          python3 tests/test_v7_one_row_attention_signed_zero.py
+          python3 tests/test_v7_router_bias_observation.py
+          set +e
+          python3 tests/test_v7_layer4_route_real.py; route_rc=$?
+          python3 tests/test_v7_layer4_full_real.py; full_rc=$?
+          set -e
+          if [ "$route_rc" -ne 77 ] || [ "$full_rc" -ne 77 ]; then
+            echo "stale V7 fixture unexpectedly active: route=$route_rc full=$full_rc" >&2
+            exit 1
+          fi
+          make check
+
+      - name: Freeze consolidation and remove duplicates
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools tests
+          git rm tools/v7_hc_oracle.py tests/test_v7_hc_oracle_f32.py tools/consolidate_v7_hc_oracle.py
+          git diff --cached --check
+          git commit -m "refactor: consolidate V7 onto canonical F32 HC oracle [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
