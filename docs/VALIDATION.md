@@ -375,10 +375,33 @@ composed after-attn state                        exact at BF16, 16,384 values
 
 Refused: the stub branch in place of the real one, the FFN HC `post`/`comb` on the attention transition, a plain residual add instead of `hc_post`, and a composed state equal to the frozen stub composition. Four `src/deepseek_v4_mhc_ref.c` mutations die against it — `comb` transposed inside `hc_post`, `comb` transposed inside the Sinkhorn normalization, the `post[]` branch scaling dropped, and the residual indexed by `k` instead of `j`.
 
+#### Real FFN hc_pre and the routing decision — **PASSED sub-seam**
+
+`tests/test_v6_ffn_route_real.py` carries the composition one stage further and runs the real layer-3 learned router on the result:
+
+```text
+residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post
+         -> hc_pre(hc_ffn_*)  -> real layer-3 router
+```
+
+This needed no new acquisition: the complete `[256,4096]` layer-3 gate and its 256 correction biases are already frozen in `v3_router_real/`. C is checked against an independent Python router built from the pinned source contract, and three mutations die against it — `sqrt` dropped from `sqrt(softplus)`, the correction bias ignored for selection, and the routed scaling factor dropped.
+
+```text
+selected experts   [255, 30, 99, 40, 44, 238]
+route weights      0.2606 0.2582 0.2489 0.2525 0.2422 0.2376
+top-k margin       0.011921765
+```
+
+The weights are non-monotonic in selection order by design: selection ranks on `score + bias`, the weights are gathered from the unbiased `score`. That is Gate F's contract holding at a new input.
+
+**This bounds the remaining work rather than doing it.** No expert is executed. What it settles is *which* experts the real composition selects — and that turns out to matter: the stub composition routes to `[217, 0, 172, 9, 241, 74]`, sharing **no** expert with the real one, so a MoE fixture frozen against the stub state would exercise six experts the real layer never touches. `EXPERIMENTS.md` entry 9 records it. The test also refuses a top-k margin below 1e-4, so a selection decided by rounding noise cannot become an acquisition list.
+
 #### What Gate H still needs
 
-- the real router + routed/shared MoE composed in place of the FFN stub, at the `ffn_pre` state — this needs expert weights selected by the router at that state, so it needs checkpoint access;
+- the real routed experts evaluated at the `ffn_pre` state. This is now a bounded fetch rather than a search: **layer-3 routed experts 30, 40, 44, 99, 238 and 255, plus the shared expert** — six records at 13.4 MB each. It needs checkpoint access;
 - both halves in one composition, giving a complete layer-3 state transition replayable offline, under the normal and ASan/UBSan suites.
+
+When those six records are fetched, the fixture should declare `ffn-pre.bf16.bin` as its `input_dependency` with the digest pinned, exactly as `v6_attention_branch_real` declares `attn-pre.bf16.bin`. That declaration is what let the attention half be composed offline afterwards, and it would make the final Gate H composition an offline step rather than another acquisition round.
 
 Gate H does not close, and no full-layer claim is made, until those hold together.
 

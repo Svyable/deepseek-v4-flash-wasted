@@ -269,6 +269,48 @@ All are three orders of magnitude above the 1e-3 visibility threshold, so none i
 
 ---
 
+## 9 — 2026-08-10 — A stub branch routes to six entirely different experts
+
+**Question:** Gate H's remaining step needs the real routed experts evaluated at the layer-3 `ffn_pre` state. Which six experts are those, and could the existing stub-branch composition stand in while checkpoint access is unavailable?
+
+**Protects:** a routed expert record is 13.4 MB, and fetching the wrong six produces a fixture that looks authoritative and tests the wrong thing. This is the working rule applied literally — run the cheap real test that could kill the expensive step before running the expensive step.
+
+**README gate letter(s):** H, with F/V4's router. **Operational V-level:** V6 step 4 and the selection half of step 5.
+
+**Evidence state:** CHECKPOINT-VERIFIED for the routing decision — the complete layer-3 gate `[256,4096]` and its 256 correction biases are already frozen in `v3_router_real/`, so no new acquisition was needed. No expert is executed.
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64, 2 s wall.
+
+**Method:** compose forward to the real FFN branch input — `residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post -> hc_pre(hc_ffn_*)` — then run the real layer-3 learned router on it. C against an independent Python router built from the pinned source contract. Repeat with the stub attention branch in place of the real one.
+
+**Result:**
+
+```text
+real attention branch  -> experts [255, 30, 99, 40, 44, 238]
+stub attention branch  -> experts [217,  0, 172,  9, 241,  74]
+Gate F's earlier input -> experts [  2, 29, 225, 220, 108,  69]
+```
+
+**Zero overlap between the real and stub selections.** All six differ. The stub composition is not a weaker version of the real one for routing purposes — it is a different question with a different answer, and a MoE fixture frozen against it would have exercised six experts the real layer never touches.
+
+Supporting numbers:
+
+```text
+top-k boundary margin              0.011921765   (Gate F's was 0.000405312)
+selection ignoring correction bias [255,30,40,99,44,238]  — same set, 99/40 reordered
+route weights                      0.2606 0.2582 0.2489 0.2525 0.2422 0.2376
+```
+
+The weights are deliberately non-monotonic in selection order: selection ranks by `score + bias` while the weights are gathered from the unbiased `score`, which is the Gate F contract holding at a new input. The margin is 29x wider than Gate F's, comfortably outside BF16 resolution, so this selection is a stable acquisition list rather than a coin flip at the boundary.
+
+**Verdict:** the stub cannot stand in, and the acquisition is now bounded. Gate H step 5 needs exactly layer-3 routed experts **30, 40, 44, 99, 238, 255** plus the shared expert — six records, not a search.
+
+**Consequence:** `tests/test_v6_ffn_route_real.py` replays this in the ordinary suite and refuses a top-k margin below 1e-4, so a future state whose sixth expert is decided by rounding noise cannot silently become an acquisition list. Three router mutations die against it: `sqrt` dropped from `sqrt(softplus)`, the correction bias ignored for selection, and the routed scaling factor dropped.
+
+**Follow-up:** when those six records are fetched, the resulting fixture should declare `ffn-pre.bf16.bin` as its `input_dependency` with the digest pinned, exactly as `v6_attention_branch_real` declares `attn-pre.bf16.bin`. That is what made the attention half composable offline afterwards, and it would make the final Gate H composition an offline step rather than a third acquisition round.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.

@@ -1214,6 +1214,13 @@ deepseek_replay "Gate H/V6 — real layer-3 HC composition, exact BF16 final" \
 # in the normalization show up instead of cancelling on both sides.
 deepseek_replay "Gate H/V6 — real attention branch composed through hc_post" \
                 "test_v6_attention_composition_real.py"
+# One stage further: the real FFN hc_pre and the real layer-3 router on it.
+# This is the cheap test that bounds the expensive one — it decides which six
+# routed expert records Gate H's remaining step has to fetch, from checkpoint
+# bytes rather than from assumption, and refuses a selection whose top-k
+# boundary is too narrow to be a stable acquisition list.
+deepseek_replay "Gate H/V6 — real FFN hc_pre and layer-3 routing decision" \
+                "test_v6_ffn_route_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
