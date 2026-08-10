@@ -1,0 +1,62 @@
+name: Sync corrected Gate-H base into V7
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-sync-corrected-gate-h
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge corrected Gate-H branch fail-closed
+        run: |
+          set -euo pipefail
+          git fetch origin agent/gate-h-layer3-full
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set +e
+          git merge --no-edit origin/agent/gate-h-layer3-full
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo 'MERGE_CONFLICTS_BEGIN'
+            git diff --name-only --diff-filter=U
+            echo 'MERGE_CONFLICTS_END'
+            git status --short
+            exit "$rc"
+          fi
+
+      - name: Invalidate all downstream fixtures chained from superseded Gate-H endpoint
+        run: |
+          set -euo pipefail
+          test -d tests/fixtures/deepseek_v4/v7_layer4_route_real
+          test -d tests/fixtures/deepseek_v4/v7_layer4_full_real
+          git rm -r \
+            tests/fixtures/deepseek_v4/v7_layer4_route_real \
+            tests/fixtures/deepseek_v4/v7_layer4_full_real
+          git commit -m "reference: invalidate V7 fixtures chained from superseded Gate-H state"
+
+      - name: Verify corrected Gate-H baseline before push
+        run: |
+          set -euo pipefail
+          python3 tests/test_v6_hc_oracle_f32.py
+          python3 tests/test_v6_layer3_hc_precision.py
+          python3 tests/test_v6_layer3_full_real.py
+          git diff --check HEAD~2..HEAD
+
+      - name: Push synchronized V7 branch
+        run: |
+          set -euo pipefail
+          git push origin HEAD:agent/v7-multilayer-localization
