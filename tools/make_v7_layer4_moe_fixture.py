@@ -142,7 +142,7 @@ def checked_route_state():
     if after_meta.get("dtype") != "BF16" or after_meta.get("shape") != [HC, INPUT]:
         raise ValueError("frozen layer-4 after-attention geometry drifted")
 
-    trunk = (prov.get("checkpoint_tensors") or {}).get("trunk") or {}
+    trunk = (prov.get("checkpoint_tensors") or {}).get("hyperconnection_and_router") or {}
     params = {}
     for key, count in (("ffn_fn", route.MIX * route.FLAT),
                        ("ffn_scale", 3), ("ffn_base", route.MIX)):

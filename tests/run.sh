@@ -1255,6 +1255,8 @@ deepseek_replay "V7 — fail-closed first-divergence layer trace localizer" \
                 "test_v7_localize.py"
 deepseek_replay "V7 — real chained layer-3 output through layer-4 router" \
                 "test_v7_layer4_route_real.py"
+deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \
+                "test_v7_layer4_full_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
