@@ -1,0 +1,248 @@
+name: Freeze layer-4 V7 checkpoint surface
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-layer4-inventory
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      OUTPUT: reference/deepseek-v4-flash-0731.layer4-v7.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cheap V7 and Gate-H dependency preflight
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_localize.py
+          python3 tests/test_v6_layer3_full_real.py
+
+      - name: Fetch immutable 0731 headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Run strict full-checkpoint header inventory
+        run: |
+          set -euo pipefail
+          python3 tools/inventory.py "$SNAPSHOT" --strict --json /tmp/inventory.json
+
+      - name: Freeze exact layer-4 surface and structural class
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from collections import Counter, defaultdict
+
+          sys.path.insert(0, 'tools')
+          import inventory as inv
+
+          snapshot = os.environ['SNAPSHOT']
+          output = os.environ['OUTPUT']
+          model = os.environ['MODEL']
+          revision = os.environ['REVISION']
+          layer = 4
+
+          with open('/tmp/inventory.json', encoding='utf-8') as f:
+              full = json.load(f)
+          cfg = inv.load_config(snapshot)
+          if cfg is None:
+              raise SystemExit('pinned snapshot has no config.json')
+          raw = cfg['_raw']
+          ratios = raw.get('compress_ratios')
+          if not isinstance(ratios, list) or len(ratios) <= layer:
+              raise SystemExit('config.json has no usable compress_ratios[4]')
+          ratio = ratios[layer]
+          if ratio != 4:
+              raise SystemExit(f'layer 4 compress ratio drifted: {ratio!r} != 4')
+
+          rows = [r for r in full['tensors']
+                  if r.get('module') == 'main' and r.get('layer') == layer]
+          if not rows:
+              raise SystemExit('strict inventory returned no main layer-4 tensors')
+          if any(not r.get('resolved') for r in rows):
+              raise SystemExit('layer 4 contains unresolved header rows')
+          if any(r.get('subsystem') == 'unclassified' for r in rows):
+              raise SystemExit('layer 4 contains unclassified tensor names')
+
+          by_sub = defaultdict(list)
+          for row in rows:
+              by_sub[row['subsystem']].append(row)
+
+          routed = by_sub['routed_expert']
+          if len(routed) != 256 * 6:
+              raise SystemExit(f'layer 4 routed tensor count {len(routed)} != 1536')
+          by_expert = defaultdict(list)
+          for row in routed:
+              by_expert[row['expert']].append(row)
+          if sorted(by_expert) != list(range(256)):
+              raise SystemExit('layer 4 routed expert IDs are not exactly 0..255')
+          for expert, erows in by_expert.items():
+              if len(erows) != 6:
+                  raise SystemExit(f'expert {expert} has {len(erows)} tensors, expected 6')
+              matrices = Counter((r.get('matrix'), bool(r.get('is_scale'))) for r in erows)
+              want = Counter({('w1', False): 1, ('w1', True): 1,
+                              ('w2', False): 1, ('w2', True): 1,
+                              ('w3', False): 1, ('w3', True): 1})
+              if matrices != want:
+                  raise SystemExit(f'expert {expert} triplet/scale contract drifted: {matrices}')
+
+          shared = by_sub['shared_expert']
+          if len(shared) != 6:
+              raise SystemExit(f'layer 4 shared tensor count {len(shared)} != 6')
+
+          router = by_sub['router']
+          router_hash = by_sub['router_hash']
+          router_names = {r['name'] for r in router}
+          if router_hash:
+              raise SystemExit('layer 4 unexpectedly contains hash-router tensors')
+          required_router = {
+              'layers.4.ffn.gate.weight',
+              'layers.4.ffn.gate.bias',
+          }
+          if not required_router.issubset(router_names):
+              raise SystemExit(f'layer 4 learned router surface missing {sorted(required_router - router_names)}')
+
+          mhc = by_sub['mhc']
+          if len(mhc) != 6:
+              raise SystemExit(f'layer 4 mHC tensor count {len(mhc)} != 6')
+
+          compressor = by_sub['compressor']
+          indexer = by_sub['csa_indexer']
+          attention = by_sub['attention']
+          if not compressor:
+              raise SystemExit('ratio-4 layer has no compressor tensors')
+          if not indexer:
+              raise SystemExit('ratio-4 layer has no CSA indexer tensors')
+          if not attention:
+              raise SystemExit('layer 4 has no base attention tensors')
+
+          # Ratio-4 is the first consecutive structural change after the proven
+          # ratio-128 layer 3. It is an especially useful V7 target because it
+          # also remains in learned-routing territory (hash routing ends at 2).
+          structural_class = 'ratio4-learned'
+          subsystem_counts = Counter(r['subsystem'] for r in rows)
+          subsystem_bytes = {
+              sub: sum(r['stored_bytes'] for r in rs)
+              for sub, rs in sorted(by_sub.items())
+          }
+          total_bytes = sum(r['stored_bytes'] for r in rows)
+          dtype_counts = Counter(r['dtype'] for r in rows)
+
+          config_path = os.path.join(snapshot, 'config.json')
+          h = hashlib.sha256()
+          with open(config_path, 'rb') as f:
+              h.update(f.read())
+
+          doc = {
+              'schema_version': 1,
+              'evidence_state': 'CHECKPOINT-VERIFIED-HEADERS',
+              'gate': 'V7 multi-layer localization / layer-4 surface',
+              'model': model,
+              'revision': revision,
+              'layer': layer,
+              'structural_class': structural_class,
+              'config_sha256': h.hexdigest(),
+              'config_contract': {
+                  'compress_ratio': ratio,
+                  'hidden_size': cfg['hidden'],
+                  'num_hidden_layers': cfg['layers'],
+                  'n_routed_experts': cfg['n_routed'],
+                  'n_shared_experts': cfg['n_shared'],
+                  'num_experts_per_tok': cfg['top_k'],
+                  'moe_intermediate_size': cfg['moe_inter'],
+                  'hash_layers': cfg['n_hash'],
+              },
+              'surface': {
+                  'tensor_count': len(rows),
+                  'payload_bytes': total_bytes,
+                  'dtype_counts': dict(sorted(dtype_counts.items())),
+                  'subsystem_counts': dict(sorted(subsystem_counts.items())),
+                  'subsystem_bytes': subsystem_bytes,
+              },
+              'fail_closed_checks': {
+                  'strict_full_checkpoint_inventory': True,
+                  'all_layer4_rows_resolved': True,
+                  'all_layer4_rows_classified': True,
+                  'compress_ratio_is_4': True,
+                  'learned_router_weight_and_bias_present': True,
+                  'hash_router_absent': True,
+                  'all_256_routed_experts_have_w1_w2_w3_plus_scales': True,
+                  'shared_expert_has_six_weight_scale_tensors': True,
+                  'two_hyperconnection_parameter_sets_present': True,
+                  'compressor_present': True,
+                  'csa_indexer_present': True,
+              },
+              'groups': {
+                  sub: {
+                      'tensor_count': len(rs),
+                      'payload_bytes': sum(r['stored_bytes'] for r in rs),
+                      'dtype_counts': dict(sorted(Counter(r['dtype'] for r in rs).items())),
+                      'names': [r['name'] for r in rs]
+                          if sub != 'routed_expert'
+                          else [r['name'] for r in rs[:24]],
+                      **({'names_sample_truncated': True} if sub == 'routed_expert' else {}),
+                  }
+                  for sub, rs in sorted(by_sub.items())
+              },
+              'tensors': rows,
+              'non_claims': [
+                  'header-only checkpoint surface; no layer-4 tensor payload arithmetic is claimed',
+                  'does not yet execute layer 4 from the frozen Gate-H layer-3 output',
+                  'does not yet establish a real two-layer V7 trace or multi-layer parity',
+              ],
+          }
+          with open(output, 'w', encoding='utf-8') as f:
+              json.dump(doc, f, indent=2, sort_keys=True)
+              f.write('\n')
+
+          print('V7 layer-4 surface frozen')
+          print('structural_class:', structural_class)
+          print('tensors:', len(rows))
+          print('payload_bytes:', total_bytes)
+          print('subsystems:', dict(sorted(subsystem_counts.items())))
+          print('attention/compressor/indexer:',
+                len(attention), len(compressor), len(indexer))
+          print('router:', sorted(router_names))
+          PY
+          git diff --check
+
+      - name: Upload layer-4 surface artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-layer4-checkpoint-surface
+          retention-days: 30
+          if-no-files-found: error
+          path: reference/deepseek-v4-flash-0731.layer4-v7.json
+
+      - name: Freeze green layer-4 inventory
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$OUTPUT"
+          if git diff --cached --quiet; then
+            echo "layer-4 V7 surface already frozen and unchanged"
+            exit 0
+          fi
+          git commit -m "reference: freeze layer-4 V7 checkpoint surface [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
