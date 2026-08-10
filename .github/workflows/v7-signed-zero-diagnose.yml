@@ -1,4 +1,4 @@
-name: Diagnose V7 FP8 signed-zero differential
+name: Validate V7 FP8 signed-zero oracle fix
 
 on:
   push:
@@ -15,30 +15,34 @@ concurrency:
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Differential sparse Python FP8 oracle against scalar runtime
         run: |
           set -euo pipefail
-          python3 -m py_compile tests/test_v7_sparse_fp8_oracle.py
           python3 tests/test_v7_sparse_fp8_oracle.py
-      - name: Recheck signed-zero encoders and QAT directly
+      - name: Recheck signed-zero E4M3 and QAT directly
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import math, os, sys
+          import os, sys
           sys.path.insert(0, 'tools')
           import make_v2_real_fixture as q
           import make_v5_attention_history_real_fixture as h
           for v, code in ((0.0,0x00),(-0.0,0x80)):
-              got=q.e4m3_encode(v)
-              if got != code:
-                  raise SystemExit(f'Python E4M3 zero sign: {v!r} -> {got:02x}, want {code:02x}')
+              if q.e4m3_encode(v) != code or q.bf16_bits(q.e4m3_float(code)) != (code << 8):
+                  raise SystemExit(f'E4M3 signed-zero roundtrip failed for code {code:02x}')
           bits=[0]*512
           bits[333]=0x8000
-          out=h.qat_nope(bits)
-          if out[333] != 0x8000:
-              raise SystemExit(f'Python QAT lost negative zero: {out[333]:04x}')
-          print('PASS Python E4M3/QAT preserves signed zero')
+          if h.qat_nope(bits)[333] != 0x8000:
+              raise SystemExit('QAT lost negative zero at lane 333')
+          print('PASS Python E4M3/QAT preserves signed zero exactly')
           PY
+      - name: Recheck inherited real attention evidence
+        run: |
+          set -euo pipefail
+          python3 tests/test_v5_attention_ratio128_coherent_real.py
+          python3 tests/test_v5_csa_attention_real.py
+          python3 tests/test_v6_attention_composition_real.py
+          python3 tests/test_v6_layer3_full_real.py
