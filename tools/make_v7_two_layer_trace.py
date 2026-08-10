@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 
 import make_v7_layer4_route_fixture as l4route  # noqa: E402
-import v7_hc_oracle as hc_oracle  # noqa: E402
+import deepseek_v4_hc_oracle as hc_oracle  # noqa: E402
 import test_v6_ffn_route_real as chain  # noqa: E402
 
 MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731"

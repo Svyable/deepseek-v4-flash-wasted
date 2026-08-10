@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.join(REPO, "tests"))
 import fetch_hf_tensor_slice as slice_fetch  # noqa: E402
 import make_v6_attention_branch_fixture as attn  # noqa: E402
 import test_v6_ffn_route_real as chain  # noqa: E402
-import v7_hc_oracle as hc_oracle  # noqa: E402
+import deepseek_v4_hc_oracle as hc_oracle  # noqa: E402
 
 MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731"
 REV = "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"

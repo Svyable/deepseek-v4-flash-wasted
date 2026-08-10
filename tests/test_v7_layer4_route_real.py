@@ -26,7 +26,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 import test_v6_ffn_route_real as chain  # noqa: E402
-import v7_hc_oracle as hc_oracle  # noqa: E402
+import deepseek_v4_hc_oracle as hc_oracle  # noqa: E402
 
 BASE = os.path.join(REPO, "tests", "fixtures", "deepseek_v4")
 FIX = os.path.join(BASE, "v7_layer4_route_real")

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(REPO, "tests"))
 import make_v6_moe_branch_fixture as gateh  # noqa: E402
 import make_v7_layer4_moe_fixture as full  # noqa: E402
 import make_v7_layer4_route_fixture as route  # noqa: E402
-import v7_hc_oracle as hc_oracle  # noqa: E402
+import deepseek_v4_hc_oracle as hc_oracle  # noqa: E402
 import test_v6_ffn_route_real as chain  # noqa: E402
 
 FIX = os.path.join(REPO, "tests", "fixtures", "deepseek_v4", "v7_layer4_full_real")

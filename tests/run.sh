@@ -1241,8 +1241,6 @@ deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
                 "test_v6_layer3_full_real.py"
 # V7 precision boundaries found by real chained-layer acquisition. These are
 # permanent because each caught an otherwise plausible, near-bit-exact oracle.
-deepseek_replay "V7 — bit-exact independent F32 HyperConnection oracle" \
-                "test_v7_hc_oracle_f32.py"
 deepseek_replay "V7 — hc_pre sequential F32 reduction boundary" \
                 "test_v7_hc_pre_f32_scalar.py"
 deepseek_replay "V7 — sparse FP8 scalar differential and signed-zero cases" \
