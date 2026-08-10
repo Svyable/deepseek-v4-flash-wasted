@@ -20,6 +20,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Cross the shared-expert scale-grid boundary
         run: python3 tests/test_v6_shared_expert_full_rows_scalar.py
+      - name: Reprove Gate F routed FP4 after activation precompute
+        run: python3 tests/test_v4_routed_expert_real.py
+      - name: Reprove Gate F shared and combination after activation precompute
+        run: python3 tests/test_v4_moe_real.py
       - name: Recompute the real Gate H FFN routing decision
         run: python3 tests/test_v6_ffn_route_real.py
       - name: Recheck the composed real attention half
