@@ -375,3 +375,29 @@ These are hypotheses, not planned conclusions. Run only after the canonical gate
 - DSpark acceptance/speed/memory tradeoff — Gate N after Gate I/V8 + Gate K/V9.
 
 Each candidate gets its own numbered entry whether it succeeds or fails.
+
+---
+
+## 14. Gate-H final HC must execute Sinkhorn itself in F32, not only cast its outputs
+
+**Status:** corrected and permanently replayed
+
+The first Gate-H fix in experiment 12 was necessary but incomplete. It established that `post`/`comb` are F32 tensors at the final HC boundary and fixed one observed BF16 mismatch, but its independent Python producer still executed the RMS/mix/Sinkhorn arithmetic in Python double precision before casting those tensors to F32. A real consecutive-layer V7 trace exposed that this is not equivalent to the scalar/model dtype contract.
+
+A new independent oracle, `tools/deepseek_v4_hc_oracle.py`, now rounds every HyperConnection arithmetic operation in the model's F32 order and uses the platform `expf`/`sqrtf`. `tests/test_v6_hc_oracle_f32.py` compares 24 mixes, 4 pre coefficients, 4 post coefficients, 16 comb coefficients, `hc_pre` outputs, and `hc_post` outputs against `src/deepseek_v4_mhc_ref.c` at raw F32-bit equality. The real-data regression `tests/test_v6_layer3_hc_precision.py` then runs both paths on the frozen layer-3 checkpoint evidence.
+
+Result:
+
+```text
+old final SHA-256       0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761
+corrected final SHA-256 c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7
+BF16 values changed     9 / 16,384
+changed indices          1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717
+attn_pre                 unchanged
+ffn_pre                  unchanged
+router/expert/MoE        unchanged
+```
+
+The correction required no checkpoint or expert reacquisition: the stale boundary was after the already-frozen MoE branch. The old final SHA is now explicitly refused by the permanent test.
+
+**Lesson:** a later cast to the correct dtype does not retroactively make higher-precision reductions model-equivalent. For precision-sensitive reference paths, the operation sequence *and every intermediate dtype boundary* are part of the oracle contract.
