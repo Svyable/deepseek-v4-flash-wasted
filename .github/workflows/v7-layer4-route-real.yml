@@ -1,15 +1,89 @@
-name: Acquire real chained layer-4 V7 route boundary (parked)
+name: Acquire exact chained layer-4 V7 route boundary
 
 on:
+  push:
+    branches: [agent/v7-multilayer-localization]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: v7-layer4-route-real
+  cancel-in-progress: true
 
 jobs:
-  parked:
+  acquire:
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FIXTURE: tests/fixtures/deepseek_v4/v7_layer4_route_real
     steps:
-      - run: |
-          echo "Parked after one-row online-softmax signed-zero differential."
-          echo "Re-enable only after the permanent no-network attention boundary regression is green."
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cheap exact chained-boundary preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/make_v7_layer4_route_fixture.py tests/test_v7_layer4_route_real.py
+          python3 tests/test_v7_hc_oracle_f32.py
+          python3 tests/test_v7_hc_pre_f32_scalar.py
+          python3 tests/test_v7_sparse_fp8_oracle.py
+          python3 tests/test_v7_one_row_attention_signed_zero.py
+          python3 tests/test_v7_localize.py
+          python3 tests/test_v6_attention_composition_real.py
+          python3 tests/test_v6_layer3_full_real.py
+
+      - name: Fetch immutable 0731 headers
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Build exact layer-3 output to layer-4 router fixture
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v7_layer4_route_fixture.py "$SNAPSHOT" "$FIXTURE"
+
+      - name: Replay compact chained layer-4 route offline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_layer4_route_real.py
+
+      - name: Upload compact layer-4 route fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-layer4-route-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v7_layer4_route_real/
+
+      - name: Freeze green fixture and park acquisition
+        run: |
+          set -euo pipefail
+          cat > .github/workflows/v7-layer4-route-real.yml <<'YAML'
+          name: Acquire exact chained layer-4 V7 route boundary (parked)
+
+          on:
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          jobs:
+            parked:
+              runs-on: ubuntu-24.04
+              steps:
+                - run: echo "Parked after exact layer-4 route fixture froze green."
+          YAML
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE" .github/workflows/v7-layer4-route-real.yml
+          git commit -m "reference: freeze exact chained layer-4 route boundary [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
