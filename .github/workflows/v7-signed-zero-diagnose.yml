@@ -1,0 +1,44 @@
+name: Diagnose V7 FP8 signed-zero differential
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v7-signed-zero-diagnose
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Differential sparse Python FP8 oracle against scalar runtime
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_v7_sparse_fp8_oracle.py
+          python3 tests/test_v7_sparse_fp8_oracle.py
+      - name: Recheck signed-zero encoders and QAT directly
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import math, os, sys
+          sys.path.insert(0, 'tools')
+          import make_v2_real_fixture as q
+          import make_v5_attention_history_real_fixture as h
+          for v, code in ((0.0,0x00),(-0.0,0x80)):
+              got=q.e4m3_encode(v)
+              if got != code:
+                  raise SystemExit(f'Python E4M3 zero sign: {v!r} -> {got:02x}, want {code:02x}')
+          bits=[0]*512
+          bits[333]=0x8000
+          out=h.qat_nope(bits)
+          if out[333] != 0x8000:
+              raise SystemExit(f'Python QAT lost negative zero: {out[333]:04x}')
+          print('PASS Python E4M3/QAT preserves signed zero')
+          PY
