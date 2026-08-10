@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile \
             tools/make_v6_moe_branch_fixture.py \
+            tools/finalize_v6_moe_layer3_fixture.py \
             tests/test_v6_moe_branch_real.py \
             tests/test_v6_layer3_full_real.py
           python3 tests/test_v6_shared_expert_full_rows_scalar.py
@@ -50,6 +51,7 @@ jobs:
           set -euo pipefail
           rm -rf "$FIXTURE"
           python3 tools/make_v6_moe_branch_fixture.py "$SNAPSHOT" "$FIXTURE"
+          python3 tools/finalize_v6_moe_layer3_fixture.py "$FIXTURE"
 
       - name: Replay compact MoE branch and complete layer offline
         run: |
