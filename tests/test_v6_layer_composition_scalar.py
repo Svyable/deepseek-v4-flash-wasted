@@ -157,6 +157,28 @@ def main():
     if max_abs(expected, wrong_branch) < 1e-3:
         raise SystemExit("FAIL: wrong branch-input mutation is not visible")
 
+    # Dropping either hc_post transition. The natural wrong implementation is
+    # not "omit the step" — the shapes would not line up and it would fail
+    # loudly — it is to write the ordinary residual add that every other
+    # transformer uses, `out[k] = residual[k] + branch`, discarding the learned
+    # post/comb mix. That compiles, runs, and produces plausible numbers, which
+    # is exactly the class of error this gate exists to catch.
+    def plain_residual_add(branch, residual_):
+        return [residual_[k * DIM + d] + branch[d]
+                for k in range(HC) for d in range(DIM)]
+
+    dropped_final = plain_residual_add(ffn_branch, after_attn)
+    if max_abs(expected, dropped_final) < 1e-3:
+        raise SystemExit("FAIL: dropped FFN hc_post transition is not visible")
+
+    # The attention transition, dropped the same way, then the rest of the
+    # layer carried out correctly from that wrong state.
+    da_after = plain_residual_add(attn_branch, residual)
+    da_in, da_post, da_comb = hc_pre(da_after, ffn_fn, ffn_scale, ffn_base)
+    dropped_attn = hc_post(moe_stub(da_in), da_after, da_post, da_comb)
+    if max_abs(expected, dropped_attn) < 1e-3:
+        raise SystemExit("FAIL: dropped attention hc_post transition is not visible")
+
     with tempfile.TemporaryDirectory(prefix="v6-layer-compose-") as td:
         lib = os.path.join(td, "libhc.so")
         cmd = [cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",

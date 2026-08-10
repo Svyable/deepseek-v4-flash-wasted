@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 one complete transformer layer is the next numerical integration rung. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 is PARTIAL: layer-3 block wiring and the real HC composition are passed, but with stubbed branches — real attention and real MoE composed in place of those stubs is what remains. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -329,9 +329,39 @@ Coherent main fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. The 
 
 See `ATTENTION.md` for detailed cast boundaries and fixture provenance.
 
-### V6 — complete transformer layer — **Gate H**
+### V6 — complete transformer layer — **Gate H** — **PARTIAL**
 
-After Gate E closes, compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
+The target: compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
+
+#### Block wiring — **PASSED, model-free**
+
+The layer-3 composition order is pinned as `hc_pre(attn) -> branch -> hc_post -> hc_pre(ffn) -> branch -> hc_post`, with the attention and FFN HyperConnection parameter sets distinct.
+
+Five wirings are refused, each chosen because it produces plausible numbers rather than an error:
+
+```text
+reuse the original residual for the FFN hc_pre        max_abs 0.760
+swap the attention and FFN HC parameter sets          max_abs 0.403
+feed a correct branch output from the wrong input     max_abs 0.203
+replace the FFN hc_post with an ordinary residual add max_abs 0.193
+replace the attention hc_post the same way            max_abs 0.654
+```
+
+Each is measured against the independent oracle before the C library is involved, so a vacuous construction cannot pass. The last two matter most: the natural wrong implementation of "drop the hc_post transition" is not omitting a step — the shapes would not line up — but writing `out[k] = residual[k] + branch`, the ordinary transformer residual add that mHC exists to replace. That compiles and runs. It was named in the gate's contract but not enforced until `EXPERIMENTS.md` entry 8.
+
+#### Real layer-3 HC composition — **PASSED sub-seam**
+
+`tests/fixtures/deepseek_v4/v6_hc_composition_real/` replays the composition with real layer-3 `hc_attn_*` and `hc_ffn_*` parameters, SHA-pinned per file, exact at BF16 across attention hc_pre, attention hc_post, FFN hc_pre and the final state.
+
+**Evidence boundary — the branches are stubs.** The fixture proves the *wiring and the HyperConnection arithmetic* with real parameters; it does not run real attention or real MoE inside the composition. The frozen files say so by name (`attn-stub-branch.bf16.bin`, `ffn-stub-branch.bf16.bin`), and the test separately pins that each stub is bound to the frozen hc_pre state so a stub that ignored its input would fail.
+
+#### What Gate H still needs
+
+- the real ratio-128 attention branch composed *in place* of the attention stub;
+- the real router + routed/shared MoE composed in place of the FFN stub;
+- one complete layer-3 state transition replayable offline from frozen checkpoint bytes, under the normal and ASan/UBSan suites.
+
+Gate H does not close, and no full-layer claim is made, until those hold together in one composition.
 
 ### V7 — multi-layer localization
 
@@ -366,7 +396,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
-| **H** complete transformer block | **V6** | after E/V5 |
+| **H** complete transformer block | **V6** | **PARTIAL** — wiring + real HC composition passed; branches still stubbed |
 | **I** 43-layer base forward/logits | **V8** | base-model bring-up |
 | **J** tokenizer/encoding | **V10** | encoding/API phase |
 | **K** generation | **V9** | after logits |

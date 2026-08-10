@@ -33,7 +33,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | coherent same-input ratio-128 forward | **E/V5 partial** | **CHECKPOINT-PASSED**, one head / row 255 through inverse compressed RoPE |
 | ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |
 | Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |
-| one full transformer layer | **H/V6** | **NEXT** |
+| one full transformer layer | **H/V6** | **PARTIAL** — block wiring + real layer-3 HC composition passed (branches stubbed); real attention/MoE composition open |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |

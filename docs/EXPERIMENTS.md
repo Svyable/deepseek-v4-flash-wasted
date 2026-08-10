@@ -231,6 +231,44 @@ Worse, pair 0 was also the *only* pair the test verified against an independent 
 
 ---
 
+## 8 — 2026-08-09 — A refusal named in the gate contract but not implemented
+
+**Question:** Gate H/V6's contract names four wirings the full-layer test must reject. Does the model-free composition test reject all four?
+
+**Protects:** Gate H, and every layer built on it. A layer that composes its HyperConnection transitions wrongly still produces finite, plausible hidden states; the error surfaces at V8 logits with nothing pointing back to the wiring.
+
+**README gate letter(s):** H. **Operational V-level:** V6 model-free half.
+
+**Evidence state:** MEASURED on this checkout.
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64.
+
+**Method:** read the four refusals the PR contract names — reusing the original residual for the FFN `hc_pre`, swapping the attention and FFN HC parameter sets, dropping either `hc_post` transition, and feeding an independently correct branch output produced from the wrong branch input — against what `tests/test_v6_layer_composition_scalar.py` actually asserts.
+
+**Result:** three of four were implemented. **Dropping either `hc_post` transition was not.**
+
+The gap is not obvious from reading the test, because "drop a step" sounds like it would fail loudly. It does not. `hc_post` maps a `[DIM]` branch and an `[HC*DIM]` residual to a new `[HC*DIM]` state as `out[k*DIM+d] = post[k]*branch[d] + Σ_j comb[j][k]*residual[j*DIM+d]`. Omitting it entirely breaks the shapes and would be caught immediately. The realistic wrong implementation is to write the ordinary transformer residual add — `out[k*DIM+d] = residual[k*DIM+d] + branch[d]` — which has the right shape, compiles, runs, and is precisely the thing mHC replaces. Nothing in the suite refused it.
+
+Both variants are now asserted, and all five refusals are measured against the independent oracle before the C library is involved:
+
+| refused wiring | max_abs vs oracle |
+|---|---:|
+| reuse the original residual for the FFN `hc_pre` | 0.760 |
+| replace the attention `hc_post` with a plain residual add | 0.654 |
+| swap the attention and FFN HC parameter sets | 0.403 |
+| feed a correct branch output from the wrong branch input | 0.203 |
+| replace the FFN `hc_post` with a plain residual add | 0.193 |
+
+All are three orders of magnitude above the 1e-3 visibility threshold, so none is marginal.
+
+**Verdict:** the contract was right and the implementation of it was incomplete. Distinct from entries 3 and 7 — there the check existed and could not discriminate; here the check was simply absent while the prose said otherwise, which is harder to notice because the document reads as evidence.
+
+**Consequence:** both `hc_post` refusals added. `VALIDATION.md` §V6 now lists the five refusals with their margins, so the claim and the assertions can be compared without reading the test.
+
+**Follow-up:** when a gate's prose names the mutations it rejects, treat that list as a checklist to diff against the test, not as a description of it. The remaining Gate H work — real attention and real MoE composed in place of the current stubs — should have its own refusals named and then verified the same way.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.

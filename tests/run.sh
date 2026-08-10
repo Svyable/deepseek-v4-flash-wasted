@@ -1070,7 +1070,7 @@ else
 fi
 
 # ------------------------------------------------- DeepSeek gate replays ----
-head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, partial E/V5)"
+head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, partial H/V6)"
 
 # These eleven replays did run before this section existed, but not under
 # their own names. test_inventory.py imported the Gate B/V1 driver, which
@@ -1193,6 +1193,20 @@ deepseek_replay "Gate E/V5 — real ratio-4 CSA indexer" \
                 "test_v5_csa_indexer_real.py"
 deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \
                 "test_v5_csa_attention_real.py"
+
+# Gate H/V6 — PARTIAL. Layer-3 composition. The model-free half pins the block
+# wiring: hc_pre(attn) -> branch -> hc_post -> hc_pre(ffn) -> branch -> hc_post,
+# and refuses five wirings that would still produce plausible numbers — reusing
+# the original residual for the FFN hc_pre, swapping the attention and FFN HC
+# parameter sets, feeding a correct branch output from the wrong branch input,
+# and replacing either hc_post with the ordinary residual add. The real half
+# replays that composition with layer-3 HC parameters from the checkpoint.
+deepseek_replay "Gate H/V6 — model-free layer block wiring and five refusals" \
+                "test_v6_layer_composition_scalar.py"
+deepseek_replay "Gate H/V6 — full eight-group attention output seam" \
+                "test_v6_attention_output_full_scalar.py"
+deepseek_replay "Gate H/V6 — real layer-3 HC composition, exact BF16 final" \
+                "test_v6_hc_composition_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

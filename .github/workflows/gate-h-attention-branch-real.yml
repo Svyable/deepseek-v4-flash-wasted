@@ -54,5 +54,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$FIXTURE"
+          # The fixture is already frozen at deaee26 and the generator is
+          # deterministic, so every push after the first has nothing to commit.
+          # Without this guard `git commit` exits non-zero, `set -e` takes the
+          # job down, and a green acquisition reports as a red check for the
+          # rest of the branch's life. The ratio-128 workflow carried the same
+          # guard; this one was written without it.
+          if git diff --cached --quiet; then
+            echo "attention-branch fixture already frozen and unchanged"
+            exit 0
+          fi
           git commit -m "reference: freeze full real layer-3 Gate H attention branch [skip ci]"
           git push origin HEAD:agent/gate-h-layer3-full
