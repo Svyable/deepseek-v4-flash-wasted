@@ -29,14 +29,15 @@ jobs:
           from pathlib import Path
           p=Path('tests/run.sh')
           s=p.read_text()
-          anchor='''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
-                "test_v7_layer4_full_real.py"\n'''
-          block='''deepseek_replay "V7 — real consecutive layer-3 to layer-4 localization trace" \\
-                "test_v7_two_layer_real.py"\n'''
-          if block not in s:
-              if s.count(anchor) != 1:
-                  raise SystemExit(f'two-layer registration anchor count={s.count(anchor)}')
-              s=s.replace(anchor, anchor+block, 1)
+          needle='                "test_v7_layer4_full_real.py"\n'
+          title='V7 — real consecutive layer-3 to layer-4 localization trace'
+          marker='"test_v7_two_layer_real.py"'
+          block='deepseek_replay "' + title + '" ' + '\\' + '\n' + \
+                '                "test_v7_two_layer_real.py"\n'
+          if marker not in s:
+              if s.count(needle) != 1:
+                  raise SystemExit(f'two-layer registration needle count={s.count(needle)}')
+              s=s.replace(needle, needle+block, 1)
           p.write_text(s)
           PY
           git diff --check
