@@ -161,16 +161,6 @@ def as_cf(values):
     return (ctypes.c_float * len(values))(*values)
 
 
-def oracle_hc_pre_y_f32(x, pre):
-    """Independent HC-pre equation with the model's sequential F32 reduction."""
-    out = []
-    for d in range(DIM):
-        acc = chain.f32(0.0)
-        for j in range(HC):
-            acc = chain.f32(acc + chain.f32(pre[j] * x[j * DIM + d]))
-        out.append(acc)
-    return out
-
 
 def build_state_lib(work: str):
     cc = compiler()
@@ -331,13 +321,15 @@ def main(argv=None) -> int:
             raise ValueError(
                 f"layer4 HC-attn-pre Python/C BF16 mismatch at {i}: "
                 f"{o_attn_pre_bits[i]:04x}!={attn_pre_bits[i]:04x}")
-        param_delta = max(
-            max(abs(a - b) for a, b in zip(attn_post, o_post)),
-            max(abs(a - b) for a, b in zip(
-                [v for row in attn_comb for v in row],
-                [v for row in o_comb for v in row])))
-        if param_delta > 1e-5:
-            raise ValueError(f"layer4 HC-attn post/comb oracle delta {param_delta} > 1e-5")
+        attn_c_bits = [chain.f32_bits(v) for v in attn_post] + [
+            chain.f32_bits(v) for row in attn_comb for v in row]
+        attn_o_bits = [chain.f32_bits(v) for v in o_post] + [
+            chain.f32_bits(v) for row in o_comb for v in row]
+        if attn_c_bits != attn_o_bits:
+            i = next(i for i, (a, b) in enumerate(zip(attn_c_bits, attn_o_bits)) if a != b)
+            raise ValueError(
+                f"layer4 HC-attn post/comb F32 mismatch at {i}: "
+                f"{attn_c_bits[i]:08x}!={attn_o_bits[i]:08x}")
 
         q_bits, kv_bits, head_bits, _ = attn.one_token_heads(
             attn_pre_bits, attention_paths)
@@ -358,13 +350,15 @@ def main(argv=None) -> int:
         fo_comb = [[chain.f32(v) for v in row] for row in fo_comb]
         if chain.cast_bf16(hc_oracle.pre_y(after_attn, fo_pre, dim=DIM))[0] != ffn_pre_bits:
             raise ValueError("layer4 HC-FFN-pre disagrees with independent oracle at BF16")
-        ffn_param_delta = max(
-            max(abs(a - b) for a, b in zip(ffn_post, fo_post)),
-            max(abs(a - b) for a, b in zip(
-                [v for row in ffn_comb for v in row],
-                [v for row in fo_comb for v in row])))
-        if ffn_param_delta > 1e-5:
-            raise ValueError(f"layer4 HC-FFN post/comb oracle delta {ffn_param_delta} > 1e-5")
+        ffn_c_bits = [chain.f32_bits(v) for v in ffn_post] + [
+            chain.f32_bits(v) for row in ffn_comb for v in row]
+        ffn_o_bits = [chain.f32_bits(v) for v in fo_post] + [
+            chain.f32_bits(v) for row in fo_comb for v in row]
+        if ffn_c_bits != ffn_o_bits:
+            i = next(i for i, (a, b) in enumerate(zip(ffn_c_bits, ffn_o_bits)) if a != b)
+            raise ValueError(
+                f"layer4 HC-FFN post/comb F32 mismatch at {i}: "
+                f"{ffn_c_bits[i]:08x}!={ffn_o_bits[i]:08x}")
 
         ids, weights, _, _ = c_route(
             score_fn, learned_fn, ffn_pre, gate_bits, gate_bias)
@@ -455,8 +449,8 @@ def main(argv=None) -> int:
             "weights_sha256": sha(weights_path),
         },
         "hc_crosschecks": {
-            "attn_post_comb_max_abs": param_delta,
-            "ffn_post_comb_max_abs": ffn_param_delta,
+            "attn_post_comb_exact_f32": True,
+            "ffn_post_comb_exact_f32": True,
             "pre_boundaries": "independent Python and C exact at BF16",
         },
         "attention_crosscheck": {
