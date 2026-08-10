@@ -1,93 +1,13 @@
-name: Promote bit-exact V7 F32 HC oracle
+name: Promote bit-exact V7 F32 HC oracle (completed)
 
 on:
-  push:
-    branches: [agent/v7-multilayer-localization]
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: v7-hc-oracle-promote
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  promote:
+  completed:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Bind layer-4 producer/replay to the independent F32 oracle
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          for filename in ('tools/make_v7_layer4_route_fixture.py',
-                           'tests/test_v7_layer4_route_real.py'):
-              p = Path(filename)
-              s = p.read_text()
-              import_anchor = 'import test_v6_ffn_route_real as chain  # noqa: E402\n'
-              oracle_import = 'import v7_hc_oracle as hc_oracle  # noqa: E402\n'
-              if oracle_import not in s:
-                  if s.count(import_anchor) != 1:
-                      raise SystemExit(f'{filename}: chain import anchor count={s.count(import_anchor)}')
-                  s = s.replace(import_anchor, import_anchor + oracle_import, 1)
-
-              # The independent F32 oracle returns pre/post/comb/mixes. Keep
-              # the C implementation as the composed runtime path, but require
-              # the Python coefficient producer to be bit-faithful to F32.
-              s = s.replace(
-                  'o_pre, o_post, o_comb = chain.oracle_hc_params(\n            residual, attn_fn, attn_scale, attn_base)',
-                  'o_pre, o_post, o_comb, _ = hc_oracle.params(\n            residual, attn_fn, attn_scale, attn_base, dim=DIM)')
-              s = s.replace(
-                  'fo_pre, fo_post, fo_comb = chain.oracle_hc_params(\n            after_attn, ffn_fn, ffn_scale, ffn_base)',
-                  'fo_pre, fo_post, fo_comb, _ = hc_oracle.params(\n            after_attn, ffn_fn, ffn_scale, ffn_base, dim=DIM)')
-              s = s.replace(
-                  'opre, _, _ = chain.oracle_hc_params(\n            residual, fparams["attn_fn"], fparams["attn_scale"], fparams["attn_base"])',
-                  'opre, _, _, _ = hc_oracle.params(\n            residual, fparams["attn_fn"], fparams["attn_scale"], fparams["attn_base"], dim=DIM)')
-              s = s.replace(
-                  'fpre, _, _ = chain.oracle_hc_params(\n            after, fparams["ffn_fn"], fparams["ffn_scale"], fparams["ffn_base"])',
-                  'fpre, _, _, _ = hc_oracle.params(\n            after, fparams["ffn_fn"], fparams["ffn_scale"], fparams["ffn_base"], dim=DIM)')
-
-              s = s.replace('oracle_hc_pre_y_f32(residual, o_pre)',
-                            'hc_oracle.pre_y(residual, o_pre, dim=DIM)')
-              s = s.replace('oracle_hc_pre_y_f32(after_attn, fo_pre)',
-                            'hc_oracle.pre_y(after_attn, fo_pre, dim=DIM)')
-              s = s.replace('oracle_hc_pre_y_f32(residual, opre)',
-                            'hc_oracle.pre_y(residual, opre, dim=DIM)')
-              s = s.replace('oracle_hc_pre_y_f32(after, fpre)',
-                            'hc_oracle.pre_y(after, fpre, dim=DIM)')
-              p.write_text(s)
-          PY
-          git diff --check
-
-      - name: Validate F32 oracle against C and inherited gates
-        run: |
-          set -euo pipefail
-          python3 -m py_compile \
-            tools/v7_hc_oracle.py \
-            tests/test_v7_hc_oracle_f32.py \
-            tools/make_v7_layer4_route_fixture.py \
-            tests/test_v7_layer4_route_real.py
-          python3 tests/test_v7_hc_oracle_f32.py
-          python3 tests/test_v7_hc_pre_f32_scalar.py
-          python3 tests/test_v7_localize.py
-          python3 tests/test_v6_layer3_full_real.py
-
-      - name: Freeze oracle binding
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/make_v7_layer4_route_fixture.py tests/test_v7_layer4_route_real.py
-          if git diff --cached --quiet; then
-            echo "V7 F32 oracle binding already frozen"
-            exit 0
-          fi
-          git commit -m "test: bind V7 layer chain to bit-exact F32 HC oracle [skip ci]"
-          git push origin HEAD:agent/v7-multilayer-localization
+      - run: echo "Completed at V7 F32 HC oracle binding; manual audit marker only."
