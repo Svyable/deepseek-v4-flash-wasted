@@ -1,0 +1,266 @@
+name: Promote Gate H evidence docs
+
+on:
+  push:
+    branches: [agent/gate-h-layer3-full]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-h-promote-docs
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Promote Gate H status and evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # tests/run.sh: the permanent suite no longer contains a partial Gate H.
+          p = Path('tests/run.sh')
+          s = p.read_text()
+          old = 'DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, partial H/V6)'
+          new = 'DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, H/V6)'
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit('tests/run.sh Gate H heading not found')
+          p.write_text(s)
+
+          # docs/VALIDATION.md: close Gate H without broadening the evidence boundary.
+          p = Path('docs/VALIDATION.md')
+          s = p.read_text()
+          s = s.replace(
+              '### V6 — complete transformer layer — **Gate H** — **PARTIAL**',
+              '### V6 — complete transformer layer — **Gate H** — **PASSED scalar/model-semantic**',
+              1)
+          start = s.index('#### What Gate H still needs')
+          end = s.index('\n### V7 — multi-layer localization', start)
+          replacement = '''#### Real full-width MoE branch — **PASSED real-checkpoint sub-seam**
+
+          Frozen fixture: `tests/fixtures/deepseek_v4/v6_moe_branch_real/`. The input is not a synthetic router vector: `ffn-pre.bf16.bin` is the exact BF16 state produced by the real attention half plus the layer-3 FFN HyperConnection pre-transition, pinned by SHA-256 `30e27b02c8a662ad5d1966d02d62afff6c4ffb2b367fb817d846c449eb8e7a21`.
+
+          The scalar router selects `[255,30,99,40,44,238]`. Those exact scalar-runtime F32 route weights are used as expert inputs:
+
+          ```text
+          0.260602713 0.258183122 0.248908937 0.252534091 0.242217511 0.237553567
+          ```
+
+          An independent Python router selects the same six IDs. Its maximum route-weight delta versus the scalar runtime is `1.49662139e-07`; the fixture records both vectors rather than substituting one for the other. Reacquiring with the exact runtime weights changed the F32 weight file/provenance but did **not** change any routed BF16 output, the combined MoE branch, or the final layer state for this input.
+
+          Exactly those six routed FP4 experts plus the resident shared FP8 expert are evaluated for all 4,096 model outputs. A 4,096-row specialization of the standalone Gate-F oracle (no `src/` linkage) and the WASTE scalar implementation must agree bit-for-bit before the compact fixture can freeze:
+
+          ```text
+          routed expert values checked   6 x 4096 = 24,576 BF16
+          shared expert values checked   1 x 4096 =  4,096 BF16
+          total independent comparisons              28,672 BF16 exact
+          MoE branch SHA-256             809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659
+          ```
+
+          The ordinary offline replay recombines routed branches in official ascending-expert-ID order and then adds the shared expert. Dropping any one branch changes thousands of final BF16 values: experts 255/30/99/40/44/238 change 4,074/4,070/4,072/4,075/4,073/4,070 values respectively; dropping the shared expert changes 4,087. Raw expert checkpoint payloads are transient acquisition evidence and are deliberately not committed.
+
+          A fixture-era assumption also died here: Gate F's shared-expert test only needed eight `w2` rows, so the scalar helper rejected `out_rows > 128` and only one E8M0 scale-grid row was ever supplied. `tests/test_v6_shared_expert_full_rows_scalar.py` now crosses row 128 explicitly and proves row 128 consumes the second scale-grid row before the full 4,096-row shared path is allowed.
+
+          #### Complete real layer-3 state transition — **PASSED**
+
+          `tests/test_v6_layer3_full_real.py` is the Gate-H endpoint. It composes the complete real checkpoint-backed layer-3 transition offline:
+
+          ```text
+          real residual
+            -> HC-attn-pre
+            -> real 64-head attention branch
+            -> HC-attn-post
+            -> HC-FFN-pre
+            -> real learned router
+            -> six routed FP4 experts + shared FP8 expert
+            -> HC-FFN-post
+            -> BF16 [4,4096] layer state
+          ```
+
+          The final 16,384 BF16 values are exact. The frozen final-state SHA-256 is `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`; representative first values are `3f93 3e9a 3ed7 bcba 3e11 3e57 bd52 bf2d`.
+
+          One failed replay tightened the numerical contract rather than weakening it. The independent Python Sinkhorn initially carried `post`/`comb` in double precision into the final `hc_post`, while the model/runtime boundary is F32. That changed exactly one final BF16 value, index 13,648 (`378d` versus C `378e`). The fixture now explicitly rounds independent Sinkhorn `post`/`comb` to F32 before `hc_post`; no comparison tolerance was added. Provenance records that one boundary-sensitive value.
+
+          The final replay also refuses replacing the FFN `hc_post` with an ordinary residual add and refuses substituting the old deterministic FFN stub for the real MoE branch.
+
+          Permanent no-network validation after registration:
+
+          ```text
+          make check   63 passed, 0 failed, 13 skipped
+          make asan    62 passed, 0 failed, 14 skipped
+          ```
+
+          **Evidence boundary:** Gate H is passed at the scalar/model-semantic level for one real layer-3 state transition. This is not yet a 43-layer forward, final-hidden/logit proof, greedy-generation proof, converted-container proof, cache/disk identity proof, or performance result. V7/I/K and Gate G remain separate gates.
+          '''
+          s = s[:start] + replacement + s[end:]
+          old_row = '| **H** complete transformer block | **V6** | **PARTIAL** — wiring, real HC composition and real attention half done; MoE half stubbed |'
+          new_row = '| **H** complete transformer block | **V6** | **PASSED scalar/model-semantic** — one real layer-3 attention + mHC + router + six-routed/shared-MoE transition exact at BF16 |'
+          if old_row in s:
+              s = s.replace(old_row, new_row, 1)
+          elif new_row not in s:
+              raise SystemExit('VALIDATION Gate H concordance row not found')
+          p.write_text(s)
+
+          # ROADMAP: make the next rung V7/I rather than re-requesting completed Gate H work.
+          p = Path('ROADMAP.md')
+          s = p.read_text()
+          old_row = '| one full transformer layer | **H/V6** | **PARTIAL** — wiring, real HC composition, real attention half, and the real routing decision; MoE execution open (fetch experts 30,40,44,99,238,255) |'
+          new_row = '| one full transformer layer | **H/V6** | **PASSED scalar/model-semantic** — real layer-3 HC + 64-head attention + exact runtime router + six routed/shared experts + final BF16 state |'
+          if old_row in s:
+              s = s.replace(old_row, new_row, 1)
+          elif new_row not in s:
+              raise SystemExit('ROADMAP Gate H snapshot row not found')
+
+          start = s.index('Completed oracle seams:')
+          end = s.index('Reuse the same independent-fixture pattern', start)
+          oracle_block = '''Completed oracle seams:
+
+          1. native quantization convention — B/V1;
+          2. real resident quantized projection — C/V2;
+          3. real mHC/Sinkhorn primitive — D/V3;
+          4. learned + hash routing — F/V4;
+          5. routed FP4 + shared FP8 expert and six-branch MoE combination — F/V4;
+          6. ratio-0 attention core + grouped output projection — E/V5;
+          7. coherent same-input ratio-128 compressor/history/attention — E/V5;
+          8. ratio-4 CSA compressor + Indexer selection + selected sparse attention — E/V5;
+          9. complete real layer-3 HC + attention + router + six-routed/shared-MoE transition — H/V6.
+
+          Next oracle seams:
+
+          1. multi-layer localization — V7;
+          2. final hidden/norm/logits — I/V8;
+          3. deterministic greedy generation — K/V9;
+          4. encoder/parser — J/V10.
+
+          '''
+          s = s[:start] + oracle_block + s[end:]
+
+          start = s.index('### Gate E / V5 attention — PARTIAL')
+          end = s.index('\n---\n\n## Phase 6 — memory planner + streaming', start)
+          phase5 = '''### Gate E / V5 attention — PASSED scalar/model-semantic
+
+          Permanently replayed structural modes now include ratio-0, coherent ratio-128 compressed history, and coherent ratio-4 CSA/Indexer attention, with the shared grouped `wo_a/wo_b` output projection separately proven. See `docs/ATTENTION.md` and `docs/VALIDATION.md` for the exact evidence boundaries.
+
+          ### Gate H / V6 complete transformer layer — PASSED scalar/model-semantic
+
+          One real layer-3 transition is frozen end to end at the model-semantic boundary:
+
+          ```text
+          residual -> hc_pre(attn) -> real 64-head attention -> hc_post
+                   -> hc_pre(ffn)  -> real router [255,30,99,40,44,238]
+                   -> six routed FP4 experts + shared FP8 expert -> hc_post
+                   -> exact BF16 [4,4096]
+          ```
+
+          Acquisition checked 28,672 expert BF16 outputs against an independent standalone oracle. The exact scalar-router F32 weights are recorded separately from the independent Python router (same IDs; max weight delta `1.49662139e-07`). Final state SHA-256: `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`.
+
+          A real numerical boundary was found and pinned rather than tolerated: independent Sinkhorn `post`/`comb` are rounded to F32 before final `hc_post`; doing the Python computation at double precision changed exactly one of 16,384 final BF16 values (index 13,648).
+
+          Permanent suite floor after Gate H registration:
+
+          ```text
+          make check  63 passed, 0 failed, 13 skipped
+          make asan   62 passed, 0 failed, 14 skipped
+          ```
+
+          Continue in this order:
+
+          1. multi-layer localization — **V7**;
+          2. final hidden/norm/head/logits — **I/V8**;
+          3. deterministic known-token generation — **K/V9**;
+          4. only then broaden to encoding/API and optimization gates.
+          '''
+          s = s[:start] + phase5 + s[end:]
+
+          start = s.index('**Immediate priority: Gate H/V6 — one complete transformer layer.**')
+          end = s.index('\n---\n\n## Phase 0 — provenance / baseline', start)
+          priority = '''**Gate H/V6 is now PASSED at the scalar/model-semantic one-layer level.** The checkpoint-backed layer-3 path includes both real HC transitions, all 64 attention heads, exact scalar-runtime routing, six routed FP4 experts, the shared FP8 expert, and an exact final BF16 `[4,4096]` state. Raw expert records remain acquisition-only rather than repository payload.
+
+          **Immediate priority: V7 multi-layer localization, then Gate I/V8 logits.** Do not jump straight to generation: establish a reproducible way to carry the frozen layer-state contract across structurally different layers and stop at the first divergent layer. Gate K/V9 follows only after final hidden/norm/logits are pinned.
+          '''
+          s = s[:start] + priority + s[end:]
+          p.write_text(s)
+
+          # EXPERIMENTS: preserve the near-misses that materially changed the contract.
+          p = Path('docs/EXPERIMENTS.md')
+          s = p.read_text()
+          marker = '## Candidate experiments after base correctness'
+          if '## 10 — 2026-08-10 — Gate F\'s eight-row shared fixture hid a 128-row scale-grid boundary' not in s:
+              insert = '''## 10 — 2026-08-10 — Gate F's eight-row shared fixture hid a 128-row scale-grid boundary
+
+          **Question:** can the already-proven shared FP8 expert helper be used unchanged for Gate H's full 4,096 output rows?
+
+          **Evidence:** model-free scalar regression plus the existing real Gate-F fixture. Gate F only supplied eight `w2` rows and one E8M0 scale-grid row; the helper therefore carried a fixture-era `out_rows <= 128` rejection.
+
+          **Result:** the limit was not a model semantic. A 129-row construction makes row 128 consume scale-grid row 1: row 127 is `0.75`, row 128 is `1.5` when the second scale is 2, and returns to `0.75` when that scale is changed to 1. Gate-F real routed/shared fixtures remain bit-exact after removing the cap.
+
+          **Verdict:** passed only after making scale-grid coverage explicit. A bounded fixture must not silently become a runtime dimension limit.
+
+          ---
+
+          ## 11 — 2026-08-10 — Full real Gate H MoE arithmetic agrees on all 28,672 expert outputs
+
+          **Question:** do the six experts selected by the real layer-3 FFN input and the shared expert reproduce independently at full model width?
+
+          **Method:** derive the SHA-pinned real `ffn_pre`, fetch exactly experts `[255,30,99,40,44,238]` plus the shared expert from immutable 0731, evaluate all 4,096 outputs with a 4,096-row specialization of standalone `tools/v4_moe_oracle.c`, then replay the same bytes through WASTE's scalar expert refs. Raw checkpoint expert payloads are deleted after acquisition.
+
+          **Result:** `6 x 4096 = 24,576` routed BF16 values plus `4,096` shared BF16 values agree exactly — **28,672 / 28,672**. The combined branch SHA-256 is `809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659`. Dropping any routed branch changes 4,070–4,075 BF16 values; dropping shared changes 4,087.
+
+          **Verdict:** PASSED. Gate H's MoE half is a real checkpoint-backed branch, not a stub or a first-eight-row extrapolation.
+
+          ---
+
+          ## 12 — 2026-08-10 — One final BF16 exposed an unpinned F32 HyperConnection boundary
+
+          **Question:** why did the first full-layer replay disagree at exactly one of 16,384 final BF16 values after every expert output had already matched?
+
+          **Result:** final index 13,648 was `0x378d` in the independent Python calculation and `0x378e` in C. The Python Sinkhorn oracle retained double precision for `post`/`comb`; the model/runtime boundary consumes F32 tensors. Rounding independent `post`/`comb` to F32 before `hc_post` changes exactly that one BF16 value and restores exact agreement.
+
+          **Verdict:** this was an oracle-boundary bug, not a checkpoint/expert mismatch. No tolerance was introduced. Provenance now records the F32 boundary and the one changed index explicitly.
+
+          ---
+
+          ## 13 — 2026-08-10 — Independent router weights were close enough numerically but still the wrong branch inputs
+
+          **Question:** should Gate H feed experts the independently computed Python route weights or the exact scalar-runtime router weights?
+
+          **Result:** IDs agree exactly at `[255,30,99,40,44,238]`, but the two F32 vectors differ by up to `1.49662139e-07`. Route weight is multiplied before the expert hidden BF16 cast, so the complete-layer fixture was reacquired using the scalar runtime's exact F32 weights while retaining the Python router as an independent ID/tolerance oracle.
+
+          Reacquisition changed only the six-F32 weight file and provenance; the 24,576 routed BF16 outputs, 4,096 shared outputs, combined MoE branch, and final layer state were unchanged for this input.
+
+          **Verdict:** semantic inputs should come from the implementation boundary being composed even when an independent oracle is numerically very close. Independence verifies the boundary; it does not replace it.
+
+          ---
+
+          '''
+              if marker not in s:
+                  raise SystemExit('EXPERIMENTS candidate marker missing')
+              s = s.replace(marker, insert + marker, 1)
+          p.write_text(s)
+          PY
+          git diff --check
+
+      - name: Freeze maintained Gate H evidence
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh docs/VALIDATION.md ROADMAP.md docs/EXPERIMENTS.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Gate H docs already promoted"
+            exit 0
+          fi
+          git commit -m "docs: close Gate H at one-layer model-semantic level [skip ci]"
+          git push origin HEAD:agent/gate-h-layer3-full
