@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 is PARTIAL: layer-3 block wiring and the real HC composition are passed, but with stubbed branches — real attention and real MoE composed in place of those stubs is what remains. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 is PARTIAL: layer-3 block wiring, the real HC composition, and the attention half composed for real (residual → hc_pre → real 64-head attention → hc_post) are passed; the FFN half still runs a stub, so the real router/MoE composed at the ffn_pre state is what remains. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -353,15 +353,34 @@ Each is measured against the independent oracle before the C library is involved
 
 `tests/fixtures/deepseek_v4/v6_hc_composition_real/` replays the composition with real layer-3 `hc_attn_*` and `hc_ffn_*` parameters, SHA-pinned per file, exact at BF16 across attention hc_pre, attention hc_post, FFN hc_pre and the final state.
 
-**Evidence boundary — the branches are stubs.** The fixture proves the *wiring and the HyperConnection arithmetic* with real parameters; it does not run real attention or real MoE inside the composition. The frozen files say so by name (`attn-stub-branch.bf16.bin`, `ffn-stub-branch.bf16.bin`), and the test separately pins that each stub is bound to the frozen hc_pre state so a stub that ignored its input would fail.
+**Evidence boundary — both branches are stubs in this fixture.** It proves the *wiring and the HyperConnection arithmetic* with real parameters; it does not run real attention or real MoE inside the composition. The frozen files say so by name (`attn-stub-branch.bf16.bin`, `ffn-stub-branch.bf16.bin`), and the test separately pins that each stub is bound to the frozen hc_pre state so a stub that ignored its input would fail.
+
+#### Real attention composed through the transition — **PASSED sub-seam**
+
+`tests/test_v6_attention_composition_real.py` replaces the attention stub with the real 64-head branch from `v6_attention_branch_real`, giving the attention half of the layer end to end from checkpoint bytes:
+
+```text
+residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post
+```
+
+Chaining two separately frozen fixtures is only legitimate if the second was produced from the first's state, so that is **checked, not assumed**: the attention fixture records the producing file and its SHA-256, the test recomputes that digest, and it also re-derives `attn_pre` through `hc_pre` and requires the frozen BF16 state back. Feeding a correct branch output produced from the wrong branch input is a wiring error this gate names explicitly; hash equality plus re-derivation is what rules it out.
+
+`post`/`comb` come from an independent Sinkhorn rather than from the `hc_pre` under test. That distinction is load-bearing — with them read out of `hc_pre`, a fault inside the Sinkhorn normalization cancels on both sides of the comparison and the test cannot see it. Measured against the C:
+
+```text
+hc_post f32 max_abs vs independent oracle       2.38418579e-07
+hc_pre post/comb max_abs vs independent Sinkhorn 7.13651154e-08
+composed after-attn state                        exact at BF16, 16,384 values
+```
+
+Refused: the stub branch in place of the real one, the FFN HC `post`/`comb` on the attention transition, a plain residual add instead of `hc_post`, and a composed state equal to the frozen stub composition. Four `src/deepseek_v4_mhc_ref.c` mutations die against it — `comb` transposed inside `hc_post`, `comb` transposed inside the Sinkhorn normalization, the `post[]` branch scaling dropped, and the residual indexed by `k` instead of `j`.
 
 #### What Gate H still needs
 
-- the real ratio-128 attention branch composed *in place* of the attention stub;
-- the real router + routed/shared MoE composed in place of the FFN stub;
-- one complete layer-3 state transition replayable offline from frozen checkpoint bytes, under the normal and ASan/UBSan suites.
+- the real router + routed/shared MoE composed in place of the FFN stub, at the `ffn_pre` state — this needs expert weights selected by the router at that state, so it needs checkpoint access;
+- both halves in one composition, giving a complete layer-3 state transition replayable offline, under the normal and ASan/UBSan suites.
 
-Gate H does not close, and no full-layer claim is made, until those hold together in one composition.
+Gate H does not close, and no full-layer claim is made, until those hold together.
 
 ### V7 — multi-layer localization
 
@@ -396,7 +415,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
-| **H** complete transformer block | **V6** | **PARTIAL** — wiring + real HC composition passed; branches still stubbed |
+| **H** complete transformer block | **V6** | **PARTIAL** — wiring, real HC composition and real attention half done; MoE half stubbed |
 | **I** 43-layer base forward/logits | **V8** | base-model bring-up |
 | **J** tokenizer/encoding | **V10** | encoding/API phase |
 | **K** generation | **V9** | after logits |

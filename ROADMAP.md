@@ -33,7 +33,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | coherent same-input ratio-128 forward | **E/V5 partial** | **CHECKPOINT-PASSED**, one head / row 255 through inverse compressed RoPE |
 | ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |
 | Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |
-| one full transformer layer | **H/V6** | **PARTIAL** — block wiring + real layer-3 HC composition passed (branches stubbed); real attention/MoE composition open |
+| one full transformer layer | **H/V6** | **PARTIAL** — block wiring, real HC composition and the real attention half composed; real MoE half open |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |
@@ -129,7 +129,7 @@ coherent CSA: same positions 3/7 input -> main overlap compressor -> selected sp
 
 The shared grouped output projection remains independently proved rather than duplicated inside each mode fixture. Gate H/V6 is the next numerical integration rung.
 
-**Immediate priority: Gate H/V6 — one complete transformer layer. Gate E attention-by-type is now checkpoint-passed at the stated scalar/model-semantic evidence level.**
+**Immediate priority: Gate H/V6 — one complete transformer layer.** The attention half is now composed for real (`residual -> hc_pre -> real 64-head attention -> hc_post`, chained by SHA-256 to the `attn_pre` state the branch was produced from). What remains is the FFN half: the real router and routed/shared MoE evaluated at the `ffn_pre` state, then both halves in one composition. That needs checkpoint access, because the experts the router selects at that state are not the ones any existing fixture froze.
 
 ---
 

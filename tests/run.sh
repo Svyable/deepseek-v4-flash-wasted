@@ -1207,6 +1207,13 @@ deepseek_replay "Gate H/V6 — full eight-group attention output seam" \
                 "test_v6_attention_output_full_scalar.py"
 deepseek_replay "Gate H/V6 — real layer-3 HC composition, exact BF16 final" \
                 "test_v6_hc_composition_real.py"
+# The attention half composed for real: the frozen 64-head branch is bound by
+# SHA-256 to the attn_pre state it was produced from, so chaining the two
+# fixtures is checked rather than assumed. post/comb come from an independent
+# Sinkhorn rather than from the hc_pre under test, which is what lets a fault
+# in the normalization show up instead of cancelling on both sides.
+deepseek_replay "Gate H/V6 — real attention branch composed through hc_post" \
+                "test_v6_attention_composition_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
