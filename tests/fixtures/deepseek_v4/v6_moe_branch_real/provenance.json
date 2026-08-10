@@ -145,7 +145,7 @@
     "weights": {
       "dtype": "F32",
       "file": "routed-weights.f32.bin",
-      "sha256": "437200b07120c990cdfc3bf464bd3cfb3dcdca5ee82dbb5fbff43d5e6c79afbf",
+      "sha256": "8bf7da67aa935e3f0230b08f1c33f94a0f740b82bea39c4da1d3ea7fd24c2d38",
       "shape": [
         6
       ]
@@ -283,7 +283,7 @@
         "0xbd3e"
       ],
       "output_sha256": "bd5e4fd8790a0cb0deb20ab9d6acb6b25fe7f6817626adac24b0b786178e160a",
-      "route_weight_f32": 0.26060280203819275,
+      "route_weight_f32": 0.2606027126312256,
       "slot": 0
     },
     {
@@ -416,7 +416,7 @@
         "0xbd8c"
       ],
       "output_sha256": "fcff863cfd7b73cd4f9e44319bf348e1533efd60fae6ad0c50c239194bd94527",
-      "route_weight_f32": 0.25818315148353577,
+      "route_weight_f32": 0.2581831216812134,
       "slot": 1
     },
     {
@@ -549,7 +549,7 @@
         "0xbe01"
       ],
       "output_sha256": "458eada74b74e3f2f33e210d6afe73ceeca9f7c52cf8556f0ea718b66f3ca69e",
-      "route_weight_f32": 0.24890878796577454,
+      "route_weight_f32": 0.24890893697738647,
       "slot": 2
     },
     {
@@ -682,7 +682,7 @@
         "0x3e05"
       ],
       "output_sha256": "2e44c27e92664aa28d959b7035fed3070fedfcb8904738c04f111cc554279d5a",
-      "route_weight_f32": 0.25253403186798096,
+      "route_weight_f32": 0.25253409147262573,
       "slot": 3
     },
     {
@@ -815,7 +815,7 @@
         "0xbe22"
       ],
       "output_sha256": "eea2c1e65ef83923904626f61339ab4097968dcf87a5790d6f3cf129cd8ce451",
-      "route_weight_f32": 0.2422175407409668,
+      "route_weight_f32": 0.2422175109386444,
       "slot": 4
     },
     {
@@ -948,7 +948,7 @@
         "0xbdf5"
       ],
       "output_sha256": "ad1e34cd1923135b0f5537c8b75bc7d91c37e156d1ec84ecf1ea5f94f45ae7cb",
-      "route_weight_f32": 0.237553671002388,
+      "route_weight_f32": 0.23755356669425964,
       "slot": 5
     }
   ],
@@ -961,6 +961,7 @@
       238,
       255
     ],
+    "ids_runtime_vs_python_exact": true,
     "ids_topk_order": [
       255,
       30,
@@ -969,15 +970,34 @@
       44,
       238
     ],
+    "independent_python_weights": [
+      0.26060281643113775,
+      0.2581831387916208,
+      0.24890878731524702,
+      0.25253403485617115,
+      0.24221754521269184,
+      0.2375536773931314
+    ],
+    "runtime_source_sha256": "9a1ec3b5af45c321e415b44ce23f25be912d91e41a7227ff69aca258f036ce8f",
+    "runtime_vs_python_max_abs": 1.496621394592168e-07,
+    "runtime_weights_f32": [
+      0.2606027126312256,
+      0.2581831216812134,
+      0.24890893697738647,
+      0.25253409147262573,
+      0.2422175109386444,
+      0.23755356669425964
+    ],
     "source_contract": "selection by score+bias; weights from unbiased sqrt(softplus(score)), normalized then x1.5",
     "topk_boundary_margin": 0.011921764980042937,
+    "weight_source": "src/deepseek_v4_router_ref.c scalar learned-router F32 outputs",
     "weights_f32": [
-      0.26060280203819275,
-      0.25818315148353577,
-      0.24890878796577454,
-      0.25253403186798096,
-      0.2422175407409668,
-      0.237553671002388
+      0.2606027126312256,
+      0.2581831216812134,
+      0.24890893697738647,
+      0.25253409147262573,
+      0.2422175109386444,
+      0.23755356669425964
     ]
   },
   "schema_version": 1,
