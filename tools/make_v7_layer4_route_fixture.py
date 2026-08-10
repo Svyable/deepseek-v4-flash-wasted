@@ -44,6 +44,7 @@ sys.path.insert(0, os.path.join(REPO, "tests"))
 import fetch_hf_tensor_slice as slice_fetch  # noqa: E402
 import make_v6_attention_branch_fixture as attn  # noqa: E402
 import test_v6_ffn_route_real as chain  # noqa: E402
+import v7_hc_oracle as hc_oracle  # noqa: E402
 
 MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731"
 REV = "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
@@ -318,13 +319,13 @@ def main(argv=None) -> int:
         attn_pre_bits, attn_pre = chain.cast_bf16(attn_pre_f)
 
         # Independent HC equations must land on the same BF16 branch input.
-        o_pre, o_post, o_comb = chain.oracle_hc_params(
-            residual, attn_fn, attn_scale, attn_base)
+        o_pre, o_post, o_comb, _ = hc_oracle.params(
+            residual, attn_fn, attn_scale, attn_base, dim=DIM)
         o_pre = [chain.f32(v) for v in o_pre]
         o_post = [chain.f32(v) for v in o_post]
         o_comb = [[chain.f32(v) for v in row] for row in o_comb]
         o_attn_pre_bits, _ = chain.cast_bf16(
-            oracle_hc_pre_y_f32(residual, o_pre))
+            hc_oracle.pre_y(residual, o_pre, dim=DIM))
         if o_attn_pre_bits != attn_pre_bits:
             i = next(i for i, (a, b) in enumerate(zip(o_attn_pre_bits, attn_pre_bits)) if a != b)
             raise ValueError(
@@ -350,12 +351,12 @@ def main(argv=None) -> int:
             pre_fn, after_attn, ffn_fn, ffn_scale, ffn_base)
         ffn_pre_bits, ffn_pre = chain.cast_bf16(ffn_pre_f)
 
-        fo_pre, fo_post, fo_comb = chain.oracle_hc_params(
-            after_attn, ffn_fn, ffn_scale, ffn_base)
+        fo_pre, fo_post, fo_comb, _ = hc_oracle.params(
+            after_attn, ffn_fn, ffn_scale, ffn_base, dim=DIM)
         fo_pre = [chain.f32(v) for v in fo_pre]
         fo_post = [chain.f32(v) for v in fo_post]
         fo_comb = [[chain.f32(v) for v in row] for row in fo_comb]
-        if chain.cast_bf16(oracle_hc_pre_y_f32(after_attn, fo_pre))[0] != ffn_pre_bits:
+        if chain.cast_bf16(hc_oracle.pre_y(after_attn, fo_pre, dim=DIM))[0] != ffn_pre_bits:
             raise ValueError("layer4 HC-FFN-pre disagrees with independent oracle at BF16")
         ffn_param_delta = max(
             max(abs(a - b) for a, b in zip(ffn_post, fo_post)),

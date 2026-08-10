@@ -25,6 +25,7 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 import test_v6_ffn_route_real as chain  # noqa: E402
+import v7_hc_oracle as hc_oracle  # noqa: E402
 
 BASE = os.path.join(REPO, "tests", "fixtures", "deepseek_v4")
 FIX = os.path.join(BASE, "v7_layer4_route_real")
@@ -258,10 +259,10 @@ def main():
             return 1
 
         # Independent Python HC-pre must land at the same BF16 boundary.
-        opre, _, _ = chain.oracle_hc_params(
-            residual, fparams["attn_fn"], fparams["attn_scale"], fparams["attn_base"])
+        opre, _, _, _ = hc_oracle.params(
+            residual, fparams["attn_fn"], fparams["attn_scale"], fparams["attn_base"], dim=DIM)
         opre = [chain.f32(v) for v in opre]
-        if chain.cast_bf16(oracle_hc_pre_y_f32(residual, opre))[0] != attn_pre_bits:
+        if chain.cast_bf16(hc_oracle.pre_y(residual, opre, dim=DIM))[0] != attn_pre_bits:
             print("FAIL: layer4 attention hc_pre disagrees with independent oracle")
             return 1
 
@@ -278,10 +279,10 @@ def main():
         if ffn_pre_bits != read_u16(paths["ffn_pre"], DIM):
             print("FAIL: layer4 FFN hc_pre no longer matches frozen state")
             return 1
-        fpre, _, _ = chain.oracle_hc_params(
-            after, fparams["ffn_fn"], fparams["ffn_scale"], fparams["ffn_base"])
+        fpre, _, _, _ = hc_oracle.params(
+            after, fparams["ffn_fn"], fparams["ffn_scale"], fparams["ffn_base"], dim=DIM)
         fpre = [chain.f32(v) for v in fpre]
-        if chain.cast_bf16(oracle_hc_pre_y_f32(after, fpre))[0] != ffn_pre_bits:
+        if chain.cast_bf16(hc_oracle.pre_y(after, fpre, dim=DIM))[0] != ffn_pre_bits:
             print("FAIL: layer4 FFN hc_pre disagrees with independent oracle")
             return 1
 
