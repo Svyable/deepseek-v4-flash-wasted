@@ -56,7 +56,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tools tests
-          git rm tools/v7_hc_oracle.py tests/test_v7_hc_oracle_f32.py tools/consolidate_v7_hc_oracle.py
+          git rm -f tools/v7_hc_oracle.py tests/test_v7_hc_oracle_f32.py tools/consolidate_v7_hc_oracle.py
           git diff --cached --check
           git commit -m "refactor: consolidate V7 onto canonical F32 HC oracle [skip ci]"
           git push origin HEAD:agent/v7-multilayer-localization
