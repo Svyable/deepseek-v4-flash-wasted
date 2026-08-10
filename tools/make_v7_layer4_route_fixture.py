@@ -160,6 +160,17 @@ def as_cf(values):
     return (ctypes.c_float * len(values))(*values)
 
 
+def oracle_hc_pre_y_f32(x, pre):
+    """Independent HC-pre equation with the model's sequential F32 reduction."""
+    out = []
+    for d in range(DIM):
+        acc = chain.f32(0.0)
+        for j in range(HC):
+            acc = chain.f32(acc + chain.f32(pre[j] * x[j * DIM + d]))
+        out.append(acc)
+    return out
+
+
 def build_state_lib(work: str):
     cc = compiler()
     lib = os.path.join(work, "libv7state.so")
@@ -313,7 +324,7 @@ def main(argv=None) -> int:
         o_post = [chain.f32(v) for v in o_post]
         o_comb = [[chain.f32(v) for v in row] for row in o_comb]
         o_attn_pre_bits, _ = chain.cast_bf16(
-            chain.oracle_hc_pre_y(residual, o_pre))
+            oracle_hc_pre_y_f32(residual, o_pre))
         if o_attn_pre_bits != attn_pre_bits:
             i = next(i for i, (a, b) in enumerate(zip(o_attn_pre_bits, attn_pre_bits)) if a != b)
             raise ValueError(
@@ -344,7 +355,7 @@ def main(argv=None) -> int:
         fo_pre = [chain.f32(v) for v in fo_pre]
         fo_post = [chain.f32(v) for v in fo_post]
         fo_comb = [[chain.f32(v) for v in row] for row in fo_comb]
-        if chain.cast_bf16(chain.oracle_hc_pre_y(after_attn, fo_pre))[0] != ffn_pre_bits:
+        if chain.cast_bf16(oracle_hc_pre_y_f32(after_attn, fo_pre))[0] != ffn_pre_bits:
             raise ValueError("layer4 HC-FFN-pre disagrees with independent oracle at BF16")
         ffn_param_delta = max(
             max(abs(a - b) for a, b in zip(ffn_post, fo_post)),

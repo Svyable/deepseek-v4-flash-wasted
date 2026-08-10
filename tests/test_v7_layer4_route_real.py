@@ -84,6 +84,17 @@ def as_cf(values):
     return (ctypes.c_float * len(values))(*values)
 
 
+def oracle_hc_pre_y_f32(x, pre):
+    """Independent HC-pre equation with the model's sequential F32 reduction."""
+    out = []
+    for d in range(DIM):
+        acc = chain.f32(0.0)
+        for j in range(HC):
+            acc = chain.f32(acc + chain.f32(pre[j] * x[j * DIM + d]))
+        out.append(acc)
+    return out
+
+
 def main():
     prov_path = os.path.join(FIX, "provenance.json")
     if not os.path.isfile(prov_path):
@@ -250,7 +261,7 @@ def main():
         opre, _, _ = chain.oracle_hc_params(
             residual, fparams["attn_fn"], fparams["attn_scale"], fparams["attn_base"])
         opre = [chain.f32(v) for v in opre]
-        if chain.cast_bf16(chain.oracle_hc_pre_y(residual, opre))[0] != attn_pre_bits:
+        if chain.cast_bf16(oracle_hc_pre_y_f32(residual, opre))[0] != attn_pre_bits:
             print("FAIL: layer4 attention hc_pre disagrees with independent oracle")
             return 1
 
@@ -270,7 +281,7 @@ def main():
         fpre, _, _ = chain.oracle_hc_params(
             after, fparams["ffn_fn"], fparams["ffn_scale"], fparams["ffn_base"])
         fpre = [chain.f32(v) for v in fpre]
-        if chain.cast_bf16(chain.oracle_hc_pre_y(after, fpre))[0] != ffn_pre_bits:
+        if chain.cast_bf16(oracle_hc_pre_y_f32(after, fpre))[0] != ffn_pre_bits:
             print("FAIL: layer4 FFN hc_pre disagrees with independent oracle")
             return 1
 
