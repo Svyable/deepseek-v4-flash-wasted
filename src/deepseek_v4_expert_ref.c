@@ -136,7 +136,6 @@ int waste_ds_v4_shared_expert_ref(
         !w2_rows || !w2_scale_rows_e8m0 || !out ||
         input_dim == 0 || intermediate_dim == 0 || out_rows == 0 ||
         input_dim % 128u != 0 || intermediate_dim % 128u != 0 ||
-        out_rows > 128u ||
         !(swiglu_limit > 0.0f) || !isfinite(swiglu_limit))
         return -1;
 
