@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Register full layer-4 replay
+      - name: Register and patch full layer-4 replay
         run: |
           set -euo pipefail
           python3 tools/register_v7_layer4_full_test.py
@@ -56,13 +56,13 @@ jobs:
           set -euo pipefail
           make check
 
-      - name: Freeze registration only
+      - name: Freeze registration and corrected dependency loader
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/run.sh
+          git add tests/run.sh tools/make_v7_layer4_moe_fixture.py
           git rm tools/register_v7_layer4_full_test.py
           git diff --cached --check
-          git commit -m "test: register complete V7 layer-4 replay [skip ci]"
+          git commit -m "test: register and preflight complete V7 layer-4 replay [skip ci]"
           git push origin HEAD:agent/v7-multilayer-localization
