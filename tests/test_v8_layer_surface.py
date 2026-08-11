@@ -51,9 +51,10 @@ def shared_rows(n=4):
 
 
 def main():
-    # Discovery must be semantic rather than path-hardcoded: one nested key is
-    # accepted, a second plausible list is an ambiguity and must fail closed.
-    raw = {"model": {"attention": {"compress_ratios": [0, 4, 128, 4]}}}
+    # Discovery must be semantic rather than path-hardcoded. The main-stack
+    # prefix is accepted even when the real config carries trailing speculative
+    # entries; a second plausible schedule remains an ambiguity and fails.
+    raw = {"model": {"attention": {"compress_ratios": [0, 4, 128, 4, 128, 4]}}}
     ratios, path = layer.find_compress_ratios(raw, 4)
     if ratios != [0, 4, 128, 4] or path != "model.attention.compress_ratios":
         raise AssertionError((ratios, path))
@@ -116,7 +117,7 @@ def main():
         raise AssertionError("routed expert missing one scale tensor was accepted")
 
     print("PASS V8 generic layer surface model-free contracts")
-    print("mutations refused: ambiguous ratios, ratio0 compression, ratio128 indexer, router bias, expert scale")
+    print("mutations refused: speculative-tail ambiguity, ratio0 compression, ratio128 indexer, router bias, expert scale")
     return 0
 
 
