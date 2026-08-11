@@ -1249,6 +1249,8 @@ deepseek_replay "V7 — one-row online-softmax signed-zero operation order" \
                 "test_v7_one_row_attention_signed_zero.py"
 deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \
                 "test_v7_router_bias_observation.py"
+deepseek_replay "V7 — current Gate-H parent freshness contract" \
+                "test_v7_parent_freshness.py"
 
 # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
 # reject stale manifests/broken output->input chains, and stop at the first
@@ -1259,6 +1261,8 @@ deepseek_replay "V7 — real chained layer-3 output through layer-4 router" \
                 "test_v7_layer4_route_real.py"
 deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \
                 "test_v7_layer4_full_real.py"
+deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
+                "test_v7_two_layer_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

@@ -1,0 +1,1123 @@
+{
+  "acquisition_verification": {
+    "ffn_hc_post_comb_exact_f32": true,
+    "final_hc_exact_f32_values": 16384,
+    "raw_checkpoint_weights_committed": false,
+    "raw_checkpoint_weights_lifetime": "temporary acquisition workspace only",
+    "routed_exact_bf16_values": 24576,
+    "shared_exact_bf16_values": 4096,
+    "total_expert_exact_bf16_values": 28672
+  },
+  "evidence_state": "CHECKPOINT-BOUND-LAYER4-COMPLETE-SCALAR",
+  "gate": "V7 complete real layer-4 MoE branch and final composition",
+  "input_dependency": {
+    "fixture_sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+    "producer": "Gate H/V6 complete real layer-3 final state",
+    "source_file": "tests/fixtures/deepseek_v4/v6_moe_branch_real/expected-layer3-final.bf16.bin",
+    "source_sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+    "via_route_provenance_sha256": "e41b7b8c9794c8bbfc454f27902938d168d7e53ffdfdf0c90563dfc2c5405134"
+  },
+  "layer": 4,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "mutations": {
+    "drop_expert_120": 4073,
+    "drop_expert_185": 4074,
+    "drop_expert_197": 4069,
+    "drop_expert_237": 4082,
+    "drop_expert_239": 4073,
+    "drop_expert_90": 4076,
+    "drop_shared_expert": 4084
+  },
+  "non_claims": [
+    "position 0 does not re-prove non-empty ratio-4 compressor/indexer selection; Gate E owns that primitive evidence",
+    "this freezes one real layer-4 state transition chained from Gate H, not all 43 layers",
+    "no final-model logits, generation, converted-container/cache identity, RAM or throughput claim"
+  ],
+  "oracle_independence": {
+    "base_source": "tools/v4_moe_oracle.c",
+    "base_source_sha256": "3f355120b95ddc7f7b9de73bfc3c7efd5ec13f3894287323330fa0fc07fdc599",
+    "runtime_checker": "tools/v6_moe_runtime_check.c",
+    "runtime_checker_sha256": "8cd96bec8f91bc005657a44eb411082de243fee0f314ca0af7f8b878ec802b47",
+    "shares_waste_runtime_helpers": false,
+    "specialization": [
+      "OUT_ROWS: 8 -> 4096",
+      "shared w2 E8M0 bytes: one scale-grid row -> ceil(OUT_ROWS/128) rows"
+    ],
+    "specialized_source_sha256": "8a93ff69b70099e1fb6ff1b0a55f80141104977219d0cd689f5e5326535ad4be"
+  },
+  "outputs": {
+    "ffn_pre": {
+      "dtype": "BF16",
+      "file": "ffn-pre.bf16.bin",
+      "first8_hex": [
+        "0x3fae",
+        "0x3f1e",
+        "0x3da1",
+        "0xbbe0",
+        "0xbe32",
+        "0x3ec3",
+        "0xbd01",
+        "0xbeb1"
+      ],
+      "sha256": "404edd7870f841686558c3f56ee15b8af8875f42057bebd0f1abcefbc9383767",
+      "shape": [
+        4096
+      ]
+    },
+    "ids": {
+      "dtype": "U32",
+      "file": "router-ids.u32.bin",
+      "sha256": "ce94ab5ae1130fcae05aad3e5bba0046df27207a6bba6ccd4cca5809bbf9f0ed",
+      "shape": [
+        6
+      ]
+    },
+    "layer4_final": {
+      "dtype": "BF16",
+      "file": "layer4-final.bf16.bin",
+      "first8_hex": [
+        "0x3faf",
+        "0x3e19",
+        "0x3dd6",
+        "0x3f7a",
+        "0x3dae",
+        "0xbe33",
+        "0xbf25",
+        "0xbe27"
+      ],
+      "sha256": "f32bec5a013bc5a0da98a6ac940dd4946fe0dad877714ffb6811c177837cf749",
+      "shape": [
+        4,
+        4096
+      ]
+    },
+    "moe_branch": {
+      "dtype": "BF16",
+      "file": "moe-branch.bf16.bin",
+      "first8_hex": [
+        "0x3e3e",
+        "0xbf36",
+        "0x3d1e",
+        "0x3ff3",
+        "0x3ec4",
+        "0xbf71",
+        "0xbf99",
+        "0x3eb4"
+      ],
+      "sha256": "299dde0813e4305d870b5f8b2d734a92f329e99641572acb4ce3dc1933c32db0",
+      "shape": [
+        4096
+      ]
+    },
+    "routed": {
+      "dtype": "BF16",
+      "file": "routed-out-all6.bf16.bin",
+      "first8_hex": [
+        "0xbdac",
+        "0x3ede",
+        "0x3d40",
+        "0x3e31",
+        "0xbe2a",
+        "0xbf28",
+        "0xbe64",
+        "0xbc90"
+      ],
+      "sha256": "e0323730e4ee5c302e3458ae1a52f060d3fe6a5529cafba3260dd7d318943074",
+      "shape": [
+        6,
+        4096
+      ]
+    },
+    "shared": {
+      "dtype": "BF16",
+      "file": "shared-out.bf16.bin",
+      "first8_hex": [
+        "0x3e54",
+        "0xbef5",
+        "0xbdc1",
+        "0x3f1c",
+        "0x3de6",
+        "0xbeba",
+        "0xbc31",
+        "0xbde6"
+      ],
+      "sha256": "1d675549b4c41e86ec6553fa67697c96e5d74ed0e8bcedabe6c0e514295a7ff6",
+      "shape": [
+        4096
+      ]
+    },
+    "weights": {
+      "dtype": "F32",
+      "file": "router-weights.f32.bin",
+      "sha256": "6f0ddaf999889e6be87ea763b42054c44505985dabd1b1025368b80cd07f1a74",
+      "shape": [
+        6
+      ]
+    }
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "route_dependency": {
+    "after_attn_sha256": "b0bdc89e65b991145b35fd74659a9e850c7597288ff7996d1d6e91b5b546d08d",
+    "ffn_pre_sha256": "404edd7870f841686558c3f56ee15b8af8875f42057bebd0f1abcefbc9383767",
+    "fixture": "tests/fixtures/deepseek_v4/v7_layer4_route_real",
+    "ids_ascending_expert_order": [
+      90,
+      120,
+      185,
+      197,
+      237,
+      239
+    ],
+    "ids_topk_order": [
+      237,
+      90,
+      185,
+      120,
+      197,
+      239
+    ],
+    "provenance_sha256": "e41b7b8c9794c8bbfc454f27902938d168d7e53ffdfdf0c90563dfc2c5405134",
+    "topk_boundary_margin": 0.04352122615267007,
+    "weights_f32": [
+      0.2932288348674774,
+      0.27015626430511475,
+      0.2420850396156311,
+      0.23479324579238892,
+      0.23145072162151337,
+      0.22828593850135803
+    ]
+  },
+  "routed_experts": [
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            148072520,
+            148334663
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.237.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "800038c02a859e4e90efa5669cb0899f19674725e4f86aecfef037c2fff0f430",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            148334664,
+            148596807
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.237.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "d64192d779d1a9fc0244f65ff39454a0d38feae6c9eb1afa1c83b4f2d7aefa47",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            148596808,
+            148858951
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.237.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "62fd95a3dc9bd79358cddd6fc889b60d9761e24e47c27d2c9ffad31c8302975e",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            2306567752,
+            2310762055
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.237.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "8245541575409dff0c739cde794f08af3571a97b959f13ddba07f35dab77c7dc",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            2310762056,
+            2314956359
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.237.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "8a6fb7f9fa0b3524e4106cdbfc8a2f78cc5089cf04c027186d765f87ff615dd9",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            2314956360,
+            2319150663
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.237.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "dad18368f3a809f1df7dbab28c61c7da561d99beed84ffc7c192d18b3eb6affa",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 237,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0xbdac",
+        "0x3ede",
+        "0x3d40",
+        "0x3e31",
+        "0xbe2a",
+        "0xbf28",
+        "0xbe64",
+        "0xbc90"
+      ],
+      "output_sha256": "9fb76f87b50d34f1a8916dac40fdbe8652819306eb3763d83b2a11514a1ca9c8",
+      "route_weight_f32": 0.2932288348674774,
+      "slot": 0
+    },
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            220424264,
+            220686407
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.90.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "7bf3b5f59fa9ca30b9b01408c633ee350ba710b54f9c344d050ca4d29f3a4c5b",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            220686408,
+            220948551
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.90.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "d1daf90ceb5b33637681666ddcb8dbe0b16e92ed34b54a0001efc52b06d9ceb5",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            220948552,
+            221210695
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.90.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "8dad438058d7f79e1d8a684866e5b692eef5e3a8f6014444e6b5adb68d84a0fb",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            3464195656,
+            3468389959
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.90.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "589051252a214f10b7a6b1aca3d17c39c079aea38fa0ca2897b1b92c24506ce5",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            3468389960,
+            3472584263
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.90.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "fadee995c4365fdefe8a55f05a327cc4ceaa447d18c18319611af011984ac869",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            3472584264,
+            3476778567
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.90.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "af3b06faf9e95404fb043d65b673a452807df60096054f378dcd45bacb9e91be",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 90,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0x3eb4",
+        "0xbeef",
+        "0xbe05",
+        "0x3ea6",
+        "0x3ead",
+        "0xbdfd",
+        "0x3d92",
+        "0xbd8e"
+      ],
+      "output_sha256": "9d74d4a588b9173141b3c12ac8693b4c24132b8575086d3e352c20b664d74625",
+      "route_weight_f32": 0.27015626430511475,
+      "slot": 1
+    },
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            102459464,
+            102721607
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.185.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "d80025e10ed92a049ece907865d478ea05a681a6cf284d1ffaac94de4a497b26",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            102721608,
+            102983751
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.185.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "a42d524665ad5d94aabb037c6d24c3a5e4dbc7315eb3e01beddc3f46df79a49a",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            102983752,
+            103245895
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.185.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "a2801a2132c4931e5e2b3f80fcb58c941ed67c5b8dd00613de742610e80280fb",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            1576758856,
+            1580953159
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.185.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "5d25b6a18cf9a605c211fc23b73a7d0cb2e6e87da8a105d276d0de2dc84283d0",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            1580953160,
+            1585147463
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.185.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "ce52a85143a53db376154bfb94f0461bee506014f578dea5425078cda16ff751",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            1585147464,
+            1589341767
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.185.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "a6c4fb818a90f49928eed53936ed61025313ce4b1033fe7ff2f8ba79c9d3b535",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 185,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0xbaf3",
+        "0x3e59",
+        "0xbecb",
+        "0x3eac",
+        "0xbde0",
+        "0x3d69",
+        "0xbe37",
+        "0xbd97"
+      ],
+      "output_sha256": "55016a705165c3ffb5fbe3676c4a8e628d9634fe48948d55eca732c5e11ed9cb",
+      "route_weight_f32": 0.2420850396156311,
+      "slot": 2
+    },
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            46622792,
+            46884935
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.120.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "80157cb370dc565955b1f1359243153d034b015b47b7f2362a3822bf0b573907",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            46884936,
+            47147079
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.120.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "c68f87fd09dfa027b24975a844bcf83cf69cc2e429c3aee48e749545c55bd567",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            47147080,
+            47409223
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.120.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "60b950bb1ee65bfa1cbf4c5f6242472bae23fdb536c02dd7115867e679238f1b",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            683372104,
+            687566407
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.120.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "97183d31e5039990b11b4276d61548d66d532ef6ce7f02cdd438ea40dbbc10c9",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            687566408,
+            691760711
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.120.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "cb0ddf5f0f824703f2c831c481f367ad1928e655fa0da056b66415a079372015",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            691760712,
+            695955015
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.120.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "1db7c2a05e98184e64789eedbe0bc022e182c296a0c3bbf603a4bd9bf1167218",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 120,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0xbdb2",
+        "0xbdd4",
+        "0x3d9a",
+        "0xbd85",
+        "0x3e05",
+        "0x3e81",
+        "0xbf23",
+        "0x3e18"
+      ],
+      "output_sha256": "72c0bdb1bcffc77016adc666e28d16d199544a3254fc8017f8555faca23e8250",
+      "route_weight_f32": 0.23479324579238892,
+      "slot": 3
+    },
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            112683080,
+            112945223
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.197.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "caa506ee2d88583dfa23ad9db13ada5c4b07b33ddf3dbc53e9f609ac0c4ca403",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            112945224,
+            113207367
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.197.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "76e909ffc5b51044a52bc813179f36dd4183b8ea5475bacf810475537c08f24f",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            113207368,
+            113469511
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.197.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "c5db06ecb4da1d9b3cbf6525ecde0ef41bc5673520dc1b064888abf7b9410d81",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            1740336712,
+            1744531015
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.197.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "3bb975c551fce7ad5422af5e892e2d96f0821ce2d6230fbc10f54fa27cabace3",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            1744531016,
+            1748725319
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.197.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "0d9dc51b84850f65821f4da4c0753deb4732f4917760772b829a9b35c1f1d65a",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            1748725320,
+            1752919623
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.197.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "767b41ea5ae04128b7b93fb9ed54855bf9731110c7544517431b76a7a544cc9a",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 197,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0x3e39",
+        "0xbe13",
+        "0x3eac",
+        "0xbe26",
+        "0x3d7a",
+        "0x3d95",
+        "0xbe0a",
+        "0x3e11"
+      ],
+      "output_sha256": "0cfc2c4a370c51cabb518fd1d8ffdf2c14d78cf5589fd26db06789f20ac26f76",
+      "route_weight_f32": 0.23145072162151337,
+      "slot": 4
+    },
+    {
+      "checkpoint_tensors": {
+        "s1": {
+          "absolute_http_range_inclusive": [
+            149645384,
+            149907527
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.239.w1.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "1179b89d706b8294435da9938302bee51dd4be680639984ced75171e451fbc97",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s2": {
+          "absolute_http_range_inclusive": [
+            149907528,
+            150169671
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.239.w2.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "81791f0b19e0645f11b11b3d6c94abaf4b329ace89dc130b5e67a5ec3ab3fc81",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            64
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "s3": {
+          "absolute_http_range_inclusive": [
+            150169672,
+            150431815
+          ],
+          "dtype": "F8_E8M0",
+          "name": "layers.4.ffn.experts.239.w3.scale",
+          "payload_bytes": 262144,
+          "payload_sha256": "4b8318e24c2f19e31d772f759063dc1d128f55f4eb8f559e9dba48c71911bf8e",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            128
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w1": {
+          "absolute_http_range_inclusive": [
+            2331733576,
+            2335927879
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.239.w1.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "8aed5d69f7c1661c93f28a81341b63cf7b207144b4d9cf2a440d64a5632d816b",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w2": {
+          "absolute_http_range_inclusive": [
+            2335927880,
+            2340122183
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.239.w2.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "52b1999d2e61050a32a99065cc4cf0c6bebfd65b1c38dd4776b88b1cea72c6f3",
+          "rows": [
+            0,
+            4096
+          ],
+          "shape": [
+            4096,
+            1024
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        },
+        "w3": {
+          "absolute_http_range_inclusive": [
+            2340122184,
+            2344316487
+          ],
+          "dtype": "I8",
+          "name": "layers.4.ffn.experts.239.w3.weight",
+          "payload_bytes": 4194304,
+          "payload_sha256": "b6d439def70b583594052f02ad3254bdc178d69c7e02e4fd23bfdfe3180bc439",
+          "rows": [
+            0,
+            2048
+          ],
+          "shape": [
+            2048,
+            2048
+          ],
+          "shard": "model-00006-of-00048.safetensors"
+        }
+      },
+      "expert": 239,
+      "oracle_vs_waste_exact_bf16": 4096,
+      "output_first8_hex": [
+        "0xbec3",
+        "0xbe29",
+        "0x3e4e",
+        "0x3f2f",
+        "0x3c86",
+        "0xbe39",
+        "0xbda4",
+        "0x3eab"
+      ],
+      "output_sha256": "664ad463b9ff14b97672e592956593b1fc89e02d1448fee5caeca05392aa03b4",
+      "route_weight_f32": 0.22828593850135803,
+      "slot": 5
+    }
+  ],
+  "schema_version": 1,
+  "shared_expert": {
+    "checkpoint_tensors": {
+      "s1": {
+        "absolute_http_range_inclusive": [
+          228288584,
+          228289095
+        ],
+        "dtype": "F8_E8M0",
+        "name": "layers.4.ffn.shared_experts.w1.scale",
+        "payload_bytes": 512,
+        "payload_sha256": "ff74fc65f00f0153bb18b0e19955ebeb0394fe2470683f2d90703b3e29f9e6d3",
+        "rows": [
+          0,
+          16
+        ],
+        "shape": [
+          16,
+          32
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      },
+      "s2": {
+        "absolute_http_range_inclusive": [
+          228289096,
+          228289607
+        ],
+        "dtype": "F8_E8M0",
+        "name": "layers.4.ffn.shared_experts.w2.scale",
+        "payload_bytes": 512,
+        "payload_sha256": "ea3641f76f2341305c8e451d55686b96bcd47c8783a8135575654ec0996a844c",
+        "rows": [
+          0,
+          32
+        ],
+        "shape": [
+          32,
+          16
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      },
+      "s3": {
+        "absolute_http_range_inclusive": [
+          228289608,
+          228290119
+        ],
+        "dtype": "F8_E8M0",
+        "name": "layers.4.ffn.shared_experts.w3.scale",
+        "payload_bytes": 512,
+        "payload_sha256": "bd7746493f1b841778311f3150606b8d5d713f85f5ba9f1807bd988e86c78c8f",
+        "rows": [
+          0,
+          16
+        ],
+        "shape": [
+          16,
+          32
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      },
+      "w1": {
+        "absolute_http_range_inclusive": [
+          343633480,
+          352022087
+        ],
+        "dtype": "F8_E4M3",
+        "name": "layers.4.ffn.shared_experts.w1.weight",
+        "payload_bytes": 8388608,
+        "payload_sha256": "90f86315fea5b6c19c6767466c9ff3b32843c29027fd108ee208f8195c6d9c63",
+        "rows": [
+          0,
+          2048
+        ],
+        "shape": [
+          2048,
+          4096
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      },
+      "w2": {
+        "absolute_http_range_inclusive": [
+          352022088,
+          360410695
+        ],
+        "dtype": "F8_E4M3",
+        "name": "layers.4.ffn.shared_experts.w2.weight",
+        "payload_bytes": 8388608,
+        "payload_sha256": "4249f54df539f6725c3d24c4e78c2e5834c35f2a347aa3c141ea15f58b259953",
+        "rows": [
+          0,
+          4096
+        ],
+        "shape": [
+          4096,
+          2048
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      },
+      "w3": {
+        "absolute_http_range_inclusive": [
+          360410696,
+          368799303
+        ],
+        "dtype": "F8_E4M3",
+        "name": "layers.4.ffn.shared_experts.w3.weight",
+        "payload_bytes": 8388608,
+        "payload_sha256": "76f47ca12819a11e9cd4817e0f7c16cef8fd4957e9d196aa91fc9e70285bbf58",
+        "rows": [
+          0,
+          2048
+        ],
+        "shape": [
+          2048,
+          4096
+        ],
+        "shard": "model-00006-of-00048.safetensors"
+      }
+    },
+    "hidden_sha256": "c5f6f289f7d25b376a8a07ceceefd78a28044968b03280c4060c983bdb7c1b4f",
+    "oracle_vs_waste_exact_bf16": 4096,
+    "output_first8_hex": [
+      "0x3e54",
+      "0xbef5",
+      "0xbdc1",
+      "0x3f1c",
+      "0x3de6",
+      "0xbeba",
+      "0xbc31",
+      "0xbde6"
+    ],
+    "output_sha256": "1d675549b4c41e86ec6553fa67697c96e5d74ed0e8bcedabe6c0e514295a7ff6"
+  },
+  "structural_class": "ratio4-learned"
+}

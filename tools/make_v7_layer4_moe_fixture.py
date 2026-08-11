@@ -342,6 +342,12 @@ def main(argv=None):
         final_path = os.path.join(args.out_dir, "layer4-final.bf16.bin")
         write_u16(final_path, final_bits)
 
+        parent_dep = state["provenance"].get("input_dependency") or {}
+        if parent_dep.get("fixture_sha256") != parent_dep.get("source_sha256"):
+            raise ValueError("layer4 route parent dependency is not byte-identical")
+        if not parent_dep.get("fixture_sha256") or not parent_dep.get("source_file"):
+            raise ValueError("layer4 route parent dependency is incomplete")
+
         provenance = {
             "schema_version": 1,
             "gate": "V7 complete real layer-4 MoE branch and final composition",
@@ -350,6 +356,13 @@ def main(argv=None):
             "revision": REV,
             "layer": LAYER,
             "structural_class": "ratio4-learned",
+            "input_dependency": {
+                "producer": parent_dep.get("producer"),
+                "fixture_sha256": parent_dep["fixture_sha256"],
+                "source_file": parent_dep["source_file"],
+                "source_sha256": parent_dep.get("source_sha256"),
+                "via_route_provenance_sha256": sha256_file(state["provenance_path"]),
+            },
             "route_dependency": {
                 "fixture": "tests/fixtures/deepseek_v4/v7_layer4_route_real",
                 "provenance_sha256": sha256_file(state["provenance_path"]),
