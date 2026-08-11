@@ -51,21 +51,23 @@ jobs:
           import json, os
           got = json.load(open(os.environ['L4']))
           old = json.load(open('reference/deepseek-v4-flash-0731.layer4-v7.json'))
-          for key in ('structural_class',):
-              if got[key] != old[key]:
-                  raise SystemExit(f'layer4 {key}: {got[key]!r} != {old[key]!r}')
+          if got['structural_class'] != old['structural_class']:
+              raise SystemExit(f"layer4 structural_class: {got['structural_class']!r} != {old['structural_class']!r}")
           for key in ('compress_ratio','hash_layers','hidden_size','moe_intermediate_size',
                       'n_routed_experts','n_shared_experts','num_experts_per_tok','num_hidden_layers'):
               if got['config_contract'][key] != old['config_contract'][key]:
                   raise SystemExit(f'layer4 config {key} drifted')
-          for key in ('tensor_count','payload_bytes','dtype_counts','subsystem_counts','subsystem_bytes'):
+          for key in ('tensor_count','payload_bytes','dtype_counts','subsystem_counts'):
               if got['surface'][key] != old['surface'][key]:
                   raise SystemExit(f'layer4 surface {key} drifted:\n{got["surface"][key]}\n!=\n{old["surface"][key]}')
+          old_bytes = {k:v for k,v in old['surface']['subsystem_bytes'].items() if v}
+          if got['surface']['subsystem_bytes'] != old_bytes:
+              raise SystemExit(f'layer4 nonzero subsystem_bytes drifted:\n{got["surface"]["subsystem_bytes"]}\n!=\n{old_bytes}')
           for name in old['groups']:
               for key in ('tensor_count','payload_bytes','dtype_counts'):
                   if got['groups'][name][key] != old['groups'][name][key]:
                       raise SystemExit(f'layer4 group {name}.{key} drifted')
-          print('PASS generic classifier exactly reproduces frozen V7 layer-4 surface')
+          print('PASS generic classifier exactly reproduces frozen V7 layer-4 evidence')
           PY
 
       - name: Measure layer 5 without assumptions
