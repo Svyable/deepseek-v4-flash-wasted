@@ -259,7 +259,19 @@ static void test_positional_source_binding(void)
     /* Placement identity is frozen at init, not borrowed from caller memory. */
     offsets[4u * EXPERTS + 7u] = expected == 0 ? RECORD : 0;
 
+    /* Same record size is not enough. Swapping two valid plane offsets would
+     * produce plausible but wrong arithmetic if a source could be rebound to
+     * an equally-sized manifest with a different record map. */
+    waste_ds_v4_manifest reordered = manifest;
+    const size_t tmp = reordered.routed_map.w1_offset;
+    reordered.routed_map.w1_offset = reordered.routed_map.w3_offset;
+    reordered.routed_map.w3_offset = tmp;
+    assert(waste_ds_v4_routed_record_map_validate(
+               &reordered.routed_map, &reordered.routed_layout) == 0);
+
     waste_ds_v4_runtime runtime;
+    assert(waste_ds_v4_runtime_init_positional(
+               &runtime, &reordered, trunk, TRUNK, RECORD, 0, &source) != 0);
     assert(waste_ds_v4_runtime_init_positional(
                &runtime, &manifest, trunk, TRUNK, RECORD, 0, &source) == 0);
 
