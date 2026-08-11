@@ -5,9 +5,10 @@
 
 This is intentionally exploratory. It consumes only a header-only safetensors
 snapshot plus the exact pinned `inference/model.py`, then records candidate
-root-level final-head tensors and source-method text. It does not assert the
-final tensor names or promote V8; the next tranche converts the observed result
-into a fail-closed frozen contract.
+root-level final-head tensors and all methods on the source classes responsible
+for final normalization/head evaluation. It does not assert final tensor names
+or promote V8; the next tranche converts the observed result into a fail-closed
+frozen contract.
 """
 
 from __future__ import annotations
@@ -21,15 +22,7 @@ import struct
 from typing import Any
 
 
-METHODS = (
-    ("RMSNorm", "forward"),
-    ("ParallelHead", "__init__"),
-    ("ParallelHead", "get_logits"),
-    ("ParallelHead", "forward"),
-    ("ParallelHead", "hc_head"),
-    ("Transformer", "__init__"),
-    ("Transformer", "forward"),
-)
+TARGET_CLASSES = ("RMSNorm", "ParallelHead", "Transformer")
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -105,28 +98,27 @@ def source_methods(source_path: str) -> tuple[list[dict[str, Any]], str]:
         node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
     }
     out = []
-    for cls_name, method_name in METHODS:
+    for cls_name in TARGET_CLASSES:
         cls = classes.get(cls_name)
         if cls is None:
             raise ValueError(f"pinned source lacks class {cls_name}")
-        method = next(
-            (n for n in cls.body
-             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-             and n.name == method_name),
-            None,
-        )
-        if method is None:
-            raise ValueError(f"pinned source lacks {cls_name}.{method_name}")
-        segment = ast.get_source_segment(text, method)
-        if not segment:
-            raise ValueError(f"could not recover source for {cls_name}.{method_name}")
-        out.append({
-            "symbol": f"{cls_name}.{method_name}",
-            "lineno": method.lineno,
-            "end_lineno": method.end_lineno,
-            "source_sha256": sha256_bytes(segment.encode()),
-            "source": segment,
-        })
+        methods = [
+            n for n in cls.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        if not methods:
+            raise ValueError(f"pinned source class {cls_name} has no methods")
+        for method in methods:
+            segment = ast.get_source_segment(text, method)
+            if not segment:
+                raise ValueError(f"could not recover source for {cls_name}.{method.name}")
+            out.append({
+                "symbol": f"{cls_name}.{method.name}",
+                "lineno": method.lineno,
+                "end_lineno": method.end_lineno,
+                "source_sha256": sha256_bytes(segment.encode()),
+                "source": segment,
+            })
     return out, sha256_bytes(raw)
 
 
@@ -138,6 +130,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     tensors, manifest = checkpoint_surface(args.snapshot)
+    print("V8 root candidate tensors:")
+    for item in tensors:
+        print(f"  {item['name']}: {item['dtype']} {item['shape']} @ {item['shard']}")
+
     methods, source_sha = source_methods(args.source)
     result = {
         "schema_version": 1,
@@ -164,9 +160,6 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(result, f, indent=2, sort_keys=True)
         f.write("\n")
 
-    print("V8 root candidate tensors:")
-    for item in tensors:
-        print(f"  {item['name']}: {item['dtype']} {item['shape']} @ {item['shard']}")
     print("V8 pinned source methods:")
     for item in methods:
         print(f"  {item['symbol']}: lines {item['lineno']}-{item['end_lineno']} sha256={item['source_sha256']}")
