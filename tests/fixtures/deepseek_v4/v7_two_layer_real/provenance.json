@@ -2,9 +2,11 @@
   "boundary_order": [
     "input",
     "attn_pre",
+    "attention_branch",
     "after_attn",
     "ffn_pre",
     "router_ids",
+    "router_weights",
     "moe_branch",
     "output"
   ],

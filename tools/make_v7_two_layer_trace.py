@@ -53,9 +53,11 @@ L4FULL = os.path.join(BASE, "v7_layer4_full_real")
 BOUNDARIES = (
     ("input", "BF16", [HC, DIM]),
     ("attn_pre", "BF16", [DIM]),
+    ("attention_branch", "BF16", [DIM]),
     ("after_attn", "BF16", [HC, DIM]),
     ("ffn_pre", "BF16", [DIM]),
     ("router_ids", "U32", [TOPK]),
+    ("router_weights", "F32", [TOPK]),
     ("moe_branch", "BF16", [DIM]),
     ("output", "BF16", [HC, DIM]),
 )
@@ -105,6 +107,12 @@ def write_u32(path: str, values: list[int]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(struct.pack(f"<{len(values)}I", *values))
+
+
+def write_f32(path: str, values: list[float]) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(struct.pack(f"<{len(values)}f", *values))
 
 
 def checked_file(root: str, meta: dict, label: str, count: int,
@@ -176,6 +184,9 @@ def load_frozen_sources() -> dict:
     l3_ids_meta = prov["l3_moe"]["outputs"]["ids"]
     l3_ids_path, l3_ids = checked_file(
         L3MOE, l3_ids_meta, "layer3 router ids", TOPK, reader=read_u32)
+    l3_weights_meta = prov["l3_moe"]["outputs"]["weights"]
+    l3_weights_path, l3_weights = checked_file(
+        L3MOE, l3_weights_meta, "layer3 router weights", TOPK, reader=read_f32)
     l3_moe_meta = prov["l3_moe"]["outputs"]["moe_branch"]
     l3_moe_path, l3_moe = checked_file(L3MOE, l3_moe_meta, "layer3 MoE branch", DIM)
     l3_out_meta = prov["l3_moe"]["outputs"]["layer3_final"]
@@ -206,6 +217,10 @@ def load_frozen_sources() -> dict:
     if sha256_file(l4_ids_path) != l4_router["ids_sha256"]:
         raise ValueError("layer4 router ids SHA drifted")
     l4_ids = read_u32(l4_ids_path, TOPK)
+    l4_weights_path = os.path.join(L4ROUTE, l4_router["weights_file"])
+    if sha256_file(l4_weights_path) != l4_router["weights_sha256"]:
+        raise ValueError("layer4 router weights SHA drifted")
+    l4_weights = read_f32(l4_weights_path, TOPK)
     l4_full_out = prov["l4_full"]["outputs"]
     l4_moe_path, l4_moe = checked_file(
         L4FULL, l4_full_out["moe_branch"], "layer4 MoE branch", DIM)
@@ -237,14 +252,16 @@ def load_frozen_sources() -> dict:
         "l3": {
             "input": l3_input, "attn_pre": l3_attn_pre,
             "attn_branch": l3_att_branch, "ffn_pre": l3_ffn_pre,
-            "router_ids": l3_ids, "moe_branch": l3_moe, "output": l3_output,
+            "router_ids": l3_ids, "router_weights": l3_weights,
+            "moe_branch": l3_moe, "output": l3_output,
             "params": l3_params,
         },
         "l4": {
             "input": l4_input, "attn_pre": l4_attn_pre,
             "attn_branch": l4_att_branch, "after_attn": l4_after,
             "ffn_pre": l4_ffn_pre, "router_ids": l4_ids,
-            "moe_branch": l4_moe, "output": l4_output, "params": l4_params,
+            "router_weights": l4_weights, "moe_branch": l4_moe,
+            "output": l4_output, "params": l4_params,
         },
     }
 
@@ -273,9 +290,10 @@ def independent_layer(frozen: dict) -> dict:
     exact_bits("independent layer output", final_bits, frozen["output"])
     return {
         "input": frozen["input"], "attn_pre": attn_pre,
-        "after_attn": after_bits, "ffn_pre": ffn_pre,
-        "router_ids": frozen["router_ids"], "moe_branch": frozen["moe_branch"],
-        "output": final_bits,
+        "attention_branch": frozen["attn_branch"], "after_attn": after_bits,
+        "ffn_pre": ffn_pre, "router_ids": frozen["router_ids"],
+        "router_weights": frozen["router_weights"],
+        "moe_branch": frozen["moe_branch"], "output": final_bits,
     }
 
 
@@ -303,9 +321,10 @@ def runtime_layer(frozen: dict, pre_fn, post_fn) -> dict:
     exact_bits("runtime layer output", final_bits, frozen["output"])
     return {
         "input": frozen["input"], "attn_pre": attn_pre,
-        "after_attn": after_bits, "ffn_pre": ffn_pre,
-        "router_ids": frozen["router_ids"], "moe_branch": frozen["moe_branch"],
-        "output": final_bits,
+        "attention_branch": frozen["attn_branch"], "after_attn": after_bits,
+        "ffn_pre": ffn_pre, "router_ids": frozen["router_ids"],
+        "router_weights": frozen["router_weights"],
+        "moe_branch": frozen["moe_branch"], "output": final_bits,
     }
 
 
@@ -317,11 +336,13 @@ def write_trace(root: str, name: str, layers: list[tuple[int, str, dict]]) -> st
         os.makedirs(layer_dir, exist_ok=True)
         raw_boundaries = []
         for boundary, dtype, shape in BOUNDARIES:
-            ext = "u32.bin" if dtype == "U32" else "bf16.bin"
+            ext = {"U32": "u32.bin", "F32": "f32.bin"}.get(dtype, "bf16.bin")
             rel = os.path.join(f"layer{number}", f"{boundary}.{ext}")
             path = os.path.join(root, rel)
             if dtype == "U32":
                 write_u32(path, values[boundary])
+            elif dtype == "F32":
+                write_f32(path, values[boundary])
             else:
                 write_u16(path, values[boundary])
             raw_boundaries.append({

@@ -23,6 +23,15 @@
         },
         {
           "dtype": "BF16",
+          "file": "layer3/attention_branch.bf16.bin",
+          "name": "attention_branch",
+          "sha256": "e8d105fa930958028636a74c63e62577d0d670b5609f671a3d0b7075f8254068",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
           "file": "layer3/after_attn.bf16.bin",
           "name": "after_attn",
           "sha256": "4ca321caf941c2e2b8994eccae3dc135ca5fa83d69fde33ab8191a79072aab20",
@@ -45,6 +54,15 @@
           "file": "layer3/router_ids.u32.bin",
           "name": "router_ids",
           "sha256": "97aa01bfd828aa5732492f2d6dccec9a9738f7f79c6f75154bbd4a833ee9745e",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "F32",
+          "file": "layer3/router_weights.f32.bin",
+          "name": "router_weights",
+          "sha256": "8bf7da67aa935e3f0230b08f1c33f94a0f740b82bea39c4da1d3ea7fd24c2d38",
           "shape": [
             6
           ]
@@ -95,6 +113,15 @@
         },
         {
           "dtype": "BF16",
+          "file": "layer4/attention_branch.bf16.bin",
+          "name": "attention_branch",
+          "sha256": "c09e659edc96542184c31b7eb9898c8f9fd68934ecd621202b4442de8688d620",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
           "file": "layer4/after_attn.bf16.bin",
           "name": "after_attn",
           "sha256": "b0bdc89e65b991145b35fd74659a9e850c7597288ff7996d1d6e91b5b546d08d",
@@ -117,6 +144,15 @@
           "file": "layer4/router_ids.u32.bin",
           "name": "router_ids",
           "sha256": "ce94ab5ae1130fcae05aad3e5bba0046df27207a6bba6ccd4cca5809bbf9f0ed",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "F32",
+          "file": "layer4/router_weights.f32.bin",
+          "name": "router_weights",
+          "sha256": "6f0ddaf999889e6be87ea763b42054c44505985dabd1b1025368b80cd07f1a74",
           "shape": [
             6
           ]

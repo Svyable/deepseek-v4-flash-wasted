@@ -78,17 +78,19 @@ def assert_source_provenance(prov: dict) -> None:
             )
 
 
-def mutate_bf16(trace_root: str, manifest: dict, layer: int, boundary: str,
-                 index: int, xor_mask: int = 1) -> None:
+def mutate_boundary(trace_root: str, manifest: dict, layer: int, boundary: str,
+                    dtype: str, index: int, xor_mask: int = 1) -> None:
     item = next(x for x in manifest["layers"] if x["layer"] == layer)
     b = next(x for x in item["boundaries"] if x["name"] == boundary)
-    if b["dtype"] != "BF16":
-        raise AssertionError("mutation helper is BF16-only")
+    if b["dtype"] != dtype or dtype not in {"BF16", "F32"}:
+        raise AssertionError(f"mutation helper expected {dtype}, got {b['dtype']}")
+    width = 2 if dtype == "BF16" else 4
     path = os.path.join(trace_root, b["file"])
     data = bytearray(open(path, "rb").read())
-    off = index * 2
-    old = struct.unpack_from("<H", data, off)[0]
-    struct.pack_into("<H", data, off, old ^ xor_mask)
+    off = index * width
+    if off + width > len(data):
+        raise AssertionError("mutation index out of range")
+    data[off] ^= xor_mask
     with open(path, "wb") as f:
         f.write(data)
     b["sha256"] = sha(path)
@@ -122,7 +124,7 @@ def main():
         runtime = loc.load_trace(RUNTIME)
         result = loc.compare(expected, runtime)
         if result.get("status") != "match" or result.get("layers") != [3, 4] or \
-           result.get("boundaries_compared") != 14:
+           result.get("boundaries_compared") != 18:
             raise AssertionError(f"real two-layer trace did not match exactly: {result}")
 
         prov = json.load(open(PROV, encoding="utf-8"))
@@ -152,8 +154,8 @@ def main():
             root = os.path.join(td, "runtime")
             shutil.copytree(os.path.join(FIX, "runtime"), root)
             manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
-            mutate_bf16(root, manifest, 3, "output", 17)
-            mutate_bf16(root, manifest, 4, "input", 17)
+            mutate_boundary(root, manifest, 3, "output", "BF16", 17)
+            mutate_boundary(root, manifest, 4, "input", "BF16", 17)
             l3 = next(x for x in manifest["layers"] if x["layer"] == 3)
             l4 = next(x for x in manifest["layers"] if x["layer"] == 4)
             l3_sha = next(x for x in l3["boundaries"] if x["name"] == "output")["sha256"]
@@ -169,14 +171,41 @@ def main():
                diff.get("boundary") != "output" or diff.get("index") != 17:
                 raise AssertionError(f"chain mutation localized incorrectly: {diff}")
 
-        # Mutation 2 changes only the terminal layer-4 output and keeps the
+        # Mutation 2 pins the raw attention branch as its own localization
+        # seam. Without this boundary an attention primitive drift would be
+        # reported only after HyperConnection post-composition.
+        with tempfile.TemporaryDirectory(prefix="v7-real-trace-attention-mutation-") as td:
+            root = os.path.join(td, "runtime")
+            shutil.copytree(os.path.join(FIX, "runtime"), root)
+            manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
+            mutate_boundary(root, manifest, 4, "attention_branch", "BF16", 19)
+            mutated = loc.load_trace(write_manifest(root, manifest))
+            diff = loc.compare(expected, mutated)
+            if diff.get("status") != "diverged" or diff.get("layer") != 4 or \
+               diff.get("boundary") != "attention_branch" or diff.get("index") != 19:
+                raise AssertionError(f"attention-branch mutation localized incorrectly: {diff}")
+
+        # Mutation 3 pins exact runtime route weights independently of IDs.
+        # A weight-only drift must not be deferred to the MoE branch boundary.
+        with tempfile.TemporaryDirectory(prefix="v7-real-trace-weight-mutation-") as td:
+            root = os.path.join(td, "runtime")
+            shutil.copytree(os.path.join(FIX, "runtime"), root)
+            manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
+            mutate_boundary(root, manifest, 4, "router_weights", "F32", 2)
+            mutated = loc.load_trace(write_manifest(root, manifest))
+            diff = loc.compare(expected, mutated)
+            if diff.get("status") != "diverged" or diff.get("layer") != 4 or \
+               diff.get("boundary") != "router_weights" or diff.get("index") != 2:
+                raise AssertionError(f"router-weight mutation localized incorrectly: {diff}")
+
+        # Mutation 4 changes only the terminal layer-4 output and keeps the
         # manifest internally valid. The localizer must walk all earlier real
         # boundaries before identifying that exact late seam.
         with tempfile.TemporaryDirectory(prefix="v7-real-trace-late-mutation-") as td:
             root = os.path.join(td, "runtime")
             shutil.copytree(os.path.join(FIX, "runtime"), root)
             manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
-            mutate_bf16(root, manifest, 4, "output", 23)
+            mutate_boundary(root, manifest, 4, "output", "BF16", 23)
             mutated_path = write_manifest(root, manifest)
             mutated = loc.load_trace(mutated_path)
             diff = loc.compare(expected, mutated)
@@ -184,7 +213,7 @@ def main():
                diff.get("boundary") != "output" or diff.get("index") != 23:
                 raise AssertionError(f"late mutation localized incorrectly: {diff}")
 
-        print("PASS V7 real two-layer trace: 14 boundaries exact, earliest-divergence mutations localized")
+        print("PASS V7 real two-layer trace: 18 boundaries exact, earliest-divergence mutations localized")
         print("layers: 3 ratio128-learned -> 4 ratio4-learned")
         print("chain sha256:", chain_sha)
         print("layer4 final sha256:", final_sha)
