@@ -16,7 +16,6 @@ from collections import Counter, defaultdict
 import hashlib
 import json
 import os
-import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,23 +47,29 @@ def _walk(obj, path=()):
 
 
 def find_compress_ratios(raw: dict, n_layers: int) -> tuple[list[int], str]:
+    """Find the unique compression schedule and return its main-stack prefix.
+
+    The 0731 config may carry trailing speculative-path entries after the 43
+    main decoder layers. Those entries must not be mistaken for extra main
+    layers, but they also must not make the real schedule undiscoverable.
+    """
     candidates = []
+    allowed = {0, 4, 128}
     for path, value in _walk(raw):
         key = path[-1].lower() if path else ""
         if "compress" not in key or "ratio" not in key:
             continue
-        if len(value) != n_layers or any(isinstance(x, bool) or not isinstance(x, int) for x in value):
+        if len(value) < n_layers or any(isinstance(x, bool) or not isinstance(x, int) for x in value):
+            continue
+        if any(x not in allowed for x in value[:n_layers]):
             continue
         candidates.append((value, ".".join(path)))
     if len(candidates) != 1:
         raise ValueError(
-            f"expected one {n_layers}-entry compression-ratio list, found "
+            f"expected one compression-ratio list with >= {n_layers} entries, found "
             f"{[(p, len(v)) for v, p in candidates]}")
     ratios, path = candidates[0]
-    allowed = {0, 4, 128}
-    if any(x not in allowed for x in ratios):
-        raise ValueError(f"{path}: unsupported compression ratios {sorted(set(ratios) - allowed)}")
-    return list(ratios), path
+    return list(ratios[:n_layers]), path
 
 
 def structural_class(ratio: int, learned: bool) -> str:
@@ -120,7 +125,6 @@ def check_shared(rows: list[dict], cfg: dict) -> dict:
         if shared:
             raise ValueError("shared-expert tensors present but config says zero shared experts")
         return {"configured_shared_experts": 0, "tensor_count": 0, "complete": True}
-    # 0731 uses one fused shared expert with three weight+scale pairs.
     if n_shared != 1:
         raise ValueError(f"generic surface does not yet support n_shared={n_shared}")
     names = {r["name"].rsplit(".", 2)[-2] + "." + r["name"].rsplit(".", 1)[-1] for r in shared}
