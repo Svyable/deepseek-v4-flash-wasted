@@ -1,0 +1,93 @@
+name: Probe generic V8 layer surface on layer 5
+
+on:
+  push:
+    branches: [agent/gate-i-v8-layer-engine]
+    paths:
+      - ".github/workflows/v8-layer5-surface-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      L4: /tmp/v8-layer4-generic.json
+      L5: /tmp/v8-layer5-generic.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Cheap model-free and stacked-parent preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/v8_layer_surface.py tests/test_v8_layer_surface.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+          python3 tests/test_v8_head_surface.py
+          python3 tests/test_v8_head_ref.py
+          python3 tests/test_v8_head_primitive_real.py
+          python3 tests/test_v8_layer_surface.py
+          git diff --check
+
+      - name: Fetch immutable 0731 headers only
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Reproduce frozen layer-4 surface generically
+        run: |
+          set -euo pipefail
+          python3 tools/v8_layer_surface.py "$SNAPSHOT" 4 "$L4"
+          python3 - <<'PY'
+          import json, os
+          got = json.load(open(os.environ['L4']))
+          old = json.load(open('reference/deepseek-v4-flash-0731.layer4-v7.json'))
+          for key in ('structural_class',):
+              if got[key] != old[key]:
+                  raise SystemExit(f'layer4 {key}: {got[key]!r} != {old[key]!r}')
+          for key in ('compress_ratio','hash_layers','hidden_size','moe_intermediate_size',
+                      'n_routed_experts','n_shared_experts','num_experts_per_tok','num_hidden_layers'):
+              if got['config_contract'][key] != old['config_contract'][key]:
+                  raise SystemExit(f'layer4 config {key} drifted')
+          for key in ('tensor_count','payload_bytes','dtype_counts','subsystem_counts','subsystem_bytes'):
+              if got['surface'][key] != old['surface'][key]:
+                  raise SystemExit(f'layer4 surface {key} drifted:\n{got["surface"][key]}\n!=\n{old["surface"][key]}')
+          for name in old['groups']:
+              for key in ('tensor_count','payload_bytes','dtype_counts'):
+                  if got['groups'][name][key] != old['groups'][name][key]:
+                      raise SystemExit(f'layer4 group {name}.{key} drifted')
+          print('PASS generic classifier exactly reproduces frozen V7 layer-4 surface')
+          PY
+
+      - name: Measure layer 5 without assumptions
+        run: |
+          set -euo pipefail
+          python3 tools/v8_layer_surface.py "$SNAPSHOT" 5 "$L5"
+          python3 - <<'PY'
+          import json, os
+          s = json.load(open(os.environ['L5']))
+          print('LAYER5_JSON_SUMMARY', json.dumps({
+              'structural_class': s['structural_class'],
+              'config_contract': s['config_contract'],
+              'surface': s['surface'],
+              'groups': {k: {kk:v[kk] for kk in ('tensor_count','payload_bytes','dtype_counts')}
+                         for k,v in s['groups'].items() if v['tensor_count']},
+          }, sort_keys=True))
+          PY
+
+      - name: Upload header-only generic surfaces
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v8-generic-layer4-layer5-surfaces
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            /tmp/v8-layer4-generic.json
+            /tmp/v8-layer5-generic.json
