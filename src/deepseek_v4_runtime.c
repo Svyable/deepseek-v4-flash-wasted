@@ -3,8 +3,11 @@
  */
 #include "deepseek_v4_runtime.h"
 
+#include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "platform.h"
 #include "waste_backend.h"
 
 static int manifest_ready(const waste_ds_v4_manifest *manifest)
@@ -24,6 +27,137 @@ static int manifest_ready(const waste_ds_v4_manifest *manifest)
                                                 &manifest->routed_layout) != 0)
         return 0;
     return 1;
+}
+
+void waste_ds_v4_positional_source_free(waste_ds_v4_positional_source *source)
+{
+    if (!source)
+        return;
+    free(source->record_offsets);
+    free(source->banks);
+    memset(source, 0, sizeof *source);
+}
+
+int waste_ds_v4_positional_source_init(
+    waste_ds_v4_positional_source *source,
+    const waste_ds_v4_manifest *manifest,
+    const waste_ds_v4_positional_bank *banks,
+    size_t bank_count)
+{
+    if (!source)
+        return -1;
+    memset(source, 0, sizeof *source);
+
+    if (!manifest_ready(manifest) || !banks ||
+        bank_count != (size_t)manifest->gate_a.main_layers)
+        return -1;
+
+    const size_t experts = (size_t)manifest->gate_a.routed_experts_per_layer;
+    const size_t rec_bytes = manifest->routed_map.record_bytes;
+    if (experts == 0 || rec_bytes == 0 ||
+        (uint64_t)rec_bytes > (uint64_t)INT64_MAX ||
+        bank_count > SIZE_MAX / sizeof *source->banks ||
+        experts > SIZE_MAX / bank_count)
+        return -1;
+
+    const size_t offset_count = bank_count * experts;
+    if (offset_count > SIZE_MAX / sizeof *source->record_offsets)
+        return -1;
+
+    waste_ds_v4_positional_bank *bank_copy =
+        (waste_ds_v4_positional_bank *)calloc(bank_count, sizeof *bank_copy);
+    uint64_t *offset_copy =
+        (uint64_t *)malloc(offset_count * sizeof *offset_copy);
+    if (!bank_copy || !offset_copy) {
+        free(offset_copy);
+        free(bank_copy);
+        return -1;
+    }
+
+    const uint64_t rec64 = (uint64_t)rec_bytes;
+    for (size_t layer = 0; layer < bank_count; layer++) {
+        const waste_ds_v4_positional_bank *in = &banks[layer];
+        if (!in->read_at || !in->record_offsets ||
+            in->record_count != experts || in->bytes == 0 ||
+            in->bytes > (uint64_t)INT64_MAX) {
+            free(offset_copy);
+            free(bank_copy);
+            return -1;
+        }
+
+        uint64_t *dst = offset_copy + layer * experts;
+        for (size_t expert = 0; expert < experts; expert++) {
+            const uint64_t off = in->record_offsets[expert];
+            /* Subtraction form avoids wrapping on a malicious near-UINT64_MAX
+             * offset. The signed-range check keeps every later waste_pread
+             * offset representable on Windows as well as POSIX. */
+            if (off > in->bytes || rec64 > in->bytes - off ||
+                off > (uint64_t)INT64_MAX ||
+                rec64 > (uint64_t)INT64_MAX - off) {
+                free(offset_copy);
+                free(bank_copy);
+                return -1;
+            }
+            dst[expert] = off;
+        }
+
+        bank_copy[layer] = *in;
+        bank_copy[layer].record_offsets = dst;
+        bank_copy[layer].record_count = experts;
+    }
+
+    source->banks = bank_copy;
+    source->record_offsets = offset_copy;
+    source->bank_count = bank_count;
+    source->record_bytes = rec_bytes;
+    source->experts_per_layer = (uint32_t)experts;
+    return 0;
+}
+
+int waste_ds_v4_positional_fetch(void *user,
+                                 int layer,
+                                 int expert,
+                                 uint8_t *dst)
+{
+    waste_ds_v4_positional_source *source =
+        (waste_ds_v4_positional_source *)user;
+    if (!source || !source->banks || !source->record_offsets || !dst ||
+        source->record_bytes == 0 || layer < 0 || expert < 0 ||
+        (size_t)layer >= source->bank_count ||
+        (uint32_t)expert >= source->experts_per_layer)
+        return -1;
+
+    waste_ds_v4_positional_bank *bank = &source->banks[layer];
+    if (!bank->read_at || !bank->record_offsets ||
+        bank->record_count != source->experts_per_layer)
+        return -1;
+
+    const uint64_t base = bank->record_offsets[expert];
+    size_t done = 0;
+    while (done < source->record_bytes) {
+        const size_t left = source->record_bytes - done;
+        const int64_t got = bank->read_at(bank->read_user,
+                                          dst + done,
+                                          left,
+                                          base + (uint64_t)done);
+        if (got <= 0 || (uint64_t)got > (uint64_t)left)
+            return -1;
+        done += (size_t)got;
+    }
+    return 0;
+}
+
+int64_t waste_ds_v4_fd_read_at(void *user,
+                               void *dst,
+                               size_t n,
+                               uint64_t off)
+{
+    if (!user || !dst || off > (uint64_t)INT64_MAX)
+        return -1;
+    const int fd = *(const int *)user;
+    if (fd < 0)
+        return -1;
+    return waste_pread(fd, dst, n, (int64_t)off);
 }
 
 int waste_ds_v4_runtime_init(waste_ds_v4_runtime *runtime,
@@ -69,6 +203,26 @@ int waste_ds_v4_runtime_init(waste_ds_v4_runtime *runtime,
     }
     runtime->routed_ready = 1;
     return 0;
+}
+
+int waste_ds_v4_runtime_init_positional(
+    waste_ds_v4_runtime *runtime,
+    const waste_ds_v4_manifest *manifest,
+    const void *trunk,
+    size_t trunk_bytes,
+    size_t cache_bytes,
+    int cache_policy,
+    waste_ds_v4_positional_source *source)
+{
+    if (!manifest_ready(manifest) || !source || !source->banks ||
+        source->bank_count != (size_t)manifest->gate_a.main_layers ||
+        source->experts_per_layer != manifest->gate_a.routed_experts_per_layer ||
+        source->record_bytes != manifest->routed_map.record_bytes)
+        return -1;
+
+    return waste_ds_v4_runtime_init(runtime, manifest, trunk, trunk_bytes,
+                                    cache_bytes, cache_policy,
+                                    waste_ds_v4_positional_fetch, source);
 }
 
 void waste_ds_v4_runtime_free(waste_ds_v4_runtime *runtime)
