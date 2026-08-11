@@ -14,6 +14,8 @@
 #include <string.h>
 #include <pthread.h>
 
+#include "quant/deepseek_v4_linear_ref.h"
+
 #if defined(_WIN32)
   #include <windows.h>
 #endif
@@ -172,6 +174,10 @@ void waste_backend_init(unsigned flags)
 
     /* 1. universal baseline — always present, always correct */
     g_backend_name = waste_kda_register_cpu(&waste_k);
+    /* DeepSeek resident arithmetic follows the same dispatch rule: start at
+     * the independent scalar reference, then let a proven backend overwrite
+     * this one slot without changing the loader/runtime binding. */
+    waste_k.ds_v4_fp8_linear_e8m0 = waste_ds_v4_fp8_linear_e8m0_ref;
     g_initialized = 1;
 
     const char *env = getenv("WASTE_BACKEND");

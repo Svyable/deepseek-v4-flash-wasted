@@ -8,7 +8,7 @@
 
 - Model: `deepseek-ai/DeepSeek-V4-Flash-0731`
 - Pinned revision: `9e165c30e2704aec5d9d593cce3eebd58bbef1cb`
-- Merged foundation: through PR #19 plus fail-closed loader contracts from #17
+- Merged foundation: through PR #21
 - Corrected canonical Gate-H layer-3 endpoint:
   `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`
 - Refused historical layer-3 endpoint:
@@ -64,6 +64,14 @@ state, so final-model logits remain open.
   plane sizes against declared offsets, pairwise non-overlap for every routed
   and resident span, strict integer number reading, and a refused
   stepping/generation declaration;
+- validated resident planes can be applied through the normal WASTE backend
+  dispatch, whose universal DeepSeek FP8 slot is the scalar reference until an
+  optimized backend earns parity;
+- validated routed records can be fetched through the existing `waste_ecache`
+  callback/cache path and only then bound to the six native FP4/E8M0 planes;
+- the runtime binding is model-free/synthetic infrastructure only: no real
+  DeepSeek container/open path or Gate-G disk-vs-cache identity result is
+  claimed by it;
 - no on-disk header/order/alignment has been prematurely frozen;
 - no DeepSeek public stepping/generation is enabled.
 
@@ -77,11 +85,11 @@ state, so final-model logits remain open.
 2. **Final-model logits.** The final-head primitive is proven only on a bounded
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
-4. **Family manifest/parser/binding.** The v1 family manifest parser is built
-   and fail-closed (`src/deepseek_v4_manifest.{c,h}`); binding validated
-   resident planes to the WASTE backend and routed records to the expert-cache
-   fetch seam remains to be built. No on-disk record header/order/alignment is
-   frozen.
+4. **Family container/open path.** The v1 family manifest parser and the
+   resident/backend + routed/cache runtime binding substrate are built and
+   fail-closed. Opening a real DeepSeek family directory, mapping `trunk.bin`,
+   and providing actual per-layer expert-bank fetch callbacks remain open. No
+   on-disk record header/order/alignment is frozen.
 5. **Encoding/API and serving.** Downstream of raw model arithmetic.
 6. **Storage/cache/performance.** Correct native record geometry exists; real
    container/cache identity and performance remain open.
@@ -109,12 +117,17 @@ state, so final-model logits remain open.
    resident FP8 descriptors, and routed record maps.~~ **Done** —
    `src/deepseek_v4_manifest.{c,h}`, checked by
    `tests/test_deepseek_v4_manifest.c`; see `docs/CONTAINER_V4.md` §4a.
-2. Bind resident matrices to the normal WASTE backend and routed records to the
-   existing expert-cache fetch seam. The manifest exposes the two seams
-   (`waste_ds_v4_manifest_resident_plane`,
-   `waste_ds_v4_manifest_bind_routed_record`); neither is wired to the engine
-   yet, and `deepseek_v4_manifest.o` is deliberately not in `libwaste.a`.
-3. Keep model step/generation unconditionally refused until numerical gates are
+2. ~~Bind resident matrices to the normal WASTE backend and routed records to
+   the existing expert-cache fetch seam.~~ **Done as model-free substrate** —
+   `src/deepseek_v4_runtime.{c,h}` routes resident E4M3/E8M0 matrices through
+   `waste_k` and routed records through `waste_ecache`, checked by
+   `tests/test_deepseek_v4_runtime.c`. This does not yet open a real DeepSeek
+   container or claim Gate-G disk/cache identity.
+3. Build the family-specific real container/open layer around those bindings:
+   map the validated resident trunk, open per-layer routed banks, and supply the
+   positional fetch callback without inventing record header/order/alignment
+   before checkpoint/container evidence freezes it.
+4. Keep model step/generation unconditionally refused until numerical gates are
    closed. `waste_ds_v4_manifest_step_refused` is that refusal, and CI checks
    it stays unconditional.
 

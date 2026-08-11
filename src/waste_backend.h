@@ -37,6 +37,7 @@
 #ifndef WASTE_BACKEND_H
 #define WASTE_BACKEND_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -75,6 +76,17 @@ typedef struct {
     void (*rmsnorm_gated)(int C, const float *x, const float *gate,
                           const float *weight, float eps, float *y);
 
+    /* DeepSeek V4 resident E4M3/E8M0 linear. The scalar reference is the
+     * universal baseline; a future SIMD/GPU backend may overwrite only this
+     * slot after differential parity. Keeping it in the normal dispatch table
+     * prevents a family-specific loader from bypassing backend selection. */
+    int (*ds_v4_fp8_linear_e8m0)(const float *x,
+                                  size_t m, size_t k,
+                                  const uint8_t *weight,
+                                  const uint8_t *weight_scales_e8m0,
+                                  size_t n,
+                                  float *y);
+
     /* The two range kernels that carry the arithmetic (see simd.h). They
      * take (begin, end, arg) because that is what the thread pool hands
      * out, so dispatch costs one indirect call per range, not per row. */
@@ -110,7 +122,7 @@ void waste_backend_init(unsigned flags);
 const char *waste_backend_name(void);
 
 /* Release backend objects that borrow model-owned host allocations before
- * a model is freed.  A no-op for backends that do not cache such objects. */
+ * a model is freed. A no-op for backends that do not cache such objects. */
 void waste_backend_release_host_buffers(void);
 
 /* Each backend module defines a registration function with this shape:
