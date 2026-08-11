@@ -1,67 +1,15 @@
-name: Refine V7 two-layer localization boundaries
+name: Refine V7 two-layer localization boundaries (parked)
 
 on:
-  push:
-    branches: [agent/v7-multilayer-localization]
-    paths:
-      - ".github/workflows/v7-trace-refine.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  refine:
+  parked:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-
-      - name: Prove current trace and apply deterministic refinement
-        run: |
-          set -euo pipefail
-          python3 tests/test_v7_parent_freshness.py
-          python3 tests/test_v7_two_layer_real.py
-          python3 -m py_compile tools/apply_v7_trace_refine.py
-          python3 tools/apply_v7_trace_refine.py
-          python3 -m py_compile tools/make_v7_two_layer_trace.py tests/test_v7_two_layer_real.py
-          git diff --check
-
-      - name: Regenerate refined trace offline
-        run: |
-          set -euo pipefail
-          rm -rf tests/fixtures/deepseek_v4/v7_two_layer_real
-          python3 tools/make_v7_two_layer_trace.py tests/fixtures/deepseek_v4/v7_two_layer_real
-
-      - name: Prove 18 boundaries and new mutations
-        run: |
-          set -euo pipefail
-          python3 tests/test_v7_two_layer_real.py
-          python3 tools/v7_localize.py \
-            tests/fixtures/deepseek_v4/v7_two_layer_real/expected/trace.json \
-            tests/fixtures/deepseek_v4/v7_two_layer_real/runtime/trace.json --json \
-            | tee /tmp/v7-refined.json
-          grep -q '"boundaries_compared": 18' /tmp/v7-refined.json
-          grep -q '"status": "match"' /tmp/v7-refined.json
-          python3 tests/test_v7_parent_freshness.py
-
-      - name: Run permanent suites
-        run: |
-          set -euo pipefail
-          make check
-          make asan
-
-      - name: Freeze refined no-network V7 trace
-        run: |
-          set -euo pipefail
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/make_v7_two_layer_trace.py tests/test_v7_two_layer_real.py \
-                  tests/fixtures/deepseek_v4/v7_two_layer_real
-          git rm tools/apply_v7_trace_refine.py
-          git diff --cached --check
-          git commit -m "test: refine V7 first-divergence boundaries [skip ci]"
-          git push origin HEAD:agent/v7-multilayer-localization
+      - run: |
+          echo "Parked after the 18-boundary V7 two-layer trace froze green."
+          echo "Permanent no-network replays now own this correctness contract."
