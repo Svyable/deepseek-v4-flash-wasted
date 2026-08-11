@@ -29,6 +29,19 @@ static int manifest_ready(const waste_ds_v4_manifest *manifest)
     return 1;
 }
 
+static int routed_map_equal(const waste_ds_v4_routed_record_map *a,
+                            const waste_ds_v4_routed_record_map *b)
+{
+    return a && b &&
+           a->record_bytes == b->record_bytes &&
+           a->w1_offset == b->w1_offset &&
+           a->w1_scale_offset == b->w1_scale_offset &&
+           a->w3_offset == b->w3_offset &&
+           a->w3_scale_offset == b->w3_scale_offset &&
+           a->w2_offset == b->w2_offset &&
+           a->w2_scale_offset == b->w2_scale_offset;
+}
+
 void waste_ds_v4_positional_source_free(waste_ds_v4_positional_source *source)
 {
     if (!source)
@@ -111,6 +124,7 @@ int waste_ds_v4_positional_source_init(
     source->bank_count = bank_count;
     source->record_bytes = rec_bytes;
     source->experts_per_layer = (uint32_t)experts;
+    source->routed_map = manifest->routed_map;
     return 0;
 }
 
@@ -217,7 +231,8 @@ int waste_ds_v4_runtime_init_positional(
     if (!manifest_ready(manifest) || !source || !source->banks ||
         source->bank_count != (size_t)manifest->gate_a.main_layers ||
         source->experts_per_layer != manifest->gate_a.routed_experts_per_layer ||
-        source->record_bytes != manifest->routed_map.record_bytes)
+        source->record_bytes != manifest->routed_map.record_bytes ||
+        !routed_map_equal(&source->routed_map, &manifest->routed_map))
         return -1;
 
     return waste_ds_v4_runtime_init(runtime, manifest, trunk, trunk_bytes,
