@@ -1,0 +1,213 @@
+name: Acquire complete chained layer-4 V7 evidence
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+    paths:
+      - ".github/workflows/v7-layer4-full.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-layer4-full-real
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      FULL: tests/fixtures/deepseek_v4/v7_layer4_full_real
+      TRACE: tests/fixtures/deepseek_v4/v7_two_layer_real
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
+        with:
+          fetch-depth: 0
+
+      - name: Cheap current-parent preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v7_layer4_moe_fixture.py \
+            tools/make_v7_two_layer_trace.py \
+            tools/v7_parent_freshness.py \
+            tests/test_v7_layer4_full_real.py \
+            tests/test_v7_two_layer_real.py \
+            tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_layer4_route_real.py
+          for script in test_v7_layer4_full_real.py test_v7_two_layer_real.py; do
+            set +e
+            python3 "tests/$script"
+            rc=$?
+            set -e
+            if [ "$rc" -ne 77 ]; then
+              echo "$script should be an explicit pre-acquisition SKIP, got $rc" >&2
+              exit 1
+            fi
+          done
+
+      - name: Bind full fixture to current parent and register permanent V7 rungs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("tools/make_v7_layer4_moe_fixture.py")
+          s = p.read_text()
+          needle = '''        provenance = {
+              "schema_version": 1,
+              "gate": "V7 complete real layer-4 MoE branch and final composition",
+              "evidence_state": "CHECKPOINT-BOUND-LAYER4-COMPLETE-SCALAR",
+              "model": MODEL,
+              "revision": REV,
+              "layer": LAYER,
+              "structural_class": "ratio4-learned",
+              "route_dependency": {
+          '''
+          replacement = '''        parent_dep = state["provenance"].get("input_dependency") or {}
+          if parent_dep.get("fixture_sha256") != parent_dep.get("source_sha256"):
+              raise ValueError("layer4 route parent dependency is not byte-identical")
+          if not parent_dep.get("fixture_sha256") or not parent_dep.get("source_file"):
+              raise ValueError("layer4 route parent dependency is incomplete")
+
+          provenance = {
+              "schema_version": 1,
+              "gate": "V7 complete real layer-4 MoE branch and final composition",
+              "evidence_state": "CHECKPOINT-BOUND-LAYER4-COMPLETE-SCALAR",
+              "model": MODEL,
+              "revision": REV,
+              "layer": LAYER,
+              "structural_class": "ratio4-learned",
+              "input_dependency": {
+                  "producer": parent_dep.get("producer"),
+                  "fixture_sha256": parent_dep["fixture_sha256"],
+                  "source_file": parent_dep["source_file"],
+                  "source_sha256": parent_dep.get("source_sha256"),
+                  "via_route_provenance_sha256": sha256_file(state["provenance_path"]),
+              },
+              "route_dependency": {
+          '''
+          if s.count(needle) != 1:
+              raise SystemExit("full-fixture provenance insertion point drifted")
+          p.write_text(s.replace(needle, replacement))
+
+          p = Path("tests/run.sh")
+          s = p.read_text()
+          needle = '''deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \\
+                          "test_v7_router_bias_observation.py"
+
+          # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
+          '''
+          replacement = '''deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \\
+                          "test_v7_router_bias_observation.py"
+          deepseek_replay "V7 — current Gate-H parent freshness contract" \\
+                          "test_v7_parent_freshness.py"
+
+          # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
+          '''
+          if s.count(needle) != 1:
+              raise SystemExit("V7 freshness registration insertion point drifted")
+          s = s.replace(needle, replacement)
+          needle = '''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
+                          "test_v7_layer4_full_real.py"
+
+          # ------------------------------------------------------------ converter ----
+          '''
+          replacement = '''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
+                          "test_v7_layer4_full_real.py"
+          deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \\
+                          "test_v7_two_layer_real.py"
+
+          # ------------------------------------------------------------ converter ----
+          '''
+          if s.count(needle) != 1:
+              raise SystemExit("V7 two-layer registration insertion point drifted")
+          p.write_text(s.replace(needle, replacement))
+          PY
+          python3 -m py_compile tools/make_v7_layer4_moe_fixture.py
+          git diff --check
+          python3 tests/test_v7_parent_freshness.py
+
+      - name: Fetch immutable 0731 headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Build bounded layer-4 MoE and final state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$FULL"
+          python3 tools/make_v7_layer4_moe_fixture.py "$SNAPSHOT" "$FULL"
+
+      - name: Upload arithmetic-green full layer-4 fixture
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: v7-layer4-full-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v7_layer4_full_real/
+
+      - name: Replay complete layer-4 fixture offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_layer4_full_real.py
+
+      - name: Build real consecutive two-layer trace offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$TRACE"
+          python3 tools/make_v7_two_layer_trace.py "$TRACE"
+
+      - name: Upload two-layer trace before validation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: v7-two-layer-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v7_two_layer_real/
+
+      - name: Prove exact two-layer localization and freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_two_layer_real.py
+          python3 tools/v7_localize.py \
+            "$TRACE/expected/trace.json" "$TRACE/runtime/trace.json" --json \
+            | tee "${RUNNER_TEMP}/v7-localize.json"
+          grep -q '"status": "match"' "${RUNNER_TEMP}/v7-localize.json"
+          python3 tests/test_v7_parent_freshness.py
+
+      - name: Run permanent normal suite
+        run: make check
+
+      - name: Run permanent sanitizer suite
+        run: make asan
+
+      - name: Freeze V7 full layer and two-layer evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            tools/make_v7_layer4_moe_fixture.py \
+            tests/run.sh \
+            "$FULL" \
+            "$TRACE"
+          git diff --cached --check
+          git commit -m "reference: freeze complete V7 layer3-to-layer4 evidence [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
