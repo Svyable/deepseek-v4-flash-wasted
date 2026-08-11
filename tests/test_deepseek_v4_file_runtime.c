@@ -4,9 +4,11 @@
  * Actual-filesystem coverage for the resource-owning DeepSeek runtime layer.
  * This is still model-free: paths and offsets are explicit synthetic evidence.
  */
-#include "../src/deepseek_v4_runtime.h"
+#include "../src/deepseek_v4_file_runtime.h"
+#include "../src/quant/deepseek_v4_linear_ref.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,9 +21,14 @@
 #define LAYERS  43u
 #define EXPERTS 256u
 
-#define TRUNK_PATH "test_ds_v4_file_trunk.bin"
-#define BANK_PATH  "test_ds_v4_file_bank.bin"
-#define SHORT_PATH "test_ds_v4_file_short.bin"
+#define RES_W_OFF    4096u
+#define RES_S_OFF   24576u
+#define RES_W_BYTES 16384u
+
+#define TRUNK_PATH   "test_ds_v4_file_trunk.bin"
+#define BANK_PATH    "test_ds_v4_file_bank.bin"
+#define ALT_PATH     "test_ds_v4_file_alt.bin"
+#define MISSING_PATH "definitely-not-a-deepseek-bank.bin"
 
 static const char *GOOD =
 "{\n"
@@ -68,48 +75,71 @@ static waste_ds_v4_manifest manifest_good(void)
     return m;
 }
 
-static void write_zeros(const char *path, size_t n)
+static void write_trunk(const char *path, size_t n)
 {
+    uint8_t *buf = (uint8_t *)calloc(n ? n : 1u, 1u);
+    assert(buf != NULL);
+    if (n >= RES_W_OFF + RES_W_BYTES) {
+        const uint8_t half = waste_ds_v4_e4m3_encode_ref(0.5f);
+        memset(buf + RES_W_OFF, half, RES_W_BYTES);
+    }
+    if (n > RES_S_OFF)
+        buf[RES_S_OFF] = 127u; /* E8M0 2^(127-127) = 1 */
+
     FILE *f = fopen(path, "wb");
     assert(f != NULL);
-    uint8_t zero[65536] = {0};
-    while (n) {
-        const size_t take = n < sizeof zero ? n : sizeof zero;
-        assert(fwrite(zero, 1, take, f) == take);
-        n -= take;
-    }
+    assert(fwrite(buf, 1, n, f) == n);
     assert(fclose(f) == 0);
+    free(buf);
 }
 
-static void poke_byte(const char *path, long off, uint8_t value)
+static void poke_byte(const char *path, size_t off, uint8_t value)
 {
+    assert(off <= (size_t)LONG_MAX);
     FILE *f = fopen(path, "r+b");
     assert(f != NULL);
-    assert(fseek(f, off, SEEK_SET) == 0);
+    assert(fseek(f, (long)off, SEEK_SET) == 0);
     assert(fwrite(&value, 1, 1, f) == 1);
     assert(fclose(f) == 0);
 }
 
+static void write_bank(const char *path, size_t n)
+{
+    FILE *f = fopen(path, "wb");
+    assert(f != NULL);
+    if (n) {
+        assert(n - 1u <= (size_t)LONG_MAX);
+        assert(fseek(f, (long)(n - 1u), SEEK_SET) == 0);
+        assert(fputc(0, f) != EOF); /* sparse where the filesystem supports it */
+    }
+    assert(fclose(f) == 0);
+
+    static const size_t pos[] = {
+        0,
+        W_BYTES,
+        2u * W_BYTES,
+        3u * W_BYTES,
+        3u * W_BYTES + S_BYTES,
+        3u * W_BYTES + 2u * S_BYTES
+    };
+    static const uint8_t val[] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+    for (size_t i = 0; i < sizeof pos / sizeof pos[0]; i++)
+        if (pos[i] < n)
+            poke_byte(path, pos[i], val[i]);
+}
+
 static void make_files(void)
 {
-    write_zeros(TRUNK_PATH, TRUNK);
-    poke_byte(TRUNK_PATH, 4096, 0x7e);
-    poke_byte(TRUNK_PATH, 24576, 0x7f);
-
-    write_zeros(BANK_PATH, RECORD);
-    poke_byte(BANK_PATH, 0, 0x11);
-    poke_byte(BANK_PATH, W_BYTES, 0x22);
-    poke_byte(BANK_PATH, 2u * W_BYTES, 0x33);
-    poke_byte(BANK_PATH, 3u * W_BYTES, 0x44);
-    poke_byte(BANK_PATH, 3u * W_BYTES + S_BYTES, 0x55);
-    poke_byte(BANK_PATH, 3u * W_BYTES + 2u * S_BYTES, 0x66);
+    write_trunk(TRUNK_PATH, TRUNK);
+    write_bank(BANK_PATH, RECORD);
 }
 
 static void clear_files(void)
 {
-    remove(TRUNK_PATH);
-    remove(BANK_PATH);
-    remove(SHORT_PATH);
+    (void)remove(TRUNK_PATH);
+    (void)remove(BANK_PATH);
+    (void)remove(ALT_PATH);
+    (void)remove(MISSING_PATH);
 }
 
 static void fill_specs(waste_ds_v4_file_bank_spec banks[LAYERS],
@@ -126,10 +156,22 @@ static void fill_specs(waste_ds_v4_file_bank_spec banks[LAYERS],
 static void assert_closed(const waste_ds_v4_file_runtime *fr)
 {
     assert(fr->runtime.trunk == NULL);
+    assert(fr->runtime.routed_ready == 0);
     assert(fr->source.banks == NULL);
+    assert(fr->source.record_offsets == NULL);
     assert(fr->trunk == NULL);
     assert(fr->bank_fds == NULL);
     assert(fr->bank_count == 0);
+}
+
+static void assert_record_sentinels(const waste_ds_v4_routed_record_view *view)
+{
+    assert(view->w1[0] == 0x11);
+    assert(view->w3[0] == 0x22);
+    assert(view->w2[0] == 0x33);
+    assert(view->w1_scale[0] == 0x44);
+    assert(view->w3_scale[0] == 0x55);
+    assert(view->w2_scale[0] == 0x66);
 }
 
 static void test_file_open_and_fetch(void)
@@ -147,28 +189,40 @@ static void test_file_open_and_fetch(void)
     assert(fr.bank_count == LAYERS);
     assert(fr.runtime.trunk == fr.trunk);
     assert(fr.runtime.trunk_bytes == TRUNK);
-    assert(fr.trunk[4096] == 0x7e);
-    assert(fr.trunk[24576] == 0x7f);
+    assert(fr.trunk[RES_W_OFF] == waste_ds_v4_e4m3_encode_ref(0.5f));
+    assert(fr.trunk[RES_S_OFF] == 127u);
 
     waste_ds_v4_routed_record_view view;
     assert(waste_ds_v4_runtime_routed_record(&fr.runtime, 12, 231, &view) == 0);
-    assert(view.w1[0] == 0x11);
-    assert(view.w3[0] == 0x22);
-    assert(view.w2[0] == 0x33);
-    assert(view.w1_scale[0] == 0x44);
-    assert(view.w3_scale[0] == 0x55);
-    assert(view.w2_scale[0] == 0x66);
+    assert_record_sentinels(&view);
 
-    /* Offset arrays are copied by the positional source after file open. */
+    /* Offset/path metadata is borrowed only during open. Zero cache forces the
+     * second request through the owned descriptor/source rather than hiding the
+     * lifetime property behind a cache hit. */
     offsets[231] = RECORD;
+    banks[12].path = MISSING_PATH;
     assert(waste_ds_v4_runtime_routed_record(&fr.runtime, 12, 231, &view) == 0);
-    assert(view.w1[0] == 0x11);
+    assert_record_sentinels(&view);
+    assert(fr.runtime.cache.misses == 2);
+
+    /* Resident arithmetic consumes the actual file-loaded trunk through the
+     * same backend dispatch proved by the lower-level runtime test. */
+    float x[128], y[128];
+    for (size_t i = 0; i < 128u; i++)
+        x[i] = 1.0f;
+    assert(waste_ds_v4_runtime_resident_linear(&fr.runtime, 0, x, 1, y) == 0);
+    assert(y[0] != 0.0f);
+    assert(waste_ds_v4_manifest_step_refused(NULL) != 0);
 
     waste_ds_v4_file_runtime_close(&fr);
     assert_closed(&fr);
-    /* Idempotent close is part of partial-failure cleanup safety. */
-    waste_ds_v4_file_runtime_close(&fr);
+    waste_ds_v4_file_runtime_close(&fr); /* idempotent after zeroing */
     assert_closed(&fr);
+
+    /* On Windows these removals also detect leaked CRT file handles. */
+    assert(remove(BANK_PATH) == 0);
+    assert(remove(TRUNK_PATH) == 0);
+    make_files();
 }
 
 static void test_fail_closed_files(void)
@@ -182,36 +236,59 @@ static void test_fail_closed_files(void)
     };
     waste_ds_v4_file_runtime fr;
 
-    /* A valid manifest describes exactly TRUNK bytes; trailing/truncated data
-     * is a different artifact and is refused before any bank is opened. */
-    write_zeros(SHORT_PATH, TRUNK - 1u);
-    spec.trunk_path = SHORT_PATH;
+    assert(waste_ds_v4_file_runtime_open(NULL, &manifest, &spec) != 0);
+
+    /* A valid manifest describes exactly TRUNK bytes; trailing or truncated
+     * resident data is a different artifact and is refused before banks open. */
+    write_trunk(ALT_PATH, TRUNK - 1u);
+    spec.trunk_path = ALT_PATH;
+    assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
+    assert_closed(&fr);
+    write_trunk(ALT_PATH, TRUNK + 1u);
     assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
     assert_closed(&fr);
     spec.trunk_path = TRUNK_PATH;
 
-    /* Missing layer 17 exercises unwind after earlier native handles opened. */
-    const char *saved = banks[17].path;
-    banks[17].path = "definitely-not-a-deepseek-bank.bin";
+    /* Malformed ownership metadata is rejected before opening resources. */
+    const size_t saved_count = banks[8].record_count;
+    banks[8].record_count = EXPERTS - 1u;
     assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
     assert_closed(&fr);
-    banks[17].path = saved;
+    banks[8].record_count = saved_count;
 
-    /* Actual bank bytes, not a manifest guess, bound every expert extent. */
-    offsets[99] = RECORD;
+    /* Actual bank bytes, not a manifest/caller size guess, bound every extent. */
+    write_bank(BANK_PATH, RECORD - 1u);
+    assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
+    assert_closed(&fr);
+    write_bank(BANK_PATH, RECORD);
+
+    offsets[99] = 1u; /* exact-size bank: record would extend one byte past EOF */
     assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
     assert_closed(&fr);
     offsets[99] = 0;
 
-    /* Post-parse mutation is refused before file-driven allocation/I/O. */
+    /* Missing layer 17 exercises unwind after earlier native handles opened. */
+    const char *saved_path = banks[17].path;
+    banks[17].path = MISSING_PATH;
+    assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) != 0);
+    assert_closed(&fr);
+    banks[17].path = saved_path;
+
+    /* On Windows deletion fails if any earlier bank handle leaked. Recreate the
+     * one shared synthetic bank after proving partial-open teardown. */
+    assert(remove(BANK_PATH) == 0);
+    write_bank(BANK_PATH, RECORD);
+
+    /* Post-parse mutation is refused through the shared runtime validator. */
     waste_ds_v4_manifest mutated = manifest;
     mutated.gate_a.main_layers = 42;
     assert(waste_ds_v4_file_runtime_open(&fr, &mutated, &spec) != 0);
     assert_closed(&fr);
 
-    /* The object remains reusable after every failed partial open. */
+    /* The same object remains reusable after all failed opens. */
     assert(waste_ds_v4_file_runtime_open(&fr, &manifest, &spec) == 0);
     waste_ds_v4_file_runtime_close(&fr);
+    assert_closed(&fr);
 }
 
 int main(void)
