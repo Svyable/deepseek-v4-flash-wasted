@@ -1,0 +1,122 @@
+name: Freeze Gate-I final-head header/source surface
+
+on:
+  push:
+    branches: [agent/gate-i-v8-head-surface]
+    paths:
+      - ".github/workflows/v8-head-surface-freeze.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      SOURCE: /tmp/deepseek-v4-0731-model.py
+      SURFACE: reference/deepseek-v4-flash-0731.v8-head.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Cheap stacked-parent and dormant-gate preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/v8_probe_surface.py \
+            tools/make_v8_head_surface.py \
+            tests/test_v8_head_surface.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+          set +e
+          python3 tests/test_v8_head_surface.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 77 ]; then
+            echo "V8 surface should be an explicit pre-freeze SKIP, got $rc" >&2
+            exit 1
+          fi
+
+      - name: Fetch immutable 0731 headers only
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Fetch exact pinned 0731 inference source
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "tools")
+          import fetch_hf_headers as hf
+
+          data = hf.fetch_small(
+              hf.resolve_url(os.environ["MODEL"], os.environ["REVISION"], "inference/model.py"),
+              token=os.environ.get("HF_TOKEN"),
+              max_bytes=2 << 20,
+          )
+          with open(os.environ["SOURCE"], "wb") as f:
+              f.write(data)
+          PY
+
+      - name: Freeze exact five-record and source-body contract
+        run: |
+          set -euo pipefail
+          python3 tools/make_v8_head_surface.py "$SNAPSHOT" "$SOURCE" "$SURFACE"
+          python3 tests/test_v8_head_surface.py
+          git diff --check
+
+      - name: Upload surface before broader regression suite
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v8-head-surface
+          retention-days: 30
+          if-no-files-found: error
+          path: reference/deepseek-v4-flash-0731.v8-head.json
+
+      - name: Register permanent no-network V8 gate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("tests/run.sh")
+          s = p.read_text()
+          stale = "# Gate H/V6 — PARTIAL. Layer-3 composition. The model-free half pins the block\n"
+          fresh = "# Gate H/V6 — PASSED at one complete real layer-3 transition. The model-free half pins the block\n"
+          if s.count(stale) != 1:
+              raise SystemExit(f"Gate-H status comment drifted: {s.count(stale)}")
+          s = s.replace(stale, fresh, 1)
+          anchor = '''deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \\
+                "test_v7_two_layer_real.py"\n'''
+          if s.count(anchor) != 1:
+              raise SystemExit(f"V8 registration anchor drifted: {s.count(anchor)}")
+          addition = '''\n# Gate I/V8 starts with an immutable header/source contract. This gate reads no\n# tensor payload and makes no logit claim; it prevents later numeric work from\n# silently targeting current-main source shapes or guessed final-head records.\ndeepseek_replay "Gate I/V8 — immutable final-head header/source surface" \\
+                "test_v8_head_surface.py"\n'''
+          p.write_text(s.replace(anchor, anchor + addition, 1))
+          PY
+          python3 tests/test_v8_head_surface.py
+          git diff --check
+
+      - name: Run permanent normal suite
+        run: make check
+
+      - name: Run permanent sanitizer suite
+        run: make asan
+
+      - name: Commit frozen Gate-I surface
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$SURFACE" tests/run.sh
+          git diff --cached --check
+          git commit -m "reference: freeze Gate I final-head header/source surface [skip ci]"
+          git push origin HEAD:agent/gate-i-v8-head-surface
