@@ -17,12 +17,12 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import v7_localize as loc  # noqa: E402
+from v7_parent_freshness import canonical_layer3_sha  # noqa: E402
 
 FIX = os.path.join(REPO, "tests", "fixtures", "deepseek_v4", "v7_two_layer_real")
 EXPECTED = os.path.join(FIX, "expected", "trace.json")
 RUNTIME = os.path.join(FIX, "runtime", "trace.json")
 PROV = os.path.join(FIX, "provenance.json")
-CHAIN_SHA = "0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761"
 FINAL_SHA = "d875657a6ce99540e050a5fbd1590a977116c3073ea2d3a8ff141d54d83ecbc4"
 
 
@@ -59,8 +59,14 @@ def write_manifest(root: str, manifest: dict) -> str:
 
 
 def main():
+    # Resolve the current parent endpoint before deciding whether the downstream
+    # fixture exists. A corrected Gate-H parent therefore invalidates stale V7
+    # assumptions even while the two-layer acquisition rung is still absent.
+    chain_sha = canonical_layer3_sha(REPO)
+
     if not (os.path.isfile(EXPECTED) and os.path.isfile(RUNTIME) and os.path.isfile(PROV)):
         print("SKIP: frozen real V7 two-layer trace is not present")
+        print("current Gate-H chain sha256:", chain_sha)
         return 77
 
     try:
@@ -79,14 +85,14 @@ def main():
             raise AssertionError("two-layer identity/structural classes drifted")
         chain = prov.get("chain") or {}
         if chain.get("byte_identical") is not True or \
-           chain.get("layer3_output_sha256") != CHAIN_SHA or \
-           chain.get("layer4_input_sha256") != CHAIN_SHA:
+           chain.get("layer3_output_sha256") != chain_sha or \
+           chain.get("layer4_input_sha256") != chain_sha:
             raise AssertionError(f"layer3->4 chain provenance drifted: {chain}")
 
         e_l3_out = next(b for b in expected.layers[0].boundaries if b.name == "output")
         e_l4_in = next(b for b in expected.layers[1].boundaries if b.name == "input")
         e_l4_out = next(b for b in expected.layers[1].boundaries if b.name == "output")
-        if e_l3_out.sha256 != CHAIN_SHA or e_l4_in.sha256 != CHAIN_SHA:
+        if e_l3_out.sha256 != chain_sha or e_l4_in.sha256 != chain_sha:
             raise AssertionError("manifest does not pin the canonical layer3->4 chain SHA")
         if e_l4_out.sha256 != FINAL_SHA:
             raise AssertionError(f"layer4 final SHA drifted: {e_l4_out.sha256}")
@@ -134,7 +140,7 @@ def main():
 
         print("PASS V7 real two-layer trace: 14 boundaries exact, earliest-divergence mutations localized")
         print("layers: 3 ratio128-learned -> 4 ratio4-learned")
-        print("chain sha256:", CHAIN_SHA)
+        print("chain sha256:", chain_sha)
         print("layer4 final sha256:", FINAL_SHA)
         return 0
     except Exception as exc:
