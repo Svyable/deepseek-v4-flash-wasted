@@ -1,0 +1,15 @@
+name: Validate Gate-I scalar head primitive (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after the scalar Gate-I head primitive matched the independent F32 oracle."
+          echo "Permanent no-network head primitive replay now owns this contract."

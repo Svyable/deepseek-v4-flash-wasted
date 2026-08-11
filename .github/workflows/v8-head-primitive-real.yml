@@ -1,0 +1,15 @@
+name: Acquire bounded real-state Gate-I head primitive (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after the bounded real-state Gate-I head primitive froze green."
+          echo "Raw checkpoint payload remains transient; permanent compact replays own the evidence."

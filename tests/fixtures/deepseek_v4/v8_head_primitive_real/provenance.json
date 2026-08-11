@@ -1,0 +1,324 @@
+{
+  "acquisition_verification": {
+    "independent_python_vs_waste_hc_bf16_cast_exact": 4096,
+    "independent_python_vs_waste_hc_mixes_exact_f32": 4,
+    "independent_python_vs_waste_hc_pre_exact_f32": 4,
+    "independent_python_vs_waste_hc_raw_exact_f32": 4096,
+    "independent_python_vs_waste_rms_bf16_cast_exact": 4096,
+    "independent_python_vs_waste_rms_raw_exact_f32": 4096,
+    "independent_python_vs_waste_selected_logits_exact_f32": 24
+  },
+  "checkpoint_payload": {
+    "full_parameters": {
+      "base": {
+        "absolute_http_range_inclusive": [
+          400,
+          415
+        ],
+        "dtype": "F32",
+        "payload_bytes": 16,
+        "payload_sha256": "053a7115d0e196b7ad1425d6026cb1762fa6c40ee4be90c582fdd9d7d5b0c960",
+        "rows": [
+          0,
+          4
+        ],
+        "shape": [
+          4
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "hc_head_base"
+      },
+      "fn": {
+        "absolute_http_range_inclusive": [
+          416,
+          262559
+        ],
+        "dtype": "F32",
+        "payload_bytes": 262144,
+        "payload_sha256": "b71f6868fbd4d36ae4a03224ef0ee48c0e0cdf97cf64423c06e62adba32f8254",
+        "rows": [
+          0,
+          4
+        ],
+        "shape": [
+          4,
+          16384
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "hc_head_fn"
+      },
+      "norm": {
+        "absolute_http_range_inclusive": [
+          1059324324,
+          1059332515
+        ],
+        "dtype": "BF16",
+        "payload_bytes": 8192,
+        "payload_sha256": "70be44c57790de665a8ce093429299eb58a1a953b82f6fa0b399a8c145d996e0",
+        "rows": [
+          0,
+          4096
+        ],
+        "shape": [
+          4096
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "norm.weight"
+      },
+      "scale": {
+        "absolute_http_range_inclusive": [
+          262560,
+          262563
+        ],
+        "dtype": "F32",
+        "payload_bytes": 4,
+        "payload_sha256": "1bb1908789053df173acae398803b569c3e510dc5a727f5381a20bfdd062816b",
+        "rows": [
+          0,
+          1
+        ],
+        "shape": [
+          1
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "hc_head_scale"
+      }
+    },
+    "head_row_slices": [
+      {
+        "absolute_http_range_inclusive": [
+          262564,
+          328099
+        ],
+        "dtype": "BF16",
+        "payload_bytes": 65536,
+        "payload_sha256": "1d5a349cb01504cf9fa68244f98c1e53b7dfe3b1e4757cefe7464f56045a3cfb",
+        "rows": [
+          0,
+          8
+        ],
+        "shape": [
+          129280,
+          4096
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "head.weight"
+      },
+      {
+        "absolute_http_range_inclusive": [
+          1055359396,
+          1055424931
+        ],
+        "dtype": "BF16",
+        "payload_bytes": 65536,
+        "payload_sha256": "96af0e6f8368babac09757b522582d717680ce46e4f4c33d939b0afff1355399",
+        "rows": [
+          128796,
+          128804
+        ],
+        "shape": [
+          129280,
+          4096
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "head.weight"
+      },
+      {
+        "absolute_http_range_inclusive": [
+          1059258788,
+          1059324323
+        ],
+        "dtype": "BF16",
+        "payload_bytes": 65536,
+        "payload_sha256": "683c720966884080da34de651bc3ee447ce0d98d991a510d2c3cf36b3605ac5c",
+        "rows": [
+          129272,
+          129280
+        ],
+        "shape": [
+          129280,
+          4096
+        ],
+        "shard": "model-00045-of-00048.safetensors",
+        "tensor": "head.weight"
+      }
+    ],
+    "raw_payload_committed": false,
+    "selected_row_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      128796,
+      128797,
+      128798,
+      128799,
+      128800,
+      128801,
+      128802,
+      128803,
+      129272,
+      129273,
+      129274,
+      129275,
+      129276,
+      129277,
+      129278,
+      129279
+    ],
+    "total_bytes_fetched": 466964
+  },
+  "effective_inference_config": {
+    "dim": 4096,
+    "hc_eps": 1e-06,
+    "hc_eps_source": "ModelArgs default",
+    "hc_mult": 4,
+    "inference_config_sha256": "c90861f3d10a9e4ef5954f8f1a34c529d480da1c5799f84660028f4e38e14e71",
+    "n_layers": 43,
+    "norm_eps": 1e-06,
+    "norm_eps_source": "ModelArgs default",
+    "pinned_source_sha256": "c0c19e6c9fa439bac7fbb1c5bc1868232dfd5aa2f439a548d0e33dcc2a9edd3f",
+    "vocab_size": 129280
+  },
+  "evidence_state": "CHECKPOINT-BOUND-REAL-STATE-HEAD-PRIMITIVE",
+  "gate": "Gate I/V8 real-state final-head primitive",
+  "input": {
+    "dtype": "BF16",
+    "fixture_file": "input-layer4-final.bf16.bin",
+    "fixture_sha256": "f32bec5a013bc5a0da98a6ac940dd4946fe0dad877714ffb6811c177837cf749",
+    "is_true_final_model_hidden": false,
+    "producer": "V7 complete real layer-4 final state",
+    "shape": [
+      4,
+      4096
+    ],
+    "source_file": "tests/fixtures/deepseek_v4/v7_layer4_full_real/layer4-final.bf16.bin",
+    "source_sha256": "f32bec5a013bc5a0da98a6ac940dd4946fe0dad877714ffb6811c177837cf749"
+  },
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "the input is a real layer-4 hidden state used as a primitive test vector, not the true layer-42/final transformer hidden state",
+    "selected F32 row outputs are primitive/orientation checks, not final-model logits",
+    "this does not execute the remaining transformer layers or pass V8 final-logit parity",
+    "this does not fetch or validate the full 1.059 GB vocabulary head",
+    "no generation, converted-container/cache identity, RAM or throughput claim"
+  ],
+  "outputs": {
+    "final_norm": {
+      "dtype": "BF16",
+      "file": "final-norm.bf16.bin",
+      "first8_hex": [
+        "0x3e9f",
+        "0xbd63",
+        "0x3df4",
+        "0x3f27",
+        "0x3e56",
+        "0xbe55",
+        "0xbec9",
+        "0xbdaf"
+      ],
+      "sha256": "0315497815da5a1f6da6ea80d84e0393751c85630cc0a83dfde7e6929f070c0b",
+      "shape": [
+        4096
+      ]
+    },
+    "hc_head": {
+      "dtype": "BF16",
+      "file": "hc-head.bf16.bin",
+      "first8_hex": [
+        "0x3f17",
+        "0xbdea",
+        "0x3e75",
+        "0x3f9d",
+        "0x3eca",
+        "0xbede",
+        "0xbf48",
+        "0xbe33"
+      ],
+      "sha256": "3077c204939188c5dcddee0b19d13029182641822fa4915c340766db9d553ddc",
+      "shape": [
+        4096
+      ]
+    },
+    "hc_mixes": {
+      "dtype": "F32",
+      "f32_bits": [
+        "0x3e3d1fb4",
+        "0xbed5ad20",
+        "0xbe9f952c",
+        "0xbd8c6395"
+      ],
+      "file": "hc-mixes.f32.bin",
+      "sha256": "620ab8a605df40891e4b1dea2105521463b5556ba303f95fcd4215f728964607",
+      "shape": [
+        4
+      ]
+    },
+    "hc_pre": {
+      "dtype": "F32",
+      "f32_bits": [
+        "0x3dada737",
+        "0x3d10d69b",
+        "0x3d3c83a8",
+        "0x3f6afd56"
+      ],
+      "file": "hc-pre.f32.bin",
+      "sha256": "ed86b7d67b5d59d2068b1ca68dfb269d22d9a3f9b96d81ceacdb471b2d921c81",
+      "shape": [
+        4
+      ]
+    },
+    "row_ids": {
+      "dtype": "U32",
+      "file": "selected-row-ids.u32.bin",
+      "sha256": "5d754c62f5a359e56c7edd25cab2b0c2a2ba379cee5ec1c23edad80b3e10fe55",
+      "shape": [
+        24
+      ]
+    },
+    "selected_logits": {
+      "dtype": "F32",
+      "f32_bits": [
+        "0xc0a21d71",
+        "0x3ff357ca",
+        "0xc185a8ad",
+        "0x40320514",
+        "0x40b439d0",
+        "0xc07d3440",
+        "0x3f9ae26d",
+        "0xbf1bf488",
+        "0xbfefd5f3",
+        "0xc017dea7",
+        "0xc06f4f46",
+        "0xc07db5be",
+        "0xc18869ca",
+        "0xc187e3c6",
+        "0xc1885399",
+        "0xc0c4e02a",
+        "0xc185f820",
+        "0xc184a024",
+        "0xc1851d49",
+        "0xc1859f37",
+        "0xc18463fb",
+        "0xc1852e29",
+        "0xc18378e4",
+        "0xc1843af0"
+      ],
+      "file": "selected-logits.f32.bin",
+      "sha256": "659f053589edbf6c910166f34b5993f965003de3301c2a41f632a1f2a4358016",
+      "shape": [
+        24
+      ]
+    }
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "surface_dependency": {
+    "file": "reference/deepseek-v4-flash-0731.v8-head.json",
+    "sha256": "5bf4b6c86ef43548055ace6bf0f910ea8c32b8f4ba01c4f4e9c6adc78a8d6f66"
+  }
+}
