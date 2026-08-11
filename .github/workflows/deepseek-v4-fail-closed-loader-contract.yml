@@ -1,0 +1,74 @@
+name: Validate DeepSeek V4 fail-closed loader contract
+
+on:
+  pull_request:
+    paths:
+      - "reference/deepseek-v4-flash-0731.gate-a.json"
+      - "src/deepseek_v4_container_contract.c"
+      - "src/deepseek_v4_container_contract.h"
+      - "src/quant/fp4_e2m1.c"
+      - "src/quant/fp4_e2m1.h"
+      - "tests/test_deepseek_v4_container_contract.c"
+      - ".github/workflows/deepseek-v4-fail-closed-loader-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Bind Gate-A geometry without enabling execution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cross-check C constants against machine-readable Gate A
+        run: |
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          gate = json.loads(Path('reference/deepseek-v4-flash-0731.gate-a.json').read_text())
+          header = Path('src/deepseek_v4_container_contract.h').read_text()
+          cfg = gate['checkpoint']['config']
+          record = gate['routed_experts']
+          checks = {
+              'WASTE_DS_V4_0731_MAIN_LAYERS': cfg['main_layers'],
+              'WASTE_DS_V4_0731_HIDDEN': cfg['hidden_size'],
+              'WASTE_DS_V4_0731_ROUTED_EXPERTS': cfg['routed_experts_per_layer'],
+              'WASTE_DS_V4_0731_SHARED_EXPERTS': cfg['shared_experts_per_layer'],
+              'WASTE_DS_V4_0731_TOPK': cfg['routed_experts_per_token_per_layer'],
+              'WASTE_DS_V4_0731_MOE_INTERMEDIATE': cfg['moe_intermediate_size'],
+              'WASTE_DS_V4_0731_BOOTSTRAP_HASH_LAYERS': cfg['bootstrap_hash_layers'],
+              'WASTE_DS_V4_0731_SHARDS': gate['checkpoint']['shards'],
+              'WASTE_DS_V4_0731_TENSORS': gate['checkpoint']['tensors'],
+              'WASTE_DS_V4_0731_ROUTED_RECORDS': record['records'],
+              'WASTE_DS_V4_0731_ROUTED_PAYLOAD_BYTES': record['payload_bytes_per_record'],
+          }
+          for name, expected in checks.items():
+              match = re.search(rf'#define\s+{name}\s+(\d+)', header)
+              assert match and int(match.group(1)) == expected, (name, expected)
+          assert gate['revision'] in header
+          assert '166878536440' in header
+          rep = gate['representative_real_tensors']['routed_w1']
+          assert rep['dtype'] == 'I8' and rep['shape'] == [2048, 2048]
+          assert rep['scale_dtype'] == 'F8_E8M0' and rep['scale_shape'] == [2048, 128]
+          resident = gate['representative_real_tensors']['resident_fp8_projection']
+          assert resident['dtype'] == 'F8_E4M3' and resident['shape'] == [1024, 4096]
+          assert resident['scale_dtype'] == 'F8_E8M0' and resident['scale_shape'] == [8, 32]
+          print('GATE_A_BINDING checkpoint and representative native quant geometry exact')
+          PY
+
+      - name: Compile strict standalone loader contract
+        run: |
+          cc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -Isrc \
+            tests/test_deepseek_v4_container_contract.c \
+            src/deepseek_v4_container_contract.c \
+            src/quant/fp4_e2m1.c \
+            -lm -o "${RUNNER_TEMP}/test_ds_v4_container_contract"
+
+      - name: Run fail-closed geometry regression
+        run: "${RUNNER_TEMP}/test_ds_v4_container_contract"
