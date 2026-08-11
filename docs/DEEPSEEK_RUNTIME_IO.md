@@ -1,6 +1,6 @@
 # DeepSeek V4 positional runtime I/O
 
-This note records the storage boundary implemented by `src/deepseek_v4_runtime.{c,h}` after PRs #22–#23 and the explicit file-ownership layer built on top of it. It is intentionally narrower than a DeepSeek container format: the pinned evidence has not frozen filenames, per-record headers, record ordering, alignment, or direct-I/O policy, so the runtime does not invent them.
+This note records the storage boundary implemented by `src/deepseek_v4_runtime.{c,h}` after PRs #22–#23 and the explicit file-ownership layer in `src/deepseek_v4_file_runtime.{c,h}` built on top of it. It is intentionally narrower than a DeepSeek container format: the pinned evidence has not frozen filenames, per-record headers, record ordering, alignment, or direct-I/O policy, so the runtime does not invent them.
 
 ## Goal
 
@@ -25,11 +25,13 @@ Reader contexts remain caller-owned and must outlive both the positional source 
 
 `waste_ds_v4_runtime_init_positional` binds the validated source to the existing `waste_ecache` path. It refuses a source whose layer count, expert count, record size, or routed six-plane map does not match the manifest used by the runtime. Matching record byte length alone is deliberately insufficient: two individually valid maps can place the same planes in different byte order, and accepting the wrong one would produce plausible but incorrect tensor bindings.
 
+`waste_ds_v4_runtime_manifest_validate` is the shared runtime-facing revalidation front door. Parsing already validates the manifest, but the resulting C struct is mutable; positional and file-resource bindings use the same function so post-parse mutation cannot be accepted by one path and refused by another.
+
 ## Explicit file ownership
 
 `waste_ds_v4_file_runtime_open` closes the next production-risk seam without defining a family directory layout. Its caller supplies:
 
-- an already-validated `waste_ds_v4_manifest`;
+- an already-parsed `waste_ds_v4_manifest`, which is revalidated before I/O;
 - one explicit resident-trunk path;
 - one explicit bank path per manifest layer;
 - one explicit record offset per routed expert;
@@ -37,7 +39,7 @@ Reader contexts remain caller-owned and must outlive both the positional source 
 
 The open path then owns the native resources:
 
-1. validate all obvious file/spec geometry before opening anything;
+1. revalidate runtime-critical manifest identity/geometry and all obvious file/spec geometry before opening anything;
 2. open the resident file and require its OS-reported size to equal `manifest->trunk_bytes` exactly;
 3. allocate the final WASTE-aligned resident buffer once and fill it with exact positional reads — there is no whole-file temporary slurp followed by a second copy;
 4. open every routed bank and query its actual byte length from the OS;
@@ -57,7 +59,7 @@ runtime/cache
 
 That ordering matters because the runtime's fetch user points at the positional source, and each positional bank's read context points into the owned descriptor array. A partial failure at any stage uses the same teardown path and leaves the output object zeroed. `waste_ds_v4_file_runtime_close` is safe again after it has zeroed a successfully opened object.
 
-This layer currently uses ordinary read-only file opens. It does **not** silently enable WASTE's page-cache bypass/direct-I/O path because DeepSeek record alignment has not been frozen by evidence. Direct-versus-buffered parity belongs to Gate G once the real format proves the required offset/length alignment.
+This layer currently uses ordinary read-only/random-access file opens. It does **not** silently enable WASTE's page-cache bypass/direct-I/O path because DeepSeek record alignment has not been frozen by evidence. Direct-versus-buffered parity belongs to Gate G once the real format proves the required offset/length alignment.
 
 ## Exact-read semantics
 
@@ -78,7 +80,7 @@ The positional source loops on short positive reads until the entire manifest-de
 
 A partial record is never passed to `waste_ds_v4_manifest_bind_routed_record`.
 
-`waste_ds_v4_fd_read_at` is the native-file adapter and reuses WASTE's cross-platform `waste_pread`, including signed 64-bit offsets on Windows. Source initialization therefore rejects record extents that cannot be represented in that signed-64-bit positional-I/O range. The file-owned resident read uses the same adapter contract and refuses short/zero/error completion rather than exposing a partial trunk.
+`waste_ds_v4_fd_read_at` is the native-file adapter and reuses WASTE's cross-platform `waste_pread`, including signed 64-bit offsets on Windows. Source initialization therefore rejects record extents that cannot be represented in that signed-64-bit positional-I/O range. The file-owned resident read uses the same exact-progress rules and refuses short/zero/error completion rather than exposing a partial trunk.
 
 ## Bounds and identity checks
 
@@ -110,16 +112,20 @@ No monotonicity, uniform stride, page alignment, record header, filename pattern
 - an offset whose record would run past the bank is refused before reading;
 - zero-progress and over-reporting readers fail closed.
 
-The same test now exercises the file owner with actual local files:
+`tests/test_deepseek_v4_file_runtime.c` separately exercises the ownership layer with actual local files:
 
 - resident and routed bytes are read through owned native descriptors and then consumed by the existing runtime seams;
+- resident FP8 arithmetic runs from the file-loaded aligned trunk;
 - caller path/offset metadata is mutated after open without changing the opened identity;
 - a resident file one byte short or one byte long is refused;
 - a routed bank one byte short is refused from its actual file size;
 - an explicit routed offset extending one byte past EOF is refused;
 - invalid per-bank expert counts are refused before resource ownership begins;
 - a missing bank after several previous bank opens forces full partial-open teardown;
-- cleanup removes every owned handle and a second close after zeroing is harmless.
+- cleanup removes every owned handle and a second close after zeroing is harmless;
+- the same output object can be reused after failed opens.
+
+The dedicated file-runtime binary is built by the normal Makefile and is included in both `make check` and `make asan`; CI invokes the same target rather than hand-compiling a different test binary.
 
 These checks use real OS files but synthetic DeepSeek bytes and therefore do **not** promote Gate G. Gate G still needs the same real DeepSeek record observed on an actual storage miss and cache hit, followed by identical arithmetic.
 
