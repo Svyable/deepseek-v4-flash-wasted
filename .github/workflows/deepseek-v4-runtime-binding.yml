@@ -1,0 +1,41 @@
+name: DeepSeek V4 runtime binding
+
+on:
+  pull_request:
+    paths:
+      - "src/deepseek_v4_runtime.*"
+      - "src/deepseek_v4_manifest.*"
+      - "src/deepseek_v4_container_contract.*"
+      - "src/waste_backend.h"
+      - "src/backend.c"
+      - "src/ecache.*"
+      - "src/quant/deepseek_v4_linear_ref.*"
+      - "src/quant/fp4_e2m1.*"
+      - "src/quant/fp8_e4m3.*"
+      - "tests/test_deepseek_v4_runtime.c"
+      - "Makefile"
+      - ".github/workflows/deepseek-v4-runtime-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-binding:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3aaf0861a7e5897a5e9e5d6dd0bd60fb8447d7 # v7.0.1
+
+      - name: Build and run model-free runtime binding test
+        run: |
+          make test_ds_runtime
+          ./test_ds_runtime
+
+      - name: Run runtime binding test under ASan and UBSan
+        run: |
+          make clean
+          make test_ds_runtime \
+            CFLAGS="-std=gnu11 -Wall -Wextra -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            LDLIBS="-lm -lpthread -fsanitize=address,undefined -fno-sanitize-recover=all"
+          ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 ./test_ds_runtime
