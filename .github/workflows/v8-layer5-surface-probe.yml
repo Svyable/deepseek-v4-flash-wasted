@@ -5,6 +5,8 @@ on:
     branches: [agent/gate-i-v8-layer-engine]
     paths:
       - ".github/workflows/v8-layer5-surface-probe.yml"
+      - "tools/v8_layer_surface.py"
+      - "tests/test_v8_layer_surface.py"
   workflow_dispatch:
 
 permissions:
