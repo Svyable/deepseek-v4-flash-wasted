@@ -36,6 +36,6 @@ jobs:
         run: |
           make clean
           make test_ds_runtime \
-            CFLAGS="-std=gnu11 -Wall -Wextra -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            CFLAGS="-std=gnu11 -Wall -Wextra -DVQ_SUPER=2 -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
             LDLIBS="-lm -lpthread -fsanitize=address,undefined -fno-sanitize-recover=all"
           ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 ./test_ds_runtime
