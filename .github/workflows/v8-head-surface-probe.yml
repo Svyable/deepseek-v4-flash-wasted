@@ -5,6 +5,7 @@ on:
     branches: [agent/gate-i-v8-head-surface]
     paths:
       - ".github/workflows/v8-head-surface-probe.yml"
+      - "tools/v8_probe_surface.py"
   workflow_dispatch:
 
 permissions:
