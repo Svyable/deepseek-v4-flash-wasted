@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import os
@@ -17,13 +16,23 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import v7_localize as loc  # noqa: E402
-from v7_parent_freshness import canonical_layer3_sha  # noqa: E402
+from v7_parent_freshness import (  # noqa: E402
+    assert_two_layer_chain,
+    canonical_layer3_sha,
+)
 
-FIX = os.path.join(REPO, "tests", "fixtures", "deepseek_v4", "v7_two_layer_real")
+BASE = os.path.join(REPO, "tests", "fixtures", "deepseek_v4")
+FIX = os.path.join(BASE, "v7_two_layer_real")
 EXPECTED = os.path.join(FIX, "expected", "trace.json")
 RUNTIME = os.path.join(FIX, "runtime", "trace.json")
 PROV = os.path.join(FIX, "provenance.json")
-FINAL_SHA = "d875657a6ce99540e050a5fbd1590a977116c3073ea2d3a8ff141d54d83ecbc4"
+SOURCE_PROVENANCE = {
+    "l3_hc": os.path.join(BASE, "v6_hc_composition_real", "provenance.json"),
+    "l3_att": os.path.join(BASE, "v6_attention_branch_real", "provenance.json"),
+    "l3_moe": os.path.join(BASE, "v6_moe_branch_real", "provenance.json"),
+    "l4_route": os.path.join(BASE, "v7_layer4_route_real", "provenance.json"),
+    "l4_full": os.path.join(BASE, "v7_layer4_full_real", "provenance.json"),
+}
 
 
 def sha(path):
@@ -32,6 +41,41 @@ def sha(path):
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def current_layer4_final_sha() -> str:
+    path = SOURCE_PROVENANCE["l4_full"]
+    if not os.path.isfile(path):
+        raise AssertionError("complete layer-4 provenance is missing")
+    prov = json.load(open(path, encoding="utf-8"))
+    meta = (prov.get("outputs") or {}).get("layer4_final") or {}
+    if meta.get("dtype") != "BF16" or meta.get("shape") != [4, 4096]:
+        raise AssertionError("complete layer-4 final geometry drifted")
+    final_path = os.path.join(os.path.dirname(path), meta.get("file", ""))
+    if not os.path.isfile(final_path):
+        raise AssertionError("complete layer-4 final file is missing")
+    actual = sha(final_path)
+    if actual != meta.get("sha256"):
+        raise AssertionError(
+            f"complete layer-4 final SHA {actual} != provenance {meta.get('sha256')}"
+        )
+    return actual
+
+
+def assert_source_provenance(prov: dict) -> None:
+    declared = prov.get("source_provenance_sha256") or {}
+    if set(declared) != set(SOURCE_PROVENANCE):
+        raise AssertionError(
+            f"two-layer source provenance keys drifted: {sorted(declared)}"
+        )
+    for label, path in SOURCE_PROVENANCE.items():
+        if not os.path.isfile(path):
+            raise AssertionError(f"two-layer source provenance missing: {label}")
+        actual = sha(path)
+        if declared.get(label) != actual:
+            raise AssertionError(
+                f"two-layer source {label} SHA {declared.get(label)!r} != current {actual}"
+            )
 
 
 def mutate_bf16(trace_root: str, manifest: dict, layer: int, boundary: str,
@@ -62,7 +106,11 @@ def main():
     # Resolve the current parent endpoint before deciding whether the downstream
     # fixture exists. A corrected Gate-H parent therefore invalidates stale V7
     # assumptions even while the two-layer acquisition rung is still absent.
-    chain_sha = canonical_layer3_sha(REPO)
+    try:
+        chain_sha = canonical_layer3_sha(REPO)
+    except Exception as exc:
+        print("FAIL:", exc)
+        return 1
 
     if not (os.path.isfile(EXPECTED) and os.path.isfile(RUNTIME) and os.path.isfile(PROV)):
         print("SKIP: frozen real V7 two-layer trace is not present")
@@ -83,19 +131,19 @@ def main():
         if prov.get("layers") != [3, 4] or \
            prov.get("structural_classes") != ["ratio128-learned", "ratio4-learned"]:
             raise AssertionError("two-layer identity/structural classes drifted")
-        chain = prov.get("chain") or {}
-        if chain.get("byte_identical") is not True or \
-           chain.get("layer3_output_sha256") != chain_sha or \
-           chain.get("layer4_input_sha256") != chain_sha:
-            raise AssertionError(f"layer3->4 chain provenance drifted: {chain}")
+        assert_two_layer_chain(prov, chain_sha, label=PROV)
+        assert_source_provenance(prov)
+        final_sha = current_layer4_final_sha()
 
         e_l3_out = next(b for b in expected.layers[0].boundaries if b.name == "output")
         e_l4_in = next(b for b in expected.layers[1].boundaries if b.name == "input")
         e_l4_out = next(b for b in expected.layers[1].boundaries if b.name == "output")
         if e_l3_out.sha256 != chain_sha or e_l4_in.sha256 != chain_sha:
             raise AssertionError("manifest does not pin the canonical layer3->4 chain SHA")
-        if e_l4_out.sha256 != FINAL_SHA:
-            raise AssertionError(f"layer4 final SHA drifted: {e_l4_out.sha256}")
+        if e_l4_out.sha256 != final_sha:
+            raise AssertionError(
+                f"layer4 final SHA {e_l4_out.sha256} != current full fixture {final_sha}"
+            )
 
         # Mutation 1 stays a *valid runtime chain*: change layer-3 output and
         # layer-4 input identically, then update both manifest SHAs. The first
@@ -111,8 +159,6 @@ def main():
             l3_sha = next(x for x in l3["boundaries"] if x["name"] == "output")["sha256"]
             l4_in = next(x for x in l4["boundaries"] if x["name"] == "input")
             l4_in["sha256"] = l3_sha
-            # Both files were changed by the same operation from identical
-            # bytes, so the chain must remain identical after mutation.
             if sha(os.path.join(root, next(x for x in l3["boundaries"] if x["name"] == "output")["file"])) != \
                sha(os.path.join(root, l4_in["file"])):
                 raise AssertionError("chain-preserving mutation produced unequal files")
@@ -141,7 +187,7 @@ def main():
         print("PASS V7 real two-layer trace: 14 boundaries exact, earliest-divergence mutations localized")
         print("layers: 3 ratio128-learned -> 4 ratio4-learned")
         print("chain sha256:", chain_sha)
-        print("layer4 final sha256:", FINAL_SHA)
+        print("layer4 final sha256:", final_sha)
         return 0
     except Exception as exc:
         print("FAIL:", exc)
