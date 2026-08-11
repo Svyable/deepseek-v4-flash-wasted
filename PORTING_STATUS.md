@@ -8,7 +8,7 @@
 
 - Model: `deepseek-ai/DeepSeek-V4-Flash-0731`
 - Pinned revision: `9e165c30e2704aec5d9d593cce3eebd58bbef1cb`
-- Merged foundation: through PR #23
+- Merged foundation: through PR #24
 - Corrected canonical Gate-H layer-3 endpoint:
   `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`
 - Refused historical layer-3 endpoint:
@@ -80,7 +80,12 @@ state, so final-model logits remain open.
   files, derive their byte limits from the OS rather than caller claims, bind
   them through the positional source, and unwind every partially-open resource
   in reverse dependency order;
-- the runtime, positional-source, and file-resource checks remain
+- an evidence-backed resolver derives the resident path, per-layer bank paths
+  and explicit expert offsets from the container's own `files` declaration,
+  confines every path under the container root, requires each main layer to be
+  declared exactly once, refuses overlapping records within a bank, and
+  constructs no filename of its own;
+- the runtime, positional-source, file-resource, and resolver checks remain
   model-free/synthetic infrastructure only: no evidence-backed DeepSeek
   directory resolver or Gate-G disk-vs-cache identity result is claimed;
 - no on-disk filename/header/order/alignment/direct-I/O convention has been
@@ -98,12 +103,12 @@ state, so final-model logits remain open.
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
 4. **Family container/open path.** The v1 family manifest parser, resident
-   backend binding, routed cache binding, explicit positional source, and
-   explicit native-file ownership layer are built and fail-closed. What remains
-   is the evidence-backed resolver that reads real DeepSeek container metadata
-   and derives the actual resident path, routed bank topology/paths, and expert
-   offset tables. No filename, record header, ordering, alignment, or direct-I/O
-   rule is frozen by the generic runtime substrate.
+   backend binding, routed cache binding, explicit positional source, explicit
+   native-file ownership layer, and the declaration-driven resolver are all
+   built and fail-closed. What remains is a **real container** to point them
+   at: the resolver reads a `files` declaration it has only ever been given
+   synthetically. No filename, record header, ordering, alignment, or
+   direct-I/O rule is frozen by the generic runtime substrate.
 5. **Encoding/API and serving.** Downstream of raw model arithmetic.
 6. **Storage/cache/performance.** Correct native record geometry, a hardened
    exact-read placement seam, and owned native resources exist; real
@@ -153,10 +158,16 @@ state, so final-model logits remain open.
    one reverse-order cleanup path. Real local-file coverage lives in
    `tests/test_deepseek_v4_file_runtime.c` and is included in `make check` and
    `make asan`.
-5. Build the evidence-backed family resolver: read the real DeepSeek container
-   metadata, derive actual resident/bank paths and explicit expert offsets, and
-   hand those facts to `waste_ds_v4_file_runtime_open`. Do not infer
-   filename/header/order/alignment/direct-I/O conventions from imported WASTE.
+5. ~~Build the evidence-backed family resolver: read the real DeepSeek
+   container metadata, derive actual resident/bank paths and explicit expert
+   offsets, and hand those facts to `waste_ds_v4_file_runtime_open`.~~ **Done
+   as declaration-driven substrate** — `src/deepseek_v4_resolver.{c,h}` reads
+   the container's `files` section, confines paths under the container root,
+   requires exactly one declaration per main layer, accepts an explicit offset
+   table or a declared base/stride that materializes byte-identically, refuses
+   overlapping records, and constructs no filename (CI greps for it). Checked
+   by `tests/test_deepseek_v4_resolver.c`; see `docs/DEEPSEEK_RUNTIME_IO.md`.
+   The remaining gap is a real container document to resolve.
 6. Use real container bytes to close Gate G: compare miss/hit bytes and expert
    arithmetic, then compare buffered versus page-cache-bypassing I/O only after
    actual alignment requirements are known.

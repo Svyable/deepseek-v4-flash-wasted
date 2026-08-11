@@ -3,108 +3,9 @@
  */
 #include "deepseek_v4_manifest.h"
 
-#include "json.h"
+#include "deepseek_v4_json_strict.h"
 
 #include <string.h>
-
-/* A manifest is a file on disk that someone else may have written. Cap it so a
- * malformed one cannot make us read an unbounded buffer, and so the token
- * array js.h grows stays proportional to something bounded. The 0731 trunk
- * needs a few tens of KiB. */
-#define DS_MANIFEST_MAX_BYTES (4u * 1024u * 1024u)
-
-/* ------------------------------------------------------------------ */
-/* strict scalar readers                                              */
-/*                                                                    */
-/* js_num() goes through atof(), which happily accepts "1e400", "-1"   */
-/* and "4096.5" and hands back a double. Every number in this manifest */
-/* sizes or locates bytes, so each one is read from its raw text and   */
-/* refused unless it is a plain non-negative integer that fits.        */
-/* ------------------------------------------------------------------ */
-
-static int ds_u64(const js_doc *d, int tok, uint64_t *out)
-{
-    if (tok < 0 || tok >= d->n || d->tok[tok].type != JS_NUM || !out)
-        return -1;
-    int begin = d->tok[tok].start, end = d->tok[tok].end;
-    if (end <= begin || end - begin > 20)
-        return -1;
-    uint64_t v = 0;
-    for (int i = begin; i < end; i++) {
-        char c = d->src[i];
-        if (c < '0' || c > '9')
-            return -1;               /* sign, '.', exponent: all refused */
-        uint64_t digit = (uint64_t)(c - '0');
-        if (v > (UINT64_MAX - digit) / 10u)
-            return -1;
-        v = v * 10u + digit;
-    }
-    /* Leading zeros are not JSON, and are how "007" sneaks past a reader that
-     * only checks the digits. */
-    if (end - begin > 1 && d->src[begin] == '0')
-        return -1;
-    *out = v;
-    return 0;
-}
-
-static int ds_u32(const js_doc *d, int tok, uint32_t *out)
-{
-    uint64_t v = 0;
-    if (ds_u64(d, tok, &v) != 0 || v > UINT32_MAX || !out)
-        return -1;
-    *out = (uint32_t)v;
-    return 0;
-}
-
-static int ds_size(const js_doc *d, int tok, size_t *out)
-{
-    uint64_t v = 0;
-    if (ds_u64(d, tok, &v) != 0 || !out)
-        return -1;
-#if SIZE_MAX < UINT64_MAX
-    if (v > (uint64_t)SIZE_MAX)
-        return -1;
-#endif
-    *out = (size_t)v;
-    return 0;
-}
-
-/* Member `key` of `obj` as a strict unsigned; -1 when absent or not one. */
-static int ds_member_u32(const js_doc *d, int obj, const char *key, uint32_t *out)
-{
-    return ds_u32(d, js_get(d, obj, key), out);
-}
-
-static int ds_member_u64(const js_doc *d, int obj, const char *key, uint64_t *out)
-{
-    return ds_u64(d, js_get(d, obj, key), out);
-}
-
-static int ds_member_size(const js_doc *d, int obj, const char *key, size_t *out)
-{
-    return ds_size(d, js_get(d, obj, key), out);
-}
-
-/* Copy a string member, refusing truncation: a name that does not fit is a
- * manifest we do not understand, not a name to shorten. */
-static int ds_member_str(const js_doc *d, int obj, const char *key,
-                         char *buf, size_t cap)
-{
-    int tok = js_get(d, obj, key);
-    if (tok < 0 || tok >= d->n || d->tok[tok].type != JS_STR || !buf || cap == 0)
-        return -1;
-    size_t len = (size_t)(d->tok[tok].end - d->tok[tok].start);
-    if (len == 0 || len >= cap)
-        return -1;
-    memcpy(buf, d->src + d->tok[tok].start, len);
-    buf[len] = 0;
-    /* The reader does not unescape, so a name containing a backslash would be
-     * compared in its escaped form. Refuse rather than compare something that
-     * is not what the writer meant. */
-    if (memchr(buf, '\\', len) != NULL)
-        return -1;
-    return 0;
-}
 
 /* ------------------------------------------------------------------ */
 /* span bookkeeping                                                    */
@@ -161,15 +62,9 @@ const char *waste_ds_v4_manifest_strerror(waste_ds_v4_manifest_status status)
     return "unknown manifest status";
 }
 
-static int ds_input_ok(const char *json, size_t len)
-{
-    return json && len > 0 && len <= DS_MANIFEST_MAX_BYTES &&
-           json[len] == '\0' && memchr(json, '\0', len) == NULL;
-}
-
 int waste_ds_v4_manifest_is_family(const char *json, size_t len)
 {
-    if (!ds_input_ok(json, len))
+    if (!dsjs_input_ok(json, len))
         return 0;
     js_doc d;
     if (js_parse(&d, json) != 0) {
@@ -179,7 +74,7 @@ int waste_ds_v4_manifest_is_family(const char *json, size_t len)
     int ok = 0;
     if (d.n > 0 && d.tok[0].type == JS_OBJ) {
         char family[32];
-        if (ds_member_str(&d, 0, "family", family, sizeof family) == 0)
+        if (dsjs_member_str(&d, 0, "family", family, sizeof family) == 0)
             ok = strcmp(family, WASTE_DS_V4_FAMILY) == 0;
     }
     js_free(&d);
@@ -208,23 +103,23 @@ static waste_ds_v4_manifest_status ds_parse_geometry(
         return WASTE_DS_V4_MANIFEST_E_GEOMETRY;
 
     memset(gate_a, 0, sizeof *gate_a);
-    if (ds_member_u32(d, geo, "main_layers", &gate_a->main_layers) != 0 ||
-        ds_member_u32(d, geo, "hidden_size", &gate_a->hidden_size) != 0 ||
-        ds_member_u32(d, geo, "routed_experts_per_layer",
+    if (dsjs_member_u32(d, geo, "main_layers", &gate_a->main_layers) != 0 ||
+        dsjs_member_u32(d, geo, "hidden_size", &gate_a->hidden_size) != 0 ||
+        dsjs_member_u32(d, geo, "routed_experts_per_layer",
                       &gate_a->routed_experts_per_layer) != 0 ||
-        ds_member_u32(d, geo, "shared_experts_per_layer",
+        dsjs_member_u32(d, geo, "shared_experts_per_layer",
                       &gate_a->shared_experts_per_layer) != 0 ||
-        ds_member_u32(d, geo, "routed_experts_per_token",
+        dsjs_member_u32(d, geo, "routed_experts_per_token",
                       &gate_a->routed_experts_per_token) != 0 ||
-        ds_member_u32(d, geo, "moe_intermediate_size",
+        dsjs_member_u32(d, geo, "moe_intermediate_size",
                       &gate_a->moe_intermediate_size) != 0 ||
-        ds_member_u32(d, geo, "bootstrap_hash_layers",
+        dsjs_member_u32(d, geo, "bootstrap_hash_layers",
                       &gate_a->bootstrap_hash_layers) != 0 ||
-        ds_member_u32(d, geo, "shards", &gate_a->shards) != 0 ||
-        ds_member_u32(d, geo, "tensors", &gate_a->tensors) != 0 ||
-        ds_member_u64(d, geo, "payload_bytes", &gate_a->payload_bytes) != 0 ||
-        ds_member_u32(d, geo, "routed_records", &gate_a->routed_records) != 0 ||
-        ds_member_u32(d, geo, "routed_payload_bytes_per_record",
+        dsjs_member_u32(d, geo, "shards", &gate_a->shards) != 0 ||
+        dsjs_member_u32(d, geo, "tensors", &gate_a->tensors) != 0 ||
+        dsjs_member_u64(d, geo, "payload_bytes", &gate_a->payload_bytes) != 0 ||
+        dsjs_member_u32(d, geo, "routed_records", &gate_a->routed_records) != 0 ||
+        dsjs_member_u32(d, geo, "routed_payload_bytes_per_record",
                       &gate_a->routed_payload_bytes_per_record) != 0)
         return WASTE_DS_V4_MANIFEST_E_GEOMETRY;
 
@@ -251,15 +146,15 @@ static waste_ds_v4_manifest_status ds_parse_routed(
         return WASTE_DS_V4_MANIFEST_E_ROUTED_MAP;
 
     memset(&out->routed_map, 0, sizeof out->routed_map);
-    if (ds_member_size(d, rec, "record_bytes", &out->routed_map.record_bytes) != 0 ||
-        ds_member_size(d, rec, "w1_offset", &out->routed_map.w1_offset) != 0 ||
-        ds_member_size(d, rec, "w1_scale_offset",
+    if (dsjs_member_size(d, rec, "record_bytes", &out->routed_map.record_bytes) != 0 ||
+        dsjs_member_size(d, rec, "w1_offset", &out->routed_map.w1_offset) != 0 ||
+        dsjs_member_size(d, rec, "w1_scale_offset",
                        &out->routed_map.w1_scale_offset) != 0 ||
-        ds_member_size(d, rec, "w3_offset", &out->routed_map.w3_offset) != 0 ||
-        ds_member_size(d, rec, "w3_scale_offset",
+        dsjs_member_size(d, rec, "w3_offset", &out->routed_map.w3_offset) != 0 ||
+        dsjs_member_size(d, rec, "w3_scale_offset",
                        &out->routed_map.w3_scale_offset) != 0 ||
-        ds_member_size(d, rec, "w2_offset", &out->routed_map.w2_offset) != 0 ||
-        ds_member_size(d, rec, "w2_scale_offset",
+        dsjs_member_size(d, rec, "w2_offset", &out->routed_map.w2_offset) != 0 ||
+        dsjs_member_size(d, rec, "w2_scale_offset",
                        &out->routed_map.w2_scale_offset) != 0)
         return WASTE_DS_V4_MANIFEST_E_ROUTED_MAP;
 
@@ -275,7 +170,7 @@ static waste_ds_v4_manifest_status ds_parse_resident(
     int trunk = js_get(d, root, "trunk");
     if (trunk < 0 || trunk >= d->n || d->tok[trunk].type != JS_OBJ)
         return WASTE_DS_V4_MANIFEST_E_RESIDENT;
-    if (ds_member_u64(d, trunk, "bytes", &out->trunk_bytes) != 0 ||
+    if (dsjs_member_u64(d, trunk, "bytes", &out->trunk_bytes) != 0 ||
         out->trunk_bytes == 0)
         return WASTE_DS_V4_MANIFEST_E_RESIDENT;
 
@@ -301,11 +196,11 @@ static waste_ds_v4_manifest_status ds_parse_resident(
         memset(plane, 0, sizeof *plane);
 
         size_t rows = 0, cols = 0;
-        if (ds_member_str(d, item, "name", plane->name, sizeof plane->name) != 0 ||
-            ds_member_size(d, item, "rows", &rows) != 0 ||
-            ds_member_size(d, item, "cols", &cols) != 0 ||
-            ds_member_u64(d, item, "weight_offset", &plane->weight_offset) != 0 ||
-            ds_member_u64(d, item, "scale_offset", &plane->scale_offset) != 0)
+        if (dsjs_member_str(d, item, "name", plane->name, sizeof plane->name) != 0 ||
+            dsjs_member_size(d, item, "rows", &rows) != 0 ||
+            dsjs_member_size(d, item, "cols", &cols) != 0 ||
+            dsjs_member_u64(d, item, "weight_offset", &plane->weight_offset) != 0 ||
+            dsjs_member_u64(d, item, "scale_offset", &plane->scale_offset) != 0)
             return WASTE_DS_V4_MANIFEST_E_RESIDENT;
 
         /* Tile geometry is derived and refused, never taken on trust: this is
@@ -344,7 +239,7 @@ waste_ds_v4_manifest_status waste_ds_v4_manifest_parse(
     if (!out)
         return WASTE_DS_V4_MANIFEST_E_ARG;
     memset(out, 0, sizeof *out);
-    if (!ds_input_ok(json, len))
+    if (!dsjs_input_ok(json, len))
         return WASTE_DS_V4_MANIFEST_E_ARG;
 
     js_doc d;
@@ -362,17 +257,17 @@ waste_ds_v4_manifest_status waste_ds_v4_manifest_parse(
     /* Family first, and exactly. Everything below reads DeepSeek keys out of
      * this object, so a Kimi v0 manifest must be refused before, not after,
      * its `version` field is mistaken for ours. */
-    if (ds_member_str(&d, 0, "family", out->family, sizeof out->family) != 0 ||
+    if (dsjs_member_str(&d, 0, "family", out->family, sizeof out->family) != 0 ||
         strcmp(out->family, WASTE_DS_V4_FAMILY) != 0) {
         status = WASTE_DS_V4_MANIFEST_E_FAMILY;
         goto done;
     }
-    if (ds_member_u32(&d, 0, "manifest_version", &out->manifest_version) != 0 ||
+    if (dsjs_member_u32(&d, 0, "manifest_version", &out->manifest_version) != 0 ||
         out->manifest_version != WASTE_DS_V4_MANIFEST_VERSION) {
         status = WASTE_DS_V4_MANIFEST_E_VERSION;
         goto done;
     }
-    if (ds_member_str(&d, 0, "revision", out->revision, sizeof out->revision) != 0 ||
+    if (dsjs_member_str(&d, 0, "revision", out->revision, sizeof out->revision) != 0 ||
         strcmp(out->revision, WASTE_DS_V4_0731_REVISION) != 0) {
         status = WASTE_DS_V4_MANIFEST_E_REVISION;
         goto done;

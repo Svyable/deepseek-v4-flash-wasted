@@ -110,6 +110,7 @@ SRC := src/model.c src/kda.c src/backend.c src/ecache.c src/version.c \
        src/crc32.c src/memory.c \
        src/deepseek_v4_container_contract.c src/deepseek_v4_manifest.c \
        src/deepseek_v4_runtime.c src/deepseek_v4_file_runtime.c \
+       src/deepseek_v4_resolver.c \
        src/quant/deepseek_v4_linear_ref.c src/quant/fp4_e2m1.c \
        src/quant/fp8_e4m3.c
 # Match what backend.c tests for. Linux/aarch64 reports "aarch64", which
@@ -239,7 +240,7 @@ waste$(EXE): cli/main.o libwaste.a
 TESTNAMES := test_kda test_container test_forward test_tokenizer test_k3parts \
              test_state test_vision test_image test_memory test_cpus sweep \
              test_quant test_ds_contract test_ds_manifest test_ds_runtime \
-             test_ds_file_runtime
+             test_ds_file_runtime test_ds_resolver
 TESTBINS  := $(addsuffix $(EXE),$(TESTNAMES))
 
 test: $(TESTBINS)
@@ -313,6 +314,12 @@ test_ds_runtime$(EXE): tests/test_deepseek_v4_runtime.o libwaste.a
 # kept as its own binary so resource-lifetime failures remain easy to localize.
 test_ds_file_runtime$(EXE): tests/test_deepseek_v4_file_runtime.o libwaste.a
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The resolver opens nothing, so this binary needs no fixtures on disk. It is
+# kept separate anyway: a refused *declaration* and a failed *open* are
+# different failures, and mixing them into one binary is how the second starts
+# masking the first.
+test_ds_resolver$(EXE): tests/test_deepseek_v4_resolver.o libwaste.a
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -333,6 +340,7 @@ check: test
 	@tests/run.sh
 	@./test_ds_runtime
 	@./test_ds_file_runtime
+	@./test_ds_resolver
 
 # The Python server's own suite. Separate from `check` because it needs
 # libwaste as a shared object rather than the archive the CLI links, and
@@ -363,6 +371,10 @@ asan:
 	 if [ $$rc -eq 0 ]; then \
 	   ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
 	     ./test_ds_file_runtime || rc=$$?; \
+	 fi; \
+	 if [ $$rc -eq 0 ]; then \
+	   ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+	     ./test_ds_resolver || rc=$$?; \
 	 fi; \
 	 $(MAKE) --no-print-directory clean; exit $$rc
 

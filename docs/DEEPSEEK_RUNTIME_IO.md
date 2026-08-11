@@ -129,15 +129,44 @@ The dedicated file-runtime binary is built by the normal Makefile and is include
 
 These checks use real OS files but synthetic DeepSeek bytes and therefore do **not** promote Gate G. Gate G still needs the same real DeepSeek record observed on an actual storage miss and cache hit, followed by identical arithmetic.
 
+## Family resolution
+
+`src/deepseek_v4_resolver.{c,h}` is the layer that produces what the file-runtime layer refuses to invent. It reads the container document's own `files` section and turns it into a `waste_ds_v4_file_open_spec`.
+
+```json
+"files": {
+  "resident": "trunk.bin",
+  "banks": [
+    {"layer": 0, "path": "banks/experts-000.bin", "record_offsets": [0, 13369344, ...]},
+    {"layer": 1, "path": "banks/experts-001.bin", "first_offset": 0, "record_stride": 13369344}
+  ]
+}
+```
+
+Every fact above is read, never constructed. The resolver builds no `trunk.bin`, no `experts-L%03u.bin`, and takes a bank's layer from its declaration rather than its position in the array — CI greps the translation unit to keep it that way, because a single `snprintf` would quietly reintroduce the convention this whole substrate exists to avoid freezing.
+
+A bank declares its records as either an explicit table or a `first_offset`/`record_stride` pair, and exactly one of the two. Both forms materialize the same `uint64_t` array before anything downstream sees them, so the stride form is a shorthand for a table rather than a second code path; `tests/test_deepseek_v4_resolver.c` resolves the same 43-bank container both ways and requires the offsets to be `memcmp`-identical. A stride above the record size is accepted — padding and alignment are precisely what is not frozen yet.
+
+What resolution validates before touching the filesystem:
+
+- paths are relative, contain no `..`, `.`, empty component, backslash, or drive prefix, and are joined under the caller's container root;
+- every main layer is declared exactly once — a duplicate claim is refused, which matters because a duplicate also leaves some other layer undeclared;
+- each bank declares exactly `routed_experts_per_layer` records;
+- **records within a bank do not overlap.** The positional source bounds each record against its bank but deliberately does not compare records to each other, so this is the only layer that can catch it. Two experts sharing bytes means one expert's weights silently serve another: plausible numbers, no error, and nothing downstream to notice;
+- every offset stays inside WASTE's signed-64-bit positional-I/O range;
+- the manifest passes the same `waste_ds_v4_runtime_manifest_validate` front door the file layer uses, because a parsed manifest is an ordinary struct that can be mutated after parse.
+
+Actual file sizes remain the OS's answer. The resolver never asks the container how big its files are.
+
+`waste_ds_v4_resolver_open` resolves, opens, and releases the resolved description in one call, so no caller has to reason about how long the borrowed path and offset pointers stay valid. A refused declaration never reaches the filesystem; a sound declaration whose files are missing returns `WASTE_DS_V4_RESOLVE_E_OPEN` with every partially acquired resource unwound.
+
+`tests/test_deepseek_v4_resolver.c` is almost entirely filesystem-free: the document is built in memory and each mutation is one field away from the good one. It deliberately does **not** open a real disjoint bank set — one honest bank is 256 × 12.75 MiB = 3.42 GB and the full set is ~147 GB, so a fabricated one would be either sparse-file trickery or a lie about record layout. Real-file ownership is covered one layer down; opening a real DeepSeek container waits for real container bytes.
+
 ## Remaining family-open work
 
-The generic runtime/resource substrate is now sufficient for a small evidence-focused family resolver. The next layer should:
+1. Point the resolver at a **real** DeepSeek container document at the pinned revision, rather than a synthesized one. Nothing in the resolver changes; what is missing is the container.
+2. Add the first real disk-vs-cache byte/arithmetic identity test for Gate G: the same real DeepSeek record observed on an actual storage miss and on a cache hit, followed by identical arithmetic.
+3. Only after real alignment evidence exists, compare buffered and page-cache-bypassing/direct-I/O reads without changing the authoritative bytes.
+4. Keep `waste_ds_v4_manifest_step_refused` unconditional until the numerical gates close.
 
-1. read the real DeepSeek container metadata at the pinned revision;
-2. derive the actual resident path, routed bank paths, bank topology, and explicit expert offset tables from that metadata;
-3. parse/validate the existing family manifest and hand the resolved paths/offsets to `waste_ds_v4_file_runtime_open`;
-4. add the first real disk-vs-cache byte/arithmetic identity test for Gate G;
-5. only after real alignment evidence exists, compare buffered and page-cache-bypassing/direct-I/O reads without changing the authoritative bytes;
-6. keep `waste_ds_v4_manifest_step_refused` unconditional until the numerical gates close.
-
-The resolver must not infer a filename, header, stride, order, or alignment rule merely because imported Kimi WASTE v0 used one.
+No layer here may infer a filename, header, stride, order, or alignment rule merely because imported Kimi WASTE v0 used one.
