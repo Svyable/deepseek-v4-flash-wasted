@@ -6,7 +6,7 @@ on:
   pull_request:
     paths:
       - "src/deepseek_v4_runtime.*"
-      - "src/deepseek_v4_file_runtime.c"
+      - "src/deepseek_v4_file_runtime.*"
       - "src/deepseek_v4_manifest.*"
       - "src/deepseek_v4_container_contract.*"
       - "src/ecache.*"
@@ -26,21 +26,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Build library and run actual-file ownership test
+      - name: Build and run actual-file ownership test
         run: |
-          make libwaste.a
-          ${CC:-cc} ${CFLAGS:--O2 -std=gnu11 -Wall -Wextra} \
-            -o test_ds_file_runtime tests/test_deepseek_v4_file_runtime.c \
-            libwaste.a -lm -lpthread
+          make test_ds_file_runtime
           ./test_ds_file_runtime
 
       - name: Run actual-file ownership test under ASan and UBSan
         run: |
           make clean
-          SAN="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1"
-          BASE="-std=gnu11 -Wall -Wextra -DVQ_SUPER=2 -MMD -MP"
-          make libwaste.a CFLAGS="$BASE $SAN" LDLIBS="-lm -lpthread $SAN"
-          ${CC:-cc} $BASE $SAN -o test_ds_file_runtime \
-            tests/test_deepseek_v4_file_runtime.c libwaste.a -lm -lpthread $SAN
+          make test_ds_file_runtime \
+            CFLAGS="-std=gnu11 -Wall -Wextra -DVQ_SUPER=2 -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            LDLIBS="-lm -lpthread -fsanitize=address,undefined -fno-sanitize-recover=all"
           ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
             ./test_ds_file_runtime
