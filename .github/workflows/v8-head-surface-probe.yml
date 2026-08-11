@@ -1,0 +1,74 @@
+name: Probe Gate-I final-head surface
+
+on:
+  push:
+    branches: [agent/gate-i-v8-head-surface]
+    paths:
+      - ".github/workflows/v8-head-surface-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      SOURCE: ${{ runner.temp }}/deepseek-v4-0731-model.py
+      PROBE: ${{ runner.temp }}/v8-head-surface-probe.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Cheap stacked-parent and tool preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/v8_probe_surface.py tools/fetch_hf_headers.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+
+      - name: Fetch immutable checkpoint headers only
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Fetch exact pinned small official source file
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "tools")
+          import fetch_hf_headers as hf
+
+          model = os.environ["MODEL"]
+          revision = os.environ["REVISION"]
+          out = os.environ["SOURCE"]
+          url = hf.resolve_url(model, revision, "inference/model.py")
+          data = hf.fetch_small(
+              url,
+              token=os.environ.get("HF_TOKEN"),
+              max_bytes=2 << 20,
+          )
+          if not data.startswith(b"import ") and b"class Transformer" not in data:
+              raise SystemExit("pinned inference/model.py does not look like the expected Python source")
+          with open(out, "wb") as f:
+              f.write(data)
+          print(f"fetched pinned inference/model.py: {len(data)} bytes")
+          PY
+
+      - name: Probe root checkpoint tensors and exact source methods
+        run: |
+          set -euo pipefail
+          python3 tools/v8_probe_surface.py "$SNAPSHOT" "$SOURCE" "$PROBE"
+
+      - name: Upload exploratory surface artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v8-head-surface-probe
+          retention-days: 14
+          if-no-files-found: error
+          path: ${{ runner.temp }}/v8-head-surface-probe.json
