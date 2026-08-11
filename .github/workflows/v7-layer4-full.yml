@@ -62,30 +62,23 @@ jobs:
 
           p = Path("tools/make_v7_layer4_moe_fixture.py")
           s = p.read_text()
-          needle = '''        provenance = {
-              "schema_version": 1,
-              "gate": "V7 complete real layer-4 MoE branch and final composition",
-              "evidence_state": "CHECKPOINT-BOUND-LAYER4-COMPLETE-SCALAR",
-              "model": MODEL,
-              "revision": REV,
-              "layer": LAYER,
-              "structural_class": "ratio4-learned",
-              "route_dependency": {
-          '''
-          replacement = '''        parent_dep = state["provenance"].get("input_dependency") or {}
+          marker = "        provenance = {\n"
+          if s.count(marker) != 1:
+              raise SystemExit("full-fixture provenance marker drifted")
+          prefix = '''        parent_dep = state["provenance"].get("input_dependency") or {}
           if parent_dep.get("fixture_sha256") != parent_dep.get("source_sha256"):
               raise ValueError("layer4 route parent dependency is not byte-identical")
           if not parent_dep.get("fixture_sha256") or not parent_dep.get("source_file"):
               raise ValueError("layer4 route parent dependency is incomplete")
 
-          provenance = {
-              "schema_version": 1,
-              "gate": "V7 complete real layer-4 MoE branch and final composition",
-              "evidence_state": "CHECKPOINT-BOUND-LAYER4-COMPLETE-SCALAR",
-              "model": MODEL,
-              "revision": REV,
-              "layer": LAYER,
-              "structural_class": "ratio4-learned",
+          '''
+          s = s.replace(marker, prefix + marker, 1)
+          marker = '''            "structural_class": "ratio4-learned",
+              "route_dependency": {
+          '''
+          if s.count(marker) != 1:
+              raise SystemExit("full-fixture route-dependency marker drifted")
+          replacement = '''            "structural_class": "ratio4-learned",
               "input_dependency": {
                   "producer": parent_dep.get("producer"),
                   "fixture_sha256": parent_dep["fixture_sha256"],
@@ -95,42 +88,27 @@ jobs:
               },
               "route_dependency": {
           '''
-          if s.count(needle) != 1:
-              raise SystemExit("full-fixture provenance insertion point drifted")
-          p.write_text(s.replace(needle, replacement))
+          p.write_text(s.replace(marker, replacement, 1))
 
           p = Path("tests/run.sh")
           s = p.read_text()
-          needle = '''deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \\
+          anchor = '''deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \\
                           "test_v7_router_bias_observation.py"
-
-          # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
           '''
-          replacement = '''deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \\
-                          "test_v7_router_bias_observation.py"
-          deepseek_replay "V7 — current Gate-H parent freshness contract" \\
+          if s.count(anchor) != 1:
+              raise SystemExit("V7 freshness registration anchor drifted")
+          s = s.replace(anchor, anchor + '''deepseek_replay "V7 — current Gate-H parent freshness contract" \\
                           "test_v7_parent_freshness.py"
-
-          # V7 infrastructure: compare chained expected/runtime layer-boundary traces,
-          '''
-          if s.count(needle) != 1:
-              raise SystemExit("V7 freshness registration insertion point drifted")
-          s = s.replace(needle, replacement)
-          needle = '''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
+          ''', 1)
+          anchor = '''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
                           "test_v7_layer4_full_real.py"
-
-          # ------------------------------------------------------------ converter ----
           '''
-          replacement = '''deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \\
-                          "test_v7_layer4_full_real.py"
-          deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \\
+          if s.count(anchor) != 1:
+              raise SystemExit("V7 two-layer registration anchor drifted")
+          s = s.replace(anchor, anchor + '''deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \\
                           "test_v7_two_layer_real.py"
-
-          # ------------------------------------------------------------ converter ----
-          '''
-          if s.count(needle) != 1:
-              raise SystemExit("V7 two-layer registration insertion point drifted")
-          p.write_text(s.replace(needle, replacement))
+          ''', 1)
+          p.write_text(s)
           PY
           python3 -m py_compile tools/make_v7_layer4_moe_fixture.py
           git diff --check
