@@ -1,0 +1,54 @@
+name: Register permanent Gate-I surface regression
+
+on:
+  push:
+    branches: [agent/gate-i-v8-head-surface]
+    paths:
+      - ".github/workflows/v8-head-surface-register.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  register:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Prove frozen surface before registration
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/apply_v8_surface_registration.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+          python3 tests/test_v8_head_surface.py
+
+      - name: Register Gate-I no-network replay
+        run: |
+          set -euo pipefail
+          python3 tools/apply_v8_surface_registration.py
+          git diff --check
+          grep -q 'Gate I/V8 — immutable final-head header/source surface' tests/run.sh
+          ! grep -q 'Gate H/V6 — PARTIAL' tests/run.sh
+          python3 tests/test_v8_head_surface.py
+
+      - name: Run permanent normal suite
+        run: make check
+
+      - name: Run permanent sanitizer suite
+        run: make asan
+
+      - name: Freeze permanent registration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/run.sh
+          git rm tools/apply_v8_surface_registration.py
+          git diff --cached --check
+          git commit -m "test: register Gate I final-head surface [skip ci]"
+          git push origin HEAD:agent/gate-i-v8-head-surface
