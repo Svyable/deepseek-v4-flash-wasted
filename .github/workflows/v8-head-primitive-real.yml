@@ -1,0 +1,132 @@
+name: Acquire bounded real-state Gate-I head primitive
+
+on:
+  push:
+    branches: [agent/gate-i-v8-head-primitive]
+    paths:
+      - ".github/workflows/v8-head-primitive-real.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v8-head-primitive-real
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      SOURCE: /tmp/deepseek-v4-0731-model.py
+      INFERENCE_CONFIG: /tmp/deepseek-v4-0731-inference-config.json
+      FIXTURE: tests/fixtures/deepseek_v4/v8_head_primitive_real
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Cheap stacked-parent and scalar preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v8_head_primitive_fixture.py \
+            tools/apply_v8_primitive_registration.py \
+            tests/test_v8_head_ref.py \
+            tests/test_v8_head_primitive_real.py
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+          python3 tests/test_v8_head_surface.py
+          python3 tests/test_v8_head_ref.py
+          set +e
+          python3 tests/test_v8_head_primitive_real.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 77 ]; then
+            echo "real-state V8 primitive should be a pre-acquisition SKIP, got $rc" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Fetch immutable 0731 headers only
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Fetch exact pinned inference source and config
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "tools")
+          import fetch_hf_headers as hf
+
+          model = os.environ["MODEL"]
+          revision = os.environ["REVISION"]
+          for rel, out, limit in (
+              ("inference/model.py", os.environ["SOURCE"], 2 << 20),
+              ("inference/config.json", os.environ["INFERENCE_CONFIG"], 1 << 20),
+          ):
+              data = hf.fetch_small(
+                  hf.resolve_url(model, revision, rel),
+                  token=os.environ.get("HF_TOKEN"),
+                  max_bytes=limit,
+              )
+              with open(out, "wb") as f:
+                  f.write(data)
+              print(f"fetched {rel}: {len(data)} bytes")
+          PY
+
+      - name: Acquire only small params plus 24 vocabulary rows
+        run: |
+          set -euo pipefail
+          rm -rf "$FIXTURE"
+          python3 tools/make_v8_head_primitive_fixture.py \
+            "$SNAPSHOT" "$SOURCE" "$INFERENCE_CONFIG" "$FIXTURE"
+
+      - name: Upload arithmetic-green compact fixture
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v8-head-primitive-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v8_head_primitive_real/
+
+      - name: Replay compact real-state primitive offline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v8_head_primitive_real.py
+          python3 tests/test_v8_head_ref.py
+
+      - name: Register both Gate-I primitive regressions
+        run: |
+          set -euo pipefail
+          python3 tools/apply_v8_primitive_registration.py
+          git diff --check
+          grep -q 'Gate I/V8 — model-free scalar final-head primitive' tests/run.sh
+          grep -q 'Gate I/V8 — bounded real-state selected head rows' tests/run.sh
+          python3 tests/test_v8_head_ref.py
+          python3 tests/test_v8_head_primitive_real.py
+
+      - name: Run permanent normal suite
+        run: make check
+
+      - name: Run permanent sanitizer suite
+        run: make asan
+
+      - name: Freeze bounded primitive evidence
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FIXTURE" tests/run.sh
+          git rm tools/apply_v8_primitive_registration.py
+          git diff --cached --check
+          git commit -m "reference: freeze bounded Gate I head primitive [skip ci]"
+          git push origin HEAD:agent/gate-i-v8-head-primitive
