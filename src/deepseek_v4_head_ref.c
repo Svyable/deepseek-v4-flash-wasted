@@ -4,6 +4,39 @@
 #include "deepseek_v4_head_ref.h"
 
 #include <math.h>
+#include <string.h>
+
+static uint32_t f32_bits(float x)
+{
+    uint32_t u;
+    memcpy(&u, &x, sizeof u);
+    return u;
+}
+
+static float bits_f32(uint32_t u)
+{
+    float x;
+    memcpy(&x, &u, sizeof x);
+    return x;
+}
+
+uint16_t waste_ds_v4_head_f32_to_bf16(float value)
+{
+    uint32_t u = f32_bits(value);
+    uint32_t exp = u & 0x7f800000u;
+    uint32_t frac = u & 0x007fffffu;
+    if (exp == 0x7f800000u) {
+        if (frac) u |= 0x00400000u;
+        return (uint16_t)(u >> 16);
+    }
+    u += 0x7fffu + ((u >> 16) & 1u);
+    return (uint16_t)(u >> 16);
+}
+
+float waste_ds_v4_head_bf16_to_f32(uint16_t value)
+{
+    return bits_f32((uint32_t)value << 16);
+}
 
 static float sigmoidf_ref(float x)
 {
