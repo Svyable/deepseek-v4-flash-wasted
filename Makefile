@@ -6,7 +6,8 @@
 #
 # MODIFIED from the upstream WASTE import (sqliteai/waste @ d9b919a) by the
 # deepseek-v4-flash-wasted authors, as Apache-2.0 §4(b) requires. Changes:
-# src/quant/ added to SRC, and the test_quant target added. See UPSTREAM.md.
+# src/quant/ plus the DeepSeek family manifest/runtime sources are built into
+# the library, with dedicated DeepSeek validation targets. See UPSTREAM.md.
 
 # Explicit, because per-object rules below would otherwise make the first
 # of them the default goal.
@@ -107,6 +108,8 @@ CFLAGS  += -MMD -MP
 SRC := src/model.c src/kda.c src/backend.c src/ecache.c src/version.c \
        src/tokenizer.c src/waste.c src/vq.c src/vision.c src/image.c \
        src/crc32.c src/memory.c \
+       src/deepseek_v4_container_contract.c src/deepseek_v4_manifest.c \
+       src/deepseek_v4_runtime.c src/quant/deepseek_v4_linear_ref.c \
        src/quant/fp4_e2m1.c src/quant/fp8_e4m3.c
 # Match what backend.c tests for. Linux/aarch64 reports "aarch64", which
 # does not contain "arm" — the old findstring left kda_neon.c out of the
@@ -234,7 +237,7 @@ waste$(EXE): cli/main.o libwaste.a
 # `test` builds and `clean` forgets defeats the check meant to notice it.
 TESTNAMES := test_kda test_container test_forward test_tokenizer test_k3parts \
              test_state test_vision test_image test_memory test_cpus sweep \
-             test_quant test_ds_contract test_ds_manifest
+             test_quant test_ds_contract test_ds_manifest test_ds_runtime
 TESTBINS  := $(addsuffix $(EXE),$(TESTNAMES))
 
 test: $(TESTBINS)
@@ -299,6 +302,11 @@ test_ds_manifest$(EXE): tests/test_deepseek_v4_manifest.o \
                         src/deepseek_v4_manifest.o \
                         src/deepseek_v4_container_contract.o src/quant/fp4_e2m1.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The runtime binding intentionally links the normal engine archive: the
+# contract under test is exactly that resident FP8 dispatch and routed expert
+# cache reuse WASTE's live backend/cache seams rather than a parallel path.
+test_ds_runtime$(EXE): tests/test_deepseek_v4_runtime.o libwaste.a
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -317,6 +325,7 @@ clean:
 
 check: test
 	@tests/run.sh
+	@./test_ds_runtime
 
 # The Python server's own suite. Separate from `check` because it needs
 # libwaste as a shared object rather than the archive the CLI links, and
@@ -340,6 +349,10 @@ asan:
 	@rc=0; ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
 	    WASTE_SANITIZED=1 \
 	    tests/run.sh /nonexistent-container-use-synthetic || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+	     ./test_ds_runtime || rc=$$?; \
+	 fi; \
 	 $(MAKE) --no-print-directory clean; exit $$rc
 
 fuzz: test
