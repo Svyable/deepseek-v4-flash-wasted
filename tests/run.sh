@@ -1269,6 +1269,14 @@ deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
 # silently targeting current-main source shapes or guessed final-head records.
 deepseek_replay "Gate I/V8 — immutable final-head header/source surface" \
                 "test_v8_head_surface.py"
+# Source-derived scalar primitive: independent Python and C must agree
+# exactly before any checkpoint row slice is trusted.
+deepseek_replay "Gate I/V8 — model-free scalar final-head primitive" \
+                "test_v8_head_ref.py"
+# Bounded real-state fixture: uses V7 layer-4 final only as a test
+# vector and deliberately refuses any final-model-logit interpretation.
+deepseek_replay "Gate I/V8 — bounded real-state selected head rows" \
+                "test_v8_head_primitive_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
