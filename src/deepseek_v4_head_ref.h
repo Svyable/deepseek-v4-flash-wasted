@@ -5,14 +5,19 @@
 #define WASTE_DEEPSEEK_V4_HEAD_REF_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define WASTE_DS_V4_HC_HEAD_STREAMS 4u
 
+/* Exact BF16 boundary helpers used by the source-derived final-head path. */
+uint16_t waste_ds_v4_head_f32_to_bf16(float value);
+float waste_ds_v4_head_bf16_to_f32(uint16_t value);
+
 /* Scalar source-derived reference for the final 4-stream HyperConnection
  * collapse. Inputs are float32 values representing the checkpoint path's BF16
- * hidden state and F32 hc_head parameters. The caller owns the official BF16
- * cast boundary after this function. Optional mixes/pre expose the four F32
- * coefficients for differential tests. */
+ * hidden state and F32 hc_head parameters. The caller applies the official
+ * BF16 cast with waste_ds_v4_head_f32_to_bf16. Optional mixes/pre expose the
+ * four F32 coefficients for differential tests. */
 int waste_ds_v4_hc_head_ref(const float *x,
                             size_t dim,
                             const float *fn,
@@ -26,7 +31,7 @@ int waste_ds_v4_hc_head_ref(const float *x,
 
 /* Final RMSNorm scalar reference. x and weight are float32 representations of
  * BF16 checkpoint values. The official path casts the result back to x.dtype
- * (BF16 here), so the caller owns that cast boundary. */
+ * (BF16 here) with waste_ds_v4_head_f32_to_bf16. */
 int waste_ds_v4_final_rmsnorm_ref(const float *x,
                                   const float *weight,
                                   size_t dim,
