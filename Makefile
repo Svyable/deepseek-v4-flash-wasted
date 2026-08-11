@@ -238,7 +238,8 @@ waste$(EXE): cli/main.o libwaste.a
 # `test` builds and `clean` forgets defeats the check meant to notice it.
 TESTNAMES := test_kda test_container test_forward test_tokenizer test_k3parts \
              test_state test_vision test_image test_memory test_cpus sweep \
-             test_quant test_ds_contract test_ds_manifest test_ds_runtime
+             test_quant test_ds_contract test_ds_manifest test_ds_runtime \
+             test_ds_file_runtime
 TESTBINS  := $(addsuffix $(EXE),$(TESTNAMES))
 
 test: $(TESTBINS)
@@ -308,6 +309,10 @@ test_ds_manifest$(EXE): tests/test_deepseek_v4_manifest.o \
 # cache reuse WASTE's live backend/cache seams rather than a parallel path.
 test_ds_runtime$(EXE): tests/test_deepseek_v4_runtime.o libwaste.a
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The actual-filesystem ownership boundary links the same engine archive and is
+# kept as its own binary so resource-lifetime failures remain easy to localize.
+test_ds_file_runtime$(EXE): tests/test_deepseek_v4_file_runtime.o libwaste.a
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -327,6 +332,7 @@ clean:
 check: test
 	@tests/run.sh
 	@./test_ds_runtime
+	@./test_ds_file_runtime
 
 # The Python server's own suite. Separate from `check` because it needs
 # libwaste as a shared object rather than the archive the CLI links, and
@@ -353,6 +359,10 @@ asan:
 	 if [ $$rc -eq 0 ]; then \
 	   ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
 	     ./test_ds_runtime || rc=$$?; \
+	 fi; \
+	 if [ $$rc -eq 0 ]; then \
+	   ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+	     ./test_ds_file_runtime || rc=$$?; \
 	 fi; \
 	 $(MAKE) --no-print-directory clean; exit $$rc
 
