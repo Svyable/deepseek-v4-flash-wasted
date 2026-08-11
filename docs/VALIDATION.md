@@ -476,7 +476,11 @@ Trace integrity is checked before values: file geometry/SHA, consecutive layers,
 
 Mechanical parent freshness is part of the gate: `tools/v7_parent_freshness.py` derives the current Gate-H endpoint from its provenance and requires all downstream V7 fixtures to consume that exact state. The explicitly superseded `0e65c4ec...` pre-F32-HyperConnection endpoint is not accepted.
 
-**Evidence boundary:** V7 proves localization and exact scalar/model-semantic composition across these two consecutive real layers. It does **not** prove the remaining 41 transformer layers, final norm/head/logits, generation, converted-container/cache identity, RAM, or throughput. Gate I/V8 is next.
+The layer walk itself is no longer written per layer. `tools/deepseek_v4_continuation.py` takes an exact prior `[4, 4096]` BF16 state and an `EvidenceSource`, and walks as many consecutive layers as that source supplies, through either composition backend, emitting the same nine-boundary contract. `tools/make_v7_two_layer_trace.py` is now the two-layer instance of it: the regenerated fixture is **byte-identical to the committed one, all 39 files including `provenance.json`**, which is what shows the generalization moved no evidence. `tests/test_v7_continuation_engine.py` also walks a three-layer synthetic source through the same driver — proving the driver carries no layer number, layer count or fixture path of its own — and mutates one F32 of `hc_attn_base` and one of `hc_ffn_base` to show the declared-boundary assertions refuse at `attn_pre` and `ffn_pre` rather than averaging drift away.
+
+Layers 5-42 are therefore blocked on *evidence*, not on the engine: a checkpoint-backed source implements `available_layers()` and `evidence()` and changes nothing below it. A layer with no evidence is refused by name, naming the layers the source does have.
+
+**Evidence boundary:** V7 proves localization and exact scalar/model-semantic composition across these two consecutive real layers. It does **not** prove the remaining 41 transformer layers, final norm/head/logits, generation, converted-container/cache identity, RAM, or throughput. The continuation engine is *capability*, not evidence: walking a synthetic source proves the driver generalizes, and proves nothing about DeepSeek layers whose branch outputs have never been acquired. Gate I/V8 is next.
 
 ### V8 — final hidden/logits — **Gate I**
 

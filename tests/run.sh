@@ -1263,6 +1263,13 @@ deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 ou
                 "test_v7_layer4_full_real.py"
 deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
                 "test_v7_two_layer_real.py"
+# The layer walk itself is now parameterized over a prior [4,4096] state and an
+# evidence source. This check is what keeps that generalization honest: it
+# regenerates the committed two-layer fixture byte for byte through the engine,
+# walks a three-layer source through the same driver, and shows the boundary
+# assertions refuse a drifted parameter rather than averaging it away.
+deepseek_replay "V7 — parameterized per-layer continuation engine" \
+                "test_v7_continuation_engine.py"
 
 # Gate I/V8 starts with an immutable header/source contract. This gate reads no
 # tensor payload and makes no logit claim; it prevents later numeric work from

@@ -29,6 +29,11 @@
 - Gate H/V6 complete real layer-3 transition;
 - V7 consecutive layer 3 ratio128 -> layer 4 ratio4 with an 18-boundary exact
   trace and first-divergence localization;
+- V7 layer walk generalized into a parameterized per-layer continuation engine
+  (`tools/deepseek_v4_continuation.py`) that accepts an exact prior `[4,4096]`
+  state and an evidence source, reproduces the committed two-layer fixture byte
+  for byte on both composition backends, and walks an arbitrary consecutive run
+  through the same driver;
 - Gate-I/V8 final-head surface frozen from immutable headers/source;
 - bounded final-head primitive validated on a real frozen V7 layer-4 state:
   hc_head collapse, final RMSNorm, and 24 selected vocabulary-row logits.
@@ -59,8 +64,11 @@ state, so final-model logits remain open.
 
 ## Open gates
 
-1. **True final hidden state.** V7 stops after layer 4; layers 5-42 still need a
-   reusable continuation path before V8 can claim final logits.
+1. **True final hidden state.** V7 stops after layer 4. The reusable
+   continuation path now exists and is tested; what layers 5-42 still need is
+   *evidence* — per-layer HyperConnection parameters and acquired attention/MoE
+   branch outputs behind an `EvidenceSource`. Acquisition is blocked wherever
+   the pinned checkpoint is unreachable.
 2. **Final-model logits.** The final-head primitive is proven only on a bounded
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
@@ -74,11 +82,15 @@ state, so final-model logits remain open.
 
 ### Numerical path
 
-1. Generalize the V7 layer-4 replay into a parameterized per-layer continuation
-   engine that accepts an exact prior `[4,4096]` state and preserves the same
-   trace/localizer contract.
+1. ~~Generalize the V7 layer-4 replay into a parameterized per-layer
+   continuation engine that accepts an exact prior `[4,4096]` state and
+   preserves the same trace/localizer contract.~~ **Done** —
+   `tools/deepseek_v4_continuation.py`, checked by
+   `tests/test_v7_continuation_engine.py`.
 2. Advance through layers 5-42 with evidence-driven acquisition of only the six
-   routed experts plus the shared expert selected at each layer.
+   routed experts plus the shared expert selected at each layer. Implement a
+   checkpoint-backed `EvidenceSource`; the driver, trace contract and localizer
+   need no further change.
 3. Apply the already-proven final-head primitive to the true layer-42 output and
    pin selected/full logits.
 4. Only then begin deterministic greedy generation (V9).
