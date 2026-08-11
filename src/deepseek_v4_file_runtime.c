@@ -17,6 +17,23 @@
 #include <io.h>
 #endif
 
+static int file_manifest_ready(const waste_ds_v4_manifest *manifest)
+{
+    if (!manifest ||
+        strcmp(manifest->family, WASTE_DS_V4_FAMILY) != 0 ||
+        strcmp(manifest->revision, WASTE_DS_V4_0731_REVISION) != 0 ||
+        manifest->manifest_version != WASTE_DS_V4_MANIFEST_VERSION ||
+        manifest->resident_count == 0 ||
+        manifest->resident_count > WASTE_DS_V4_MAX_RESIDENT_PLANES ||
+        manifest->trunk_bytes == 0 ||
+        manifest->routed_map.record_bytes == 0)
+        return 0;
+
+    return waste_ds_v4_gate_a_manifest_validate(&manifest->gate_a) == 0 &&
+           waste_ds_v4_routed_record_map_validate(&manifest->routed_map,
+                                                   &manifest->routed_layout) == 0;
+}
+
 static void ds_close_fd(int fd)
 {
     if (fd < 0)
@@ -70,10 +87,14 @@ int waste_ds_v4_file_runtime_open(
         return -1;
     memset(out, 0, sizeof *out);
 
-    if (!manifest || !spec || !spec->trunk_path || !*spec->trunk_path ||
-        !spec->banks ||
+    /* Identity and geometry are checked before a path is opened or a manifest-
+     * sized allocation is attempted. A caller can hold a parsed manifest in a
+     * mutable struct; mutation after parse must fail at the same front door as
+     * ordinary runtime_init, not after I/O has already happened. */
+    if (!file_manifest_ready(manifest) || !spec ||
+        !spec->trunk_path || !*spec->trunk_path || !spec->banks ||
         spec->bank_count != (size_t)manifest->gate_a.main_layers ||
-        manifest->trunk_bytes == 0 || manifest->trunk_bytes > SIZE_MAX)
+        manifest->trunk_bytes > SIZE_MAX)
         return -1;
 
     const size_t trunk_bytes = (size_t)manifest->trunk_bytes;
