@@ -105,6 +105,13 @@ typedef struct waste_ds_v4_runtime {
     int routed_ready;
 } waste_ds_v4_runtime;
 
+/* Re-run every runtime-critical identity/geometry check on a manifest struct.
+ * Parsing already performs these checks, but parsed structs are ordinary C and
+ * can be mutated before binding/open. File/resource layers use this same front
+ * door so validation cannot drift between call paths. Returns 0 when ready. */
+int waste_ds_v4_runtime_manifest_validate(
+    const waste_ds_v4_manifest *manifest);
+
 /* Bind already-validated manifest/trunk bytes. `fetch` uses the normal WASTE
  * cache callback contract and may be NULL for a resident-only binding.
  * `cache_bytes` is ignored when fetch is NULL. Returns 0 on success. */
@@ -149,56 +156,6 @@ int waste_ds_v4_runtime_resident_linear(waste_ds_v4_runtime *runtime,
                                         const float *x,
                                         size_t m,
                                         float *y);
-
-/* ---- explicit file ownership -------------------------------------------
- *
- * This is still below the DeepSeek family/container naming layer. Paths and
- * expert offsets are supplied explicitly by the caller; nothing here assumes
- * `trunk.bin`, one bank per layer, uniform stride, a record header, or a bank
- * ordering. The purpose is narrower and production-facing: own native file
- * handles, validate their actual sizes, load the declared resident trunk once
- * into its final aligned allocation, build the positional source, and unwind
- * every partially-open resource on failure. */
-typedef struct waste_ds_v4_file_bank_spec {
-    const char *path;
-    const uint64_t *record_offsets;
-    size_t record_count;
-} waste_ds_v4_file_bank_spec;
-
-typedef struct waste_ds_v4_file_open_spec {
-    const char *trunk_path;
-    const waste_ds_v4_file_bank_spec *banks;
-    size_t bank_count;
-    size_t cache_bytes;
-    int cache_policy;
-} waste_ds_v4_file_open_spec;
-
-typedef struct waste_ds_v4_file_runtime {
-    waste_ds_v4_runtime runtime;
-    waste_ds_v4_positional_source source;
-    uint8_t *trunk;
-    int *bank_fds;
-    size_t bank_count;
-} waste_ds_v4_file_runtime;
-
-/* Open an already-resolved file set. `manifest` is already parsed/validated;
- * this function checks the resident file is exactly `manifest->trunk_bytes`,
- * opens every supplied bank, asks the OS for its actual byte length, and lets
- * waste_ds_v4_positional_source_init prove every declared expert extent fits.
- *
- * Paths and caller offset arrays are only borrowed during this call. On
- * success the source owns a copy of the offsets and file_runtime owns all file
- * descriptors and resident bytes. Returns 0 on success and leaves `out` fully
- * zeroed on every failure. */
-int waste_ds_v4_file_runtime_open(
-    waste_ds_v4_file_runtime *out,
-    const waste_ds_v4_manifest *manifest,
-    const waste_ds_v4_file_open_spec *spec);
-
-/* Safe after a successful open or a failed open attempt. Runtime/cache state is
- * released before the source and bank descriptors it may reference, then every
- * native bank handle and the aligned resident allocation are released. */
-void waste_ds_v4_file_runtime_close(waste_ds_v4_file_runtime *file_runtime);
 
 #ifdef __cplusplus
 }
