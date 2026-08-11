@@ -145,12 +145,14 @@ state, so final-model logits remain open.
    zero progress or over-reporting readers, the routed map is frozen with the
    source, and a native-fd adapter reuses WASTE's signed-64-bit `pread` seam.
 4. ~~Own explicit native file resources around the positional source.~~ **Done
-   as model-free substrate** — caller-resolved paths are opened without naming
-   assumptions; the resident file must exactly match the manifest's trunk size
-   and is loaded once into its final aligned allocation; routed bank limits come
-   from actual OS file sizes; partial opens unwind runtime, source, descriptors,
-   and resident bytes through one reverse-order cleanup path. Real local-file
-   coverage lives in `tests/test_deepseek_v4_runtime.c`.
+   as model-free substrate** — `src/deepseek_v4_file_runtime.{c,h}` opens
+   caller-resolved paths without naming assumptions; the resident file must
+   exactly match the manifest's trunk size and is loaded once into its final
+   aligned allocation; routed bank limits come from actual OS file sizes;
+   partial opens unwind runtime, source, descriptors, and resident bytes through
+   one reverse-order cleanup path. Real local-file coverage lives in
+   `tests/test_deepseek_v4_file_runtime.c` and is included in `make check` and
+   `make asan`.
 5. Build the evidence-backed family resolver: read the real DeepSeek container
    metadata, derive actual resident/bank paths and explicit expert offsets, and
    hand those facts to `waste_ds_v4_file_runtime_open`. Do not infer
