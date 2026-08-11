@@ -18,8 +18,8 @@ jobs:
       MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
       REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
       SNAPSHOT: reference/deepseek-v4-flash-0731
-      SOURCE: ${{ runner.temp }}/deepseek-v4-0731-model.py
-      PROBE: ${{ runner.temp }}/v8-head-surface-probe.json
+      SOURCE: /tmp/deepseek-v4-0731-model.py
+      PROBE: /tmp/v8-head-surface-probe.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -53,8 +53,8 @@ jobs:
               token=os.environ.get("HF_TOKEN"),
               max_bytes=2 << 20,
           )
-          if not data.startswith(b"import ") and b"class Transformer" not in data:
-              raise SystemExit("pinned inference/model.py does not look like the expected Python source")
+          if b"class Transformer" not in data or b"class ParallelHead" not in data:
+              raise SystemExit("pinned inference/model.py does not contain expected model classes")
           with open(out, "wb") as f:
               f.write(data)
           print(f"fetched pinned inference/model.py: {len(data)} bytes")
@@ -71,4 +71,4 @@ jobs:
           name: v8-head-surface-probe
           retention-days: 14
           if-no-files-found: error
-          path: ${{ runner.temp }}/v8-head-surface-probe.json
+          path: /tmp/v8-head-surface-probe.json
