@@ -124,7 +124,7 @@ Uniform stride is preferable for O(1) addressing but is not mandatory if the rea
 
 The container or adjacent install must identify the exact tokenizer/encoding assets needed to reproduce official token sequences. A model directory should not depend on an ambiguous latest remote template. Exact parity is later Gate J/V10.
 
-## 4a. Implemented: the v1 family manifest parser
+## 4a. Implemented: the v1 family manifest parser and runtime binding substrate
 
 `src/deepseek_v4_manifest.{c,h}` implements the identity, geometry and offset half of §4 against the pinned Gate-A contract. It is a parser, not a format freeze: §17's criteria are all still open, and everything §4 lists under *Routed-expert bank index* and *Encoding/tokenizer* is deliberately absent because Gate A has not settled it.
 
@@ -151,7 +151,9 @@ Three properties are worth stating because they are what the mutation tests in `
 
 `waste_ds_v4_manifest_is_family` is the cheap discriminator §1 asks for: a dispatching loader can ask which family a manifest declares without either parser having to tolerate the other's schema. `tests/test_deepseek_v4_manifest.c` checks a Kimi v0 manifest against it in both directions.
 
-Still to build: binding the validated resident planes to the WASTE backend and the routed record map to the expert-cache fetch seam. The parser is the input side of that work; `waste_ds_v4_manifest_bind_routed_record` and `waste_ds_v4_manifest_resident_plane` are the seams it exposes.
+`src/deepseek_v4_runtime.{c,h}` now binds those validated byte views to WASTE's existing runtime seams without freezing any additional storage convention. Resident E4M3/E8M0 planes are applied through the normal `waste_k` backend dispatch, whose universal DeepSeek slot starts at the scalar reference implementation. Routed records are obtained through the ordinary `waste_ecache` callback/cache contract and only then split by `waste_ds_v4_manifest_bind_routed_record`. `tests/test_deepseek_v4_runtime.c` proves the binding model-free with synthetic bytes, including cache-hit identity and zero-cache reads.
+
+Still to build: the real family-specific container/open layer that maps a validated `trunk.bin`, opens actual per-layer expert banks, and supplies positional fetch callbacks. The model-free binding does **not** claim Gate G for real disk-vs-cache data, does not define record headers/order/alignment, and does not enable stepping or generation.
 
 ## 5. Resident trunk
 
