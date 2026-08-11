@@ -1,0 +1,107 @@
+{
+  "checks": {
+    "attention_present": true,
+    "compression_contract": "ratio128",
+    "mhc_two_parameter_sets": true,
+    "routed_experts": {
+      "all_have_w1_w2_w3_plus_scales": true,
+      "expert_count": 256,
+      "tensors_per_expert": 6
+    },
+    "routing_contract": "learned",
+    "shared_expert": {
+      "complete": true,
+      "configured_shared_experts": 1,
+      "tensor_count": 6
+    }
+  },
+  "config_contract": {
+    "compress_ratio": 128,
+    "compress_ratios_path": "compress_ratios",
+    "hash_layers": 3,
+    "hidden_size": 4096,
+    "moe_intermediate_size": 2048,
+    "n_routed_experts": 256,
+    "n_shared_experts": 1,
+    "num_experts_per_tok": 6,
+    "num_hidden_layers": 43
+  },
+  "evidence_state": "CHECKPOINT-VERIFIED-HEADERS",
+  "gate": "Gate I/V8 compact generic layer header contract",
+  "groups": {
+    "attention": {
+      "dtype_counts": {"F32": 1, "F8_E4M3": 5, "F8_E8M0": 5},
+      "payload_bytes": 106961536,
+      "tensor_count": 11
+    },
+    "compressor": {
+      "dtype_counts": {"BF16": 3, "F32": 1},
+      "payload_bytes": 8651776,
+      "tensor_count": 4
+    },
+    "mhc": {
+      "dtype_counts": {"F32": 6},
+      "payload_bytes": 3145944,
+      "tensor_count": 6
+    },
+    "norm": {
+      "dtype_counts": {"BF16": 4},
+      "payload_bytes": 19456,
+      "tensor_count": 4
+    },
+    "routed_expert": {
+      "dtype_counts": {"F8_E8M0": 768, "I8": 768},
+      "payload_bytes": 3422552064,
+      "tensor_count": 1536
+    },
+    "router": {
+      "dtype_counts": {"BF16": 1, "F32": 1},
+      "payload_bytes": 2098176,
+      "tensor_count": 2
+    },
+    "shared_expert": {
+      "dtype_counts": {"F8_E4M3": 3, "F8_E8M0": 3},
+      "payload_bytes": 25167360,
+      "tensor_count": 6
+    }
+  },
+  "layer": 5,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "header-only per-layer surface; no tensor payload arithmetic is claimed",
+    "this does not prove execution from the prior layer state",
+    "structural class is derived from immutable config plus measured tensor families"
+  ],
+  "provenance": {
+    "full_surface_artifact_sha256": "4a3bb7af57666a968ccfd4f6e98744737da424b6c2d70ba96c7b18dcfdc5e3b3",
+    "source_head_sha": "536af281da6f960248f3ed2f5e5186a0ff1f933f",
+    "source_workflow_run": 31449308083
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "structural_class": "ratio128-learned",
+  "surface": {
+    "dtype_counts": {"BF16": 8, "F32": 9, "F8_E4M3": 8, "F8_E8M0": 776, "I8": 768},
+    "payload_bytes": 3568596312,
+    "subsystem_bytes": {
+      "attention": 106961536,
+      "compressor": 8651776,
+      "mhc": 3145944,
+      "norm": 19456,
+      "routed_expert": 3422552064,
+      "router": 2098176,
+      "shared_expert": 25167360
+    },
+    "subsystem_counts": {
+      "attention": 11,
+      "compressor": 4,
+      "mhc": 6,
+      "norm": 4,
+      "routed_expert": 1536,
+      "router": 2,
+      "shared_expert": 6
+    },
+    "tensor_count": 1569
+  },
+  "tensor_contract_sha256": "1ba66b4f1461805c2a86f37bba280aac183e51daf99cf9db6b7d3f4ce8cc7064"
+}
