@@ -1,0 +1,297 @@
+name: Refine V7 two-layer localization boundaries
+
+on:
+  push:
+    branches: [agent/v7-multilayer-localization]
+    paths:
+      - ".github/workflows/v7-trace-refine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Prove current 14-boundary trace first
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+
+      - name: Add attention-branch and router-weight boundaries
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("tools/make_v7_two_layer_trace.py")
+          s = p.read_text()
+
+          old = '''BOUNDARIES = (
+              ("input", "BF16", [HC, DIM]),
+              ("attn_pre", "BF16", [DIM]),
+              ("after_attn", "BF16", [HC, DIM]),
+              ("ffn_pre", "BF16", [DIM]),
+              ("router_ids", "U32", [TOPK]),
+              ("moe_branch", "BF16", [DIM]),
+              ("output", "BF16", [HC, DIM]),
+          )
+          '''
+          new = '''BOUNDARIES = (
+              ("input", "BF16", [HC, DIM]),
+              ("attn_pre", "BF16", [DIM]),
+              ("attention_branch", "BF16", [DIM]),
+              ("after_attn", "BF16", [HC, DIM]),
+              ("ffn_pre", "BF16", [DIM]),
+              ("router_ids", "U32", [TOPK]),
+              ("router_weights", "F32", [TOPK]),
+              ("moe_branch", "BF16", [DIM]),
+              ("output", "BF16", [HC, DIM]),
+          )
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("BOUNDARIES block drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''def write_u32(path: str, values: list[int]) -> None:
+              os.makedirs(os.path.dirname(path), exist_ok=True)
+              with open(path, "wb") as f:
+                  f.write(struct.pack(f"<{len(values)}I", *values))
+          '''
+          new = old + '''
+
+          def write_f32(path: str, values: list[float]) -> None:
+              os.makedirs(os.path.dirname(path), exist_ok=True)
+              with open(path, "wb") as f:
+                  f.write(struct.pack(f"<{len(values)}f", *values))
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("write_u32 block drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''    l3_ids_path, l3_ids = checked_file(
+              L3MOE, l3_ids_meta, "layer3 router ids", TOPK, reader=read_u32)
+              l3_moe_meta = prov["l3_moe"]["outputs"]["moe_branch"]
+          '''
+          new = '''    l3_ids_path, l3_ids = checked_file(
+              L3MOE, l3_ids_meta, "layer3 router ids", TOPK, reader=read_u32)
+              l3_weights_meta = prov["l3_moe"]["outputs"]["weights"]
+              l3_weights_path, l3_weights = checked_file(
+                  L3MOE, l3_weights_meta, "layer3 router weights", TOPK, reader=read_f32)
+              l3_moe_meta = prov["l3_moe"]["outputs"]["moe_branch"]
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("layer3 router load anchor drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''    l4_ids = read_u32(l4_ids_path, TOPK)
+              l4_full_out = prov["l4_full"]["outputs"]
+          '''
+          new = '''    l4_ids = read_u32(l4_ids_path, TOPK)
+              l4_weights_path = os.path.join(L4ROUTE, l4_router["weights_file"])
+              if sha256_file(l4_weights_path) != l4_router["weights_sha256"]:
+                  raise ValueError("layer4 router weights SHA drifted")
+              l4_weights = read_f32(l4_weights_path, TOPK)
+              l4_full_out = prov["l4_full"]["outputs"]
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("layer4 router load anchor drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''            "input": l3_input, "attn_pre": l3_attn_pre,
+                  "attn_branch": l3_att_branch, "ffn_pre": l3_ffn_pre,
+                  "router_ids": l3_ids, "moe_branch": l3_moe, "output": l3_output,
+                  "params": l3_params,
+          '''
+          new = '''            "input": l3_input, "attn_pre": l3_attn_pre,
+                  "attn_branch": l3_att_branch, "ffn_pre": l3_ffn_pre,
+                  "router_ids": l3_ids, "router_weights": l3_weights,
+                  "moe_branch": l3_moe, "output": l3_output,
+                  "params": l3_params,
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("layer3 return block drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''            "input": l4_input, "attn_pre": l4_attn_pre,
+                  "attn_branch": l4_att_branch, "after_attn": l4_after,
+                  "ffn_pre": l4_ffn_pre, "router_ids": l4_ids,
+                  "moe_branch": l4_moe, "output": l4_output, "params": l4_params,
+          '''
+          new = '''            "input": l4_input, "attn_pre": l4_attn_pre,
+                  "attn_branch": l4_att_branch, "after_attn": l4_after,
+                  "ffn_pre": l4_ffn_pre, "router_ids": l4_ids,
+                  "router_weights": l4_weights, "moe_branch": l4_moe,
+                  "output": l4_output, "params": l4_params,
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("layer4 return block drifted")
+          s = s.replace(old, new, 1)
+
+          old = '''        "input": frozen["input"], "attn_pre": attn_pre,
+              "after_attn": after_bits, "ffn_pre": ffn_pre,
+              "router_ids": frozen["router_ids"], "moe_branch": frozen["moe_branch"],
+              "output": final_bits,
+          '''
+          new = '''        "input": frozen["input"], "attn_pre": attn_pre,
+              "attention_branch": frozen["attn_branch"], "after_attn": after_bits,
+              "ffn_pre": ffn_pre, "router_ids": frozen["router_ids"],
+              "router_weights": frozen["router_weights"],
+              "moe_branch": frozen["moe_branch"], "output": final_bits,
+          '''
+          if s.count(old) != 2:
+              raise SystemExit(f"layer output return block count drifted: {s.count(old)}")
+          s = s.replace(old, new, 2)
+
+          old = '''            ext = "u32.bin" if dtype == "U32" else "bf16.bin"
+                  rel = os.path.join(f"layer{number}", f"{boundary}.{ext}")
+                  path = os.path.join(root, rel)
+                  if dtype == "U32":
+                      write_u32(path, values[boundary])
+                  else:
+                      write_u16(path, values[boundary])
+          '''
+          new = '''            ext = {"U32": "u32.bin", "F32": "f32.bin"}.get(dtype, "bf16.bin")
+                  rel = os.path.join(f"layer{number}", f"{boundary}.{ext}")
+                  path = os.path.join(root, rel)
+                  if dtype == "U32":
+                      write_u32(path, values[boundary])
+                  elif dtype == "F32":
+                      write_f32(path, values[boundary])
+                  else:
+                      write_u16(path, values[boundary])
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("write_trace dtype block drifted")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path("tests/test_v7_two_layer_real.py")
+          s = p.read_text()
+          s = s.replace('result.get("boundaries_compared") != 14', 'result.get("boundaries_compared") != 18')
+
+          old = '''def mutate_bf16(trace_root: str, manifest: dict, layer: int, boundary: str,
+                           index: int, xor_mask: int = 1) -> None:
+              item = next(x for x in manifest["layers"] if x["layer"] == layer)
+              b = next(x for x in item["boundaries"] if x["name"] == boundary)
+              if b["dtype"] != "BF16":
+                  raise AssertionError("mutation helper is BF16-only")
+              path = os.path.join(trace_root, b["file"])
+              data = bytearray(open(path, "rb").read())
+              off = index * 2
+              old = struct.unpack_from("<H", data, off)[0]
+              struct.pack_into("<H", data, off, old ^ xor_mask)
+              with open(path, "wb") as f:
+                  f.write(data)
+              b["sha256"] = sha(path)
+          '''
+          new = '''def mutate_boundary(trace_root: str, manifest: dict, layer: int, boundary: str,
+                               dtype: str, index: int, xor_mask: int = 1) -> None:
+              item = next(x for x in manifest["layers"] if x["layer"] == layer)
+              b = next(x for x in item["boundaries"] if x["name"] == boundary)
+              if b["dtype"] != dtype or dtype not in {"BF16", "F32"}:
+                  raise AssertionError(f"mutation helper expected {dtype}, got {b['dtype']}")
+              width = 2 if dtype == "BF16" else 4
+              path = os.path.join(trace_root, b["file"])
+              data = bytearray(open(path, "rb").read())
+              off = index * width
+              if off + width > len(data):
+                  raise AssertionError("mutation index out of range")
+              data[off] ^= xor_mask
+              with open(path, "wb") as f:
+                  f.write(data)
+              b["sha256"] = sha(path)
+          '''
+          if s.count(old) != 1:
+              raise SystemExit("mutation helper block drifted")
+          s = s.replace(old, new, 1)
+          s = s.replace('mutate_bf16(root, manifest, 3, "output", 17)',
+                        'mutate_boundary(root, manifest, 3, "output", "BF16", 17)')
+          s = s.replace('mutate_bf16(root, manifest, 4, "input", 17)',
+                        'mutate_boundary(root, manifest, 4, "input", "BF16", 17)')
+          s = s.replace('mutate_bf16(root, manifest, 4, "output", 23)',
+                        'mutate_boundary(root, manifest, 4, "output", "BF16", 23)')
+
+          anchor = '''        # Mutation 2 changes only the terminal layer-4 output and keeps the
+          '''
+          if s.count(anchor) != 1:
+              raise SystemExit("mutation insertion anchor drifted")
+          added = '''        # Mutation 2 pins the raw attention branch as its own localization
+              # seam. Without this boundary an attention primitive drift would be
+              # misreported only after HyperConnection post-composition.
+              with tempfile.TemporaryDirectory(prefix="v7-real-trace-attention-mutation-") as td:
+                  root = os.path.join(td, "runtime")
+                  shutil.copytree(os.path.join(FIX, "runtime"), root)
+                  manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
+                  mutate_boundary(root, manifest, 4, "attention_branch", "BF16", 19)
+                  mutated = loc.load_trace(write_manifest(root, manifest))
+                  diff = loc.compare(expected, mutated)
+                  if diff.get("status") != "diverged" or diff.get("layer") != 4 or \\
+                     diff.get("boundary") != "attention_branch" or diff.get("index") != 19:
+                      raise AssertionError(f"attention-branch mutation localized incorrectly: {diff}")
+
+              # Mutation 3 pins exact runtime route weights independently of IDs.
+              # A weight-only drift must not be deferred to the MoE branch boundary.
+              with tempfile.TemporaryDirectory(prefix="v7-real-trace-weight-mutation-") as td:
+                  root = os.path.join(td, "runtime")
+                  shutil.copytree(os.path.join(FIX, "runtime"), root)
+                  manifest = json.load(open(os.path.join(root, "trace.json"), encoding="utf-8"))
+                  mutate_boundary(root, manifest, 4, "router_weights", "F32", 2)
+                  mutated = loc.load_trace(write_manifest(root, manifest))
+                  diff = loc.compare(expected, mutated)
+                  if diff.get("status") != "diverged" or diff.get("layer") != 4 or \\
+                     diff.get("boundary") != "router_weights" or diff.get("index") != 2:
+                      raise AssertionError(f"router-weight mutation localized incorrectly: {diff}")
+
+              # Mutation 4 changes only the terminal layer-4 output and keeps the
+          '''
+          s = s.replace(anchor, added, 1)
+          s = s.replace('PASS V7 real two-layer trace: 14 boundaries exact, earliest-divergence mutations localized',
+                        'PASS V7 real two-layer trace: 18 boundaries exact, earliest-divergence mutations localized')
+          p.write_text(s)
+          PY
+          python3 -m py_compile tools/make_v7_two_layer_trace.py tests/test_v7_two_layer_real.py
+          git diff --check
+
+      - name: Regenerate refined trace offline
+        run: |
+          set -euo pipefail
+          rm -rf tests/fixtures/deepseek_v4/v7_two_layer_real
+          python3 tools/make_v7_two_layer_trace.py tests/fixtures/deepseek_v4/v7_two_layer_real
+
+      - name: Prove 18-boundary trace and all mutations
+        run: |
+          set -euo pipefail
+          python3 tests/test_v7_two_layer_real.py
+          python3 tools/v7_localize.py \
+            tests/fixtures/deepseek_v4/v7_two_layer_real/expected/trace.json \
+            tests/fixtures/deepseek_v4/v7_two_layer_real/runtime/trace.json --json \
+            | tee /tmp/v7-refined.json
+          grep -q '"boundaries_compared": 18' /tmp/v7-refined.json
+          grep -q '"status": "match"' /tmp/v7-refined.json
+          python3 tests/test_v7_parent_freshness.py
+
+      - name: Run permanent suites
+        run: |
+          set -euo pipefail
+          make check
+          make asan
+
+      - name: Freeze refined no-network V7 trace
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/make_v7_two_layer_trace.py tests/test_v7_two_layer_real.py \
+                  tests/fixtures/deepseek_v4/v7_two_layer_real
+          git diff --cached --check
+          git commit -m "test: refine V7 first-divergence boundaries [skip ci]"
+          git push origin HEAD:agent/v7-multilayer-localization
