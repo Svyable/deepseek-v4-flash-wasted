@@ -1194,7 +1194,7 @@ deepseek_replay "Gate E/V5 — real ratio-4 CSA indexer" \
 deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \
                 "test_v5_csa_attention_real.py"
 
-# Gate H/V6 — PARTIAL. Layer-3 composition. The model-free half pins the block
+# Gate H/V6 — PASSED at one complete real layer-3 transition. The model-free half pins the block
 # wiring: hc_pre(attn) -> branch -> hc_post -> hc_pre(ffn) -> branch -> hc_post,
 # and refuses five wirings that would still produce plausible numbers — reusing
 # the original residual for the FFN hc_pre, swapping the attention and FFN HC
@@ -1263,6 +1263,12 @@ deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 ou
                 "test_v7_layer4_full_real.py"
 deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
                 "test_v7_two_layer_real.py"
+
+# Gate I/V8 starts with an immutable header/source contract. This gate reads no
+# tensor payload and makes no logit claim; it prevents later numeric work from
+# silently targeting current-main source shapes or guessed final-head records.
+deepseek_replay "Gate I/V8 — immutable final-head header/source surface" \
+                "test_v8_head_surface.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"
