@@ -1,51 +1,15 @@
-name: Reconcile V7 evidence documentation
+name: Reconcile V7 evidence documentation (parked)
 
 on:
-  push:
-    branches: [agent/v7-multilayer-localization]
-    paths:
-      - ".github/workflows/v7-docs-reconcile.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  reconcile:
+  parked:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-
-      - name: Prove frozen V7 evidence before editing prose
-        run: |
-          set -euo pipefail
-          python3 tests/test_v7_parent_freshness.py
-          python3 tests/test_v7_layer4_full_real.py
-          python3 tests/test_v7_two_layer_real.py
-
-      - name: Reconcile validation and roadmap claims
-        run: |
-          set -euo pipefail
-          python3 -m py_compile tools/apply_v7_docs_reconcile.py
-          python3 tools/apply_v7_docs_reconcile.py
-          git diff --check
-          ! grep -q 'Gate H/V6 is PARTIAL' docs/VALIDATION.md
-          ! grep -q 'multi-layer localization/logits/generation' ROADMAP.md
-          grep -q '74 passed, 0 failed, 13 skipped' docs/VALIDATION.md ROADMAP.md
-          grep -q '73 passed, 0 failed, 14 skipped' docs/VALIDATION.md ROADMAP.md
-          grep -q '18 exact' docs/VALIDATION.md ROADMAP.md
-          grep -q 'Gate I/V8 final hidden/norm/logits' docs/VALIDATION.md ROADMAP.md
-
-      - name: Freeze evidence-accurate docs
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/VALIDATION.md ROADMAP.md
-          git rm tools/apply_v7_docs_reconcile.py
-          git diff --cached --check
-          git commit -m "docs: mark V7 two-layer localization passed [skip ci]"
-          git push origin HEAD:agent/v7-multilayer-localization
+      - run: |
+          echo "Parked after V7 validation/roadmap claims were reconciled to frozen evidence."
+          echo "Gate I/V8 final hidden/norm/logits is the next numerical target."
