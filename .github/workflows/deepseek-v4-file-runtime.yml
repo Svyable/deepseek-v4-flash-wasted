@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The deepseek-v4-flash-wasted authors.
+name: DeepSeek V4 file runtime
+
+on:
+  pull_request:
+    paths:
+      - "src/deepseek_v4_runtime.*"
+      - "src/deepseek_v4_file_runtime.*"
+      - "src/deepseek_v4_manifest.*"
+      - "src/deepseek_v4_container_contract.*"
+      - "src/ecache.*"
+      - "src/platform.h"
+      - "tests/test_deepseek_v4_file_runtime.c"
+      - "Makefile"
+      - ".github/workflows/deepseek-v4-file-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  file-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build and run actual-file ownership test
+        run: |
+          make test_ds_file_runtime
+          ./test_ds_file_runtime
+
+      - name: Run actual-file ownership test under ASan and UBSan
+        run: |
+          make clean
+          make test_ds_file_runtime \
+            CFLAGS="-std=gnu11 -Wall -Wextra -DVQ_SUPER=2 -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            LDLIBS="-lm -lpthread -fsanitize=address,undefined -fno-sanitize-recover=all"
+          ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+            ./test_ds_file_runtime

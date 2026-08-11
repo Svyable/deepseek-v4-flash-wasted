@@ -8,7 +8,7 @@
 
 - Model: `deepseek-ai/DeepSeek-V4-Flash-0731`
 - Pinned revision: `9e165c30e2704aec5d9d593cce3eebd58bbef1cb`
-- Merged foundation: through PR #22
+- Merged foundation: through PR #23
 - Corrected canonical Gate-H layer-3 endpoint:
   `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`
 - Refused historical layer-3 endpoint:
@@ -70,14 +70,21 @@ state, so final-model logits remain open.
 - validated routed records can be fetched through the existing `waste_ecache`
   callback/cache path and only then bound to the six native FP4/E8M0 planes;
 - a production-facing positional source can deep-copy an explicit
-  `[layer][expert] -> byte offset` index, bounds-check every record against its
-  bank and signed-64-bit WASTE I/O range, tolerate legal short reads until an
-  exact record lands, and feed that source directly into the existing runtime
-  cache seam without inferring expert ordering;
-- the runtime binding and positional-source checks are model-free/synthetic
-  infrastructure only: no real DeepSeek container/open path or Gate-G
-  disk-vs-cache identity result is claimed by them;
-- no on-disk header/order/alignment has been prematurely frozen;
+  `[layer][expert] -> byte offset` index, bind it to the exact validated routed
+  map, bounds-check every record against its bank and signed-64-bit WASTE I/O
+  range, tolerate legal short reads until an exact record lands, and feed that
+  source directly into the existing runtime cache seam without inferring expert
+  ordering;
+- an explicit file-resource owner can load the manifest-declared resident trunk
+  directly into its final aligned allocation, open caller-resolved routed bank
+  files, derive their byte limits from the OS rather than caller claims, bind
+  them through the positional source, and unwind every partially-open resource
+  in reverse dependency order;
+- the runtime, positional-source, and file-resource checks remain
+  model-free/synthetic infrastructure only: no evidence-backed DeepSeek
+  directory resolver or Gate-G disk-vs-cache identity result is claimed;
+- no on-disk filename/header/order/alignment/direct-I/O convention has been
+  prematurely frozen;
 - no DeepSeek public stepping/generation is enabled.
 
 ## Open gates
@@ -91,15 +98,16 @@ state, so final-model logits remain open.
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
 4. **Family container/open path.** The v1 family manifest parser, resident
-   backend binding, routed cache binding, and explicit positional-source layer
-   are built and fail-closed. Mapping/opening the real resident trunk and
-   deriving each real expert bank's file/size/offset table from pinned container
-   evidence remain open. No filename, record header, ordering, or alignment is
-   frozen by the runtime substrate.
+   backend binding, routed cache binding, explicit positional source, and
+   explicit native-file ownership layer are built and fail-closed. What remains
+   is the evidence-backed resolver that reads real DeepSeek container metadata
+   and derives the actual resident path, routed bank topology/paths, and expert
+   offset tables. No filename, record header, ordering, alignment, or direct-I/O
+   rule is frozen by the generic runtime substrate.
 5. **Encoding/API and serving.** Downstream of raw model arithmetic.
-6. **Storage/cache/performance.** Correct native record geometry and a hardened
-   exact-read placement seam exist; real container/cache identity and
-   performance remain open.
+6. **Storage/cache/performance.** Correct native record geometry, a hardened
+   exact-read placement seam, and owned native resources exist; real
+   container/cache identity and performance remain open.
 
 ## Next load-bearing work
 
@@ -134,15 +142,25 @@ state, so final-model logits remain open.
    inventing bank order.~~ **Done as model-free substrate** — callers supply an
    explicit offset for every `[layer][expert]`; initialization deep-copies and
    bounds-checks the index, exact reads tolerate short progress and reject EOF,
-   zero progress or over-reporting readers, and a native-fd adapter reuses
-   WASTE's signed-64-bit `pread` seam. Mutation/fault coverage lives in
-   `tests/test_deepseek_v4_runtime.c`.
-4. Build the evidence-backed family open layer around those bindings: parse the
-   real family manifest, map/open the validated resident trunk, open the actual
-   per-layer routed banks, derive their byte sizes and explicit expert offsets
-   from pinned container evidence, then hand those validated specs to the
-   positional source. Do not infer filename/header/order/alignment conventions.
-5. Keep model step/generation unconditionally refused until numerical gates are
+   zero progress or over-reporting readers, the routed map is frozen with the
+   source, and a native-fd adapter reuses WASTE's signed-64-bit `pread` seam.
+4. ~~Own explicit native file resources around the positional source.~~ **Done
+   as model-free substrate** — `src/deepseek_v4_file_runtime.{c,h}` opens
+   caller-resolved paths without naming assumptions; the resident file must
+   exactly match the manifest's trunk size and is loaded once into its final
+   aligned allocation; routed bank limits come from actual OS file sizes;
+   partial opens unwind runtime, source, descriptors, and resident bytes through
+   one reverse-order cleanup path. Real local-file coverage lives in
+   `tests/test_deepseek_v4_file_runtime.c` and is included in `make check` and
+   `make asan`.
+5. Build the evidence-backed family resolver: read the real DeepSeek container
+   metadata, derive actual resident/bank paths and explicit expert offsets, and
+   hand those facts to `waste_ds_v4_file_runtime_open`. Do not infer
+   filename/header/order/alignment/direct-I/O conventions from imported WASTE.
+6. Use real container bytes to close Gate G: compare miss/hit bytes and expert
+   arithmetic, then compare buffered versus page-cache-bypassing I/O only after
+   actual alignment requirements are known.
+7. Keep model step/generation unconditionally refused until numerical gates are
    closed. `waste_ds_v4_manifest_step_refused` is that refusal, and CI checks
    it stays unconditional.
 

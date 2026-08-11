@@ -105,6 +105,13 @@ typedef struct waste_ds_v4_runtime {
     int routed_ready;
 } waste_ds_v4_runtime;
 
+/* Re-run every runtime-critical identity/geometry check on a manifest struct.
+ * Parsing already performs these checks, but parsed structs are ordinary C and
+ * can be mutated before binding/open. File/resource layers use this same front
+ * door so validation cannot drift between call paths. Returns 0 when ready. */
+int waste_ds_v4_runtime_manifest_validate(
+    const waste_ds_v4_manifest *manifest);
+
 /* Bind already-validated manifest/trunk bytes. `fetch` uses the normal WASTE
  * cache callback contract and may be NULL for a resident-only binding.
  * `cache_bytes` is ignored when fetch is NULL. Returns 0 on success. */

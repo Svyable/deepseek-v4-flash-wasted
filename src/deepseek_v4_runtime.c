@@ -10,7 +10,8 @@
 #include "platform.h"
 #include "waste_backend.h"
 
-static int manifest_ready(const waste_ds_v4_manifest *manifest)
+int waste_ds_v4_runtime_manifest_validate(
+    const waste_ds_v4_manifest *manifest)
 {
     if (!manifest ||
         strcmp(manifest->family, WASTE_DS_V4_FAMILY) != 0 ||
@@ -20,13 +21,13 @@ static int manifest_ready(const waste_ds_v4_manifest *manifest)
         manifest->resident_count > WASTE_DS_V4_MAX_RESIDENT_PLANES ||
         manifest->trunk_bytes == 0 ||
         manifest->routed_map.record_bytes == 0)
-        return 0;
+        return -1;
 
     if (waste_ds_v4_gate_a_manifest_validate(&manifest->gate_a) != 0 ||
         waste_ds_v4_routed_record_map_validate(&manifest->routed_map,
                                                 &manifest->routed_layout) != 0)
-        return 0;
-    return 1;
+        return -1;
+    return 0;
 }
 
 static int routed_map_equal(const waste_ds_v4_routed_record_map *a,
@@ -61,7 +62,7 @@ int waste_ds_v4_positional_source_init(
         return -1;
     memset(source, 0, sizeof *source);
 
-    if (!manifest_ready(manifest) || !banks ||
+    if (waste_ds_v4_runtime_manifest_validate(manifest) != 0 || !banks ||
         bank_count != (size_t)manifest->gate_a.main_layers)
         return -1;
 
@@ -187,7 +188,7 @@ int waste_ds_v4_runtime_init(waste_ds_v4_runtime *runtime,
         return -1;
     memset(runtime, 0, sizeof *runtime);
 
-    if (!manifest_ready(manifest) || !trunk ||
+    if (waste_ds_v4_runtime_manifest_validate(manifest) != 0 || !trunk ||
         (uint64_t)trunk_bytes < manifest->trunk_bytes)
         return -1;
 
@@ -228,7 +229,8 @@ int waste_ds_v4_runtime_init_positional(
     int cache_policy,
     waste_ds_v4_positional_source *source)
 {
-    if (!manifest_ready(manifest) || !source || !source->banks ||
+    if (waste_ds_v4_runtime_manifest_validate(manifest) != 0 ||
+        !source || !source->banks ||
         source->bank_count != (size_t)manifest->gate_a.main_layers ||
         source->experts_per_layer != manifest->gate_a.routed_experts_per_layer ||
         source->record_bytes != manifest->routed_map.record_bytes ||
