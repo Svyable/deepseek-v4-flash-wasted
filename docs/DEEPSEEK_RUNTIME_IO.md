@@ -19,11 +19,11 @@ The runtime therefore accepts an explicit byte offset for every `[layer][expert]
 - the bank's validated byte length;
 - one explicit record offset per routed expert.
 
-`waste_ds_v4_positional_source_init` requires exactly the manifest's layer count and exactly the manifest's routed-expert count for every layer. On success it deep-copies the offset index and bank descriptors. Mutating or freeing the caller's offset arrays after initialization cannot redirect a later cache miss.
+`waste_ds_v4_positional_source_init` requires exactly the manifest's layer count and exactly the manifest's routed-expert count for every layer. On success it deep-copies the offset index and bank descriptors and freezes the routed six-plane record map. Mutating or freeing the caller's offset arrays after initialization cannot redirect a later cache miss.
 
 Reader contexts remain caller-owned and must outlive both the positional source and any runtime using it.
 
-`waste_ds_v4_runtime_init_positional` binds the validated source to the existing `waste_ecache` path. It refuses a source whose layer count, expert count, or record size does not match the manifest used by the runtime.
+`waste_ds_v4_runtime_init_positional` binds the validated source to the existing `waste_ecache` path. It refuses a source whose layer count, expert count, record size, or routed six-plane map does not match the manifest used by the runtime. Matching record byte length alone is deliberately insufficient: two individually valid maps can place the same planes in different byte order, and accepting the wrong one would produce plausible but incorrect tensor bindings.
 
 ## Exact-read semantics
 
@@ -66,6 +66,7 @@ No monotonicity, uniform stride, page alignment, record header, or expert-id ord
 
 - physical expert order is a permutation rather than expert-id order;
 - the caller's offset table is mutated after initialization and cannot redirect the source;
+- a valid, same-sized manifest with two routed planes reordered cannot reuse the source;
 - a non-page/non-record-divisor short-read chunk size is reassembled exactly;
 - a second request for the same expert is a cache hit and performs no storage reads;
 - wrong layer/expert ids are refused;
