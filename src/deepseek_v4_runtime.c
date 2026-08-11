@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "platform.h"
 #include "waste_backend.h"
 
@@ -318,4 +321,142 @@ int waste_ds_v4_runtime_resident_linear(waste_ds_v4_runtime *runtime,
         &runtime->manifest.resident[resident_index].layout;
     return waste_k.ds_v4_fp8_linear_e8m0(
         x, m, layout->cols, weights, scales, layout->rows, y);
+}
+
+/* ---- explicit native-file ownership ----------------------------------- */
+
+static int fd_read_exact_at(int fd, void *dst, size_t n, uint64_t off)
+{
+    if (fd < 0 || !dst || off > (uint64_t)INT64_MAX ||
+        (uint64_t)n > (uint64_t)INT64_MAX - off)
+        return -1;
+
+    uint8_t *p = (uint8_t *)dst;
+    size_t done = 0;
+    while (done < n) {
+        const size_t left = n - done;
+        const int64_t got = waste_ds_v4_fd_read_at(
+            &fd, p + done, left, off + (uint64_t)done);
+        if (got <= 0 || (uint64_t)got > (uint64_t)left)
+            return -1;
+        done += (size_t)got;
+    }
+    return 0;
+}
+
+void waste_ds_v4_file_runtime_close(waste_ds_v4_file_runtime *file_runtime)
+{
+    if (!file_runtime)
+        return;
+
+    /* Runtime/cache state may still point through source->banks[].read_user
+     * into bank_fds, so tear down strictly from the leaves outward. */
+    waste_ds_v4_runtime_free(&file_runtime->runtime);
+    waste_ds_v4_positional_source_free(&file_runtime->source);
+
+    if (file_runtime->bank_fds) {
+        for (size_t i = 0; i < file_runtime->bank_count; i++)
+            if (file_runtime->bank_fds[i] >= 0)
+                close(file_runtime->bank_fds[i]);
+    }
+    free(file_runtime->bank_fds);
+    waste_dio_free(file_runtime->trunk);
+    memset(file_runtime, 0, sizeof *file_runtime);
+}
+
+int waste_ds_v4_file_runtime_open(
+    waste_ds_v4_file_runtime *out,
+    const waste_ds_v4_manifest *manifest,
+    const waste_ds_v4_file_open_spec *spec)
+{
+    if (!out)
+        return -1;
+    memset(out, 0, sizeof *out);
+
+    if (!manifest_ready(manifest) || !spec || !spec->trunk_path ||
+        !*spec->trunk_path || !spec->banks ||
+        spec->bank_count != (size_t)manifest->gate_a.main_layers ||
+        manifest->trunk_bytes > (uint64_t)SIZE_MAX ||
+        manifest->trunk_bytes > (uint64_t)INT64_MAX ||
+        spec->bank_count > SIZE_MAX / sizeof *out->bank_fds)
+        return -1;
+
+    const size_t experts = (size_t)manifest->gate_a.routed_experts_per_layer;
+    for (size_t i = 0; i < spec->bank_count; i++) {
+        if (!spec->banks[i].path || !*spec->banks[i].path ||
+            !spec->banks[i].record_offsets ||
+            spec->banks[i].record_count != experts)
+            return -1;
+    }
+
+    int trunk_fd = -1;
+    waste_ds_v4_positional_bank *pos_banks = NULL;
+
+    trunk_fd = open(spec->trunk_path, O_RDONLY | WASTE_O_BINARY);
+    if (trunk_fd < 0)
+        goto fail;
+
+    const int64_t trunk_size = waste_file_size(trunk_fd);
+    if (trunk_size < 0 ||
+        (uint64_t)trunk_size != manifest->trunk_bytes)
+        goto fail;
+
+    out->trunk = (uint8_t *)waste_dio_alloc((size_t)manifest->trunk_bytes);
+    if (!out->trunk ||
+        fd_read_exact_at(trunk_fd, out->trunk,
+                         (size_t)manifest->trunk_bytes, 0) != 0)
+        goto fail;
+
+    close(trunk_fd);
+    trunk_fd = -1;
+
+    out->bank_fds = (int *)malloc(spec->bank_count * sizeof *out->bank_fds);
+    pos_banks = (waste_ds_v4_positional_bank *)calloc(
+        spec->bank_count, sizeof *pos_banks);
+    if (!out->bank_fds || !pos_banks)
+        goto fail;
+
+    out->bank_count = spec->bank_count;
+    for (size_t i = 0; i < out->bank_count; i++)
+        out->bank_fds[i] = -1;
+
+    for (size_t i = 0; i < out->bank_count; i++) {
+        const waste_ds_v4_file_bank_spec *in = &spec->banks[i];
+        const int fd = open(in->path, O_RDONLY | WASTE_O_BINARY);
+        if (fd < 0)
+            goto fail;
+        out->bank_fds[i] = fd;
+
+        const int64_t bytes = waste_file_size(fd);
+        if (bytes <= 0)
+            goto fail;
+
+        pos_banks[i].read_at = waste_ds_v4_fd_read_at;
+        pos_banks[i].read_user = &out->bank_fds[i];
+        pos_banks[i].bytes = (uint64_t)bytes;
+        pos_banks[i].record_offsets = in->record_offsets;
+        pos_banks[i].record_count = in->record_count;
+    }
+
+    if (waste_ds_v4_positional_source_init(
+            &out->source, manifest, pos_banks, out->bank_count) != 0)
+        goto fail;
+
+    free(pos_banks);
+    pos_banks = NULL;
+
+    if (waste_ds_v4_runtime_init_positional(
+            &out->runtime, manifest, out->trunk,
+            (size_t)manifest->trunk_bytes,
+            spec->cache_bytes, spec->cache_policy, &out->source) != 0)
+        goto fail;
+
+    return 0;
+
+fail:
+    if (trunk_fd >= 0)
+        close(trunk_fd);
+    free(pos_banks);
+    waste_ds_v4_file_runtime_close(out);
+    return -1;
 }
