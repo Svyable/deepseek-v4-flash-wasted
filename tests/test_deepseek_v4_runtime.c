@@ -3,8 +3,9 @@
  *
  * Model-free coverage for the DeepSeek runtime seam: validated resident planes
  * go through the normal backend dispatch, opaque routed records go through
- * waste_ecache, and explicit positional storage identities are exact-read and
- * fail-closed. No transformer stepping is enabled here.
+ * waste_ecache, explicit positional storage identities are exact-read and
+ * fail-closed, and the explicit file layer owns/unwinds real native resources.
+ * No transformer stepping is enabled here.
  */
 #include "../src/deepseek_v4_runtime.h"
 #include "../src/quant/deepseek_v4_linear_ref.h"
@@ -26,6 +27,10 @@
 
 #define LAYERS  43u
 #define EXPERTS 256u
+
+#define FILE_TRUNK_PATH   "test-ds-v4-runtime-trunk.tmp"
+#define FILE_BANK_PATH    "test-ds-v4-runtime-bank.tmp"
+#define FILE_MISSING_PATH "test-ds-v4-runtime-missing.tmp"
 
 static const char *GOOD =
 "{\n"
@@ -350,6 +355,200 @@ static void test_positional_source_refusals(void)
     free(offsets);
 }
 
+static void write_trunk_file(size_t bytes)
+{
+    uint8_t *buf = (uint8_t *)calloc(bytes ? bytes : 1u, 1u);
+    assert(buf != NULL);
+    if (bytes >= RES_W_OFF + RES_W_BYTES) {
+        const uint8_t half = waste_ds_v4_e4m3_encode_ref(0.5f);
+        memset(buf + RES_W_OFF, half, RES_W_BYTES);
+    }
+    if (bytes > RES_S_OFF)
+        buf[RES_S_OFF] = 127u;
+
+    FILE *f = fopen(FILE_TRUNK_PATH, "wb");
+    assert(f != NULL);
+    assert(fwrite(buf, 1, bytes, f) == bytes);
+    assert(fclose(f) == 0);
+    free(buf);
+}
+
+static void write_bank_file(size_t bytes)
+{
+    static const size_t pos[] = {
+        0,
+        W_BYTES,
+        2u * W_BYTES,
+        3u * W_BYTES,
+        3u * W_BYTES + S_BYTES,
+        3u * W_BYTES + 2u * S_BYTES
+    };
+    static const int value[] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+
+    FILE *f = fopen(FILE_BANK_PATH, "wb");
+    assert(f != NULL);
+    if (bytes > 0) {
+        assert(bytes - 1u <= (size_t)LONG_MAX);
+        assert(fseek(f, (long)(bytes - 1u), SEEK_SET) == 0);
+        assert(fputc(0, f) != EOF);
+    }
+    for (size_t i = 0; i < sizeof pos / sizeof pos[0]; i++) {
+        if (pos[i] >= bytes)
+            continue;
+        assert(pos[i] <= (size_t)LONG_MAX);
+        assert(fseek(f, (long)pos[i], SEEK_SET) == 0);
+        assert(fputc(value[i], f) != EOF);
+    }
+    assert(fclose(f) == 0);
+}
+
+static void fill_file_specs(waste_ds_v4_file_bank_spec *banks,
+                            waste_ds_v4_file_open_spec *spec,
+                            uint64_t *offsets)
+{
+    for (size_t i = 0; i < EXPERTS; i++)
+        offsets[i] = 0; /* all ids intentionally point at one synthetic record */
+    for (size_t layer = 0; layer < LAYERS; layer++) {
+        banks[layer].path = FILE_BANK_PATH;
+        banks[layer].record_offsets = offsets;
+        banks[layer].record_count = EXPERTS;
+    }
+    spec->trunk_path = FILE_TRUNK_PATH;
+    spec->banks = banks;
+    spec->bank_count = LAYERS;
+    spec->cache_bytes = RECORD;
+    spec->cache_policy = 0;
+}
+
+static void assert_file_runtime_zero(const waste_ds_v4_file_runtime *files)
+{
+    assert(files->trunk == NULL);
+    assert(files->bank_fds == NULL);
+    assert(files->bank_count == 0);
+    assert(files->source.banks == NULL);
+    assert(files->source.record_offsets == NULL);
+    assert(files->runtime.trunk == NULL);
+    assert(files->runtime.routed_ready == 0);
+}
+
+static void test_file_runtime_binding(void)
+{
+    (void)remove(FILE_TRUNK_PATH);
+    (void)remove(FILE_BANK_PATH);
+    (void)remove(FILE_MISSING_PATH);
+    write_trunk_file(TRUNK);
+    write_bank_file(RECORD);
+
+    waste_ds_v4_manifest manifest = parse_good();
+    uint64_t offsets[EXPERTS];
+    waste_ds_v4_file_bank_spec banks[LAYERS];
+    waste_ds_v4_file_open_spec spec;
+    fill_file_specs(banks, &spec, offsets);
+
+    waste_ds_v4_file_runtime files;
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) == 0);
+    assert(files.trunk != NULL);
+    assert(files.bank_fds != NULL);
+    assert(files.bank_count == LAYERS);
+    assert(files.runtime.trunk == files.trunk);
+    assert(files.runtime.routed_ready == 1);
+
+    /* The file layer must have copied placement metadata before returning. */
+    offsets[7] = RECORD;
+    banks[4].path = FILE_MISSING_PATH;
+
+    waste_ds_v4_routed_record_view view;
+    assert(waste_ds_v4_runtime_routed_record(&files.runtime, 4, 7, &view) == 0);
+    assert_sentinels(&view);
+    assert(files.runtime.cache.misses == 1);
+    assert(waste_ds_v4_runtime_routed_record(&files.runtime, 4, 7, &view) == 0);
+    assert_sentinels(&view);
+    assert(files.runtime.cache.hits == 1);
+
+    float x[128], got[128];
+    for (size_t i = 0; i < 128u; i++)
+        x[i] = 1.0f;
+    assert(waste_ds_v4_runtime_resident_linear(
+               &files.runtime, 0, x, 1, got) == 0);
+    assert(got[0] != 0.0f);
+    assert(waste_ds_v4_manifest_step_refused(NULL) != 0);
+
+    waste_ds_v4_file_runtime_close(&files);
+    assert_file_runtime_zero(&files);
+    waste_ds_v4_file_runtime_close(&files); /* idempotent after zeroing */
+    assert_file_runtime_zero(&files);
+
+    /* On Windows this also catches leaked handles because an open CRT handle
+     * prevents deletion; on POSIX it still verifies the success cleanup path. */
+    assert(remove(FILE_BANK_PATH) == 0);
+    assert(remove(FILE_TRUNK_PATH) == 0);
+}
+
+static void test_file_runtime_refusals(void)
+{
+    (void)remove(FILE_TRUNK_PATH);
+    (void)remove(FILE_BANK_PATH);
+    (void)remove(FILE_MISSING_PATH);
+    write_trunk_file(TRUNK);
+    write_bank_file(RECORD);
+
+    waste_ds_v4_manifest manifest = parse_good();
+    uint64_t offsets[EXPERTS];
+    waste_ds_v4_file_bank_spec banks[LAYERS];
+    waste_ds_v4_file_open_spec spec;
+    fill_file_specs(banks, &spec, offsets);
+
+    waste_ds_v4_file_runtime files;
+    assert(waste_ds_v4_file_runtime_open(NULL, &manifest, &spec) != 0);
+
+    spec.bank_count = LAYERS - 1u;
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    spec.bank_count = LAYERS;
+
+    write_trunk_file(TRUNK - 1u);
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    write_trunk_file(TRUNK + 1u);
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    write_trunk_file(TRUNK);
+
+    write_bank_file(RECORD - 1u);
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    write_bank_file(RECORD);
+
+    offsets[9] = 1u; /* exact-size bank: this record would run one byte past EOF */
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    offsets[9] = 0;
+
+    const size_t saved_count = banks[8].record_count;
+    banks[8].record_count = EXPERTS - 1u;
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    banks[8].record_count = saved_count;
+
+    const char *saved_path = banks[5].path;
+    banks[5].path = FILE_MISSING_PATH;
+    assert(waste_ds_v4_file_runtime_open(&files, &manifest, &spec) != 0);
+    assert_file_runtime_zero(&files);
+    banks[5].path = saved_path;
+
+    /* A failure after several bank opens must have unwound every owned fd. */
+    assert(remove(FILE_BANK_PATH) == 0);
+    write_bank_file(RECORD);
+
+    waste_ds_v4_manifest blank;
+    memset(&blank, 0, sizeof blank);
+    assert(waste_ds_v4_file_runtime_open(&files, &blank, &spec) != 0);
+    assert_file_runtime_zero(&files);
+
+    assert(remove(FILE_BANK_PATH) == 0);
+    assert(remove(FILE_TRUNK_PATH) == 0);
+}
+
 static void test_resident_backend_binding(void)
 {
     waste_ds_v4_manifest manifest = parse_good();
@@ -410,6 +609,8 @@ int main(void)
     test_routed_cache_binding();
     test_positional_source_binding();
     test_positional_source_refusals();
+    test_file_runtime_binding();
+    test_file_runtime_refusals();
     test_resident_backend_binding();
     test_fail_closed_init();
     puts("PASS DeepSeek V4 runtime binding");
