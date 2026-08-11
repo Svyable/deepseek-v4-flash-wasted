@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The deepseek-v4-flash-wasted authors.
+#
+# The continuation engine reads no network and no checkpoint: it replays the
+# committed two-layer fixture through the parameterized driver and must
+# reproduce it byte for byte. Run it on every change to the engine, the layer
+# walk, or the fixtures it composes.
+name: V7 parameterized per-layer continuation engine
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tools/deepseek_v4_continuation.py"
+      - "tools/make_v7_two_layer_trace.py"
+      - "tools/v7_localize.py"
+      - "src/deepseek_v4_mhc_ref.*"
+      - "tests/test_v7_continuation_engine.py"
+      - "tests/fixtures/deepseek_v4/**"
+      - ".github/workflows/v7-continuation-engine.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Continuation engine replay
+        run: python3 tests/test_v7_continuation_engine.py
+      - name: Two-layer trace regeneration is byte-identical
+        run: |
+          python3 tools/make_v7_two_layer_trace.py "$RUNNER_TEMP/regen"
+          diff -r tests/fixtures/deepseek_v4/v7_two_layer_real "$RUNNER_TEMP/regen"

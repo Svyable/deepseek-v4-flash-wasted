@@ -29,6 +29,11 @@
 - Gate H/V6 complete real layer-3 transition;
 - V7 consecutive layer 3 ratio128 -> layer 4 ratio4 with an 18-boundary exact
   trace and first-divergence localization;
+- V7 layer walk generalized into a parameterized per-layer continuation engine
+  (`tools/deepseek_v4_continuation.py`) that accepts an exact prior `[4,4096]`
+  state and an evidence source, reproduces the committed two-layer fixture byte
+  for byte on both composition backends, and walks an arbitrary consecutive run
+  through the same driver;
 - Gate-I/V8 final-head surface frozen from immutable headers/source;
 - bounded final-head primitive validated on a real frozen V7 layer-4 state:
   hc_head collapse, final RMSNorm, and 24 selected vocabulary-row logits.
@@ -54,18 +59,29 @@ state, so final-model logits remain open.
 - resident E4M3 + E8M0 tile geometry is validated;
 - an opaque expert-cache record can be mapped to six native routed planes via a
   manifest-supplied, non-overlapping byte map;
+- a v1 DeepSeek-family manifest parses fail-closed: mandatory exact `family`,
+  pinned revision, Gate-A geometry compared rather than range-checked, derived
+  plane sizes against declared offsets, pairwise non-overlap for every routed
+  and resident span, strict integer number reading, and a refused
+  stepping/generation declaration;
 - no on-disk header/order/alignment has been prematurely frozen;
 - no DeepSeek public stepping/generation is enabled.
 
 ## Open gates
 
-1. **True final hidden state.** V7 stops after layer 4; layers 5-42 still need a
-   reusable continuation path before V8 can claim final logits.
+1. **True final hidden state.** V7 stops after layer 4. The reusable
+   continuation path now exists and is tested; what layers 5-42 still need is
+   *evidence* — per-layer HyperConnection parameters and acquired attention/MoE
+   branch outputs behind an `EvidenceSource`. Acquisition is blocked wherever
+   the pinned checkpoint is unreachable.
 2. **Final-model logits.** The final-head primitive is proven only on a bounded
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
-4. **Family manifest/parser/binding.** Loader contracts exist; the actual
-   DeepSeek family parser and resident/expert-cache binding remain to be built.
+4. **Family manifest/parser/binding.** The v1 family manifest parser is built
+   and fail-closed (`src/deepseek_v4_manifest.{c,h}`); binding validated
+   resident planes to the WASTE backend and routed records to the expert-cache
+   fetch seam remains to be built. No on-disk record header/order/alignment is
+   frozen.
 5. **Encoding/API and serving.** Downstream of raw model arithmetic.
 6. **Storage/cache/performance.** Correct native record geometry exists; real
    container/cache identity and performance remain open.
@@ -74,23 +90,33 @@ state, so final-model logits remain open.
 
 ### Numerical path
 
-1. Generalize the V7 layer-4 replay into a parameterized per-layer continuation
-   engine that accepts an exact prior `[4,4096]` state and preserves the same
-   trace/localizer contract.
+1. ~~Generalize the V7 layer-4 replay into a parameterized per-layer
+   continuation engine that accepts an exact prior `[4,4096]` state and
+   preserves the same trace/localizer contract.~~ **Done** —
+   `tools/deepseek_v4_continuation.py`, checked by
+   `tests/test_v7_continuation_engine.py`.
 2. Advance through layers 5-42 with evidence-driven acquisition of only the six
-   routed experts plus the shared expert selected at each layer.
+   routed experts plus the shared expert selected at each layer. Implement a
+   checkpoint-backed `EvidenceSource`; the driver, trace contract and localizer
+   need no further change.
 3. Apply the already-proven final-head primitive to the true layer-42 output and
    pin selected/full logits.
 4. Only then begin deterministic greedy generation (V9).
 
 ### Runtime path in parallel
 
-1. Add a DeepSeek-family manifest/parser that validates Gate-A geometry,
-   resident FP8 descriptors, and routed record maps.
+1. ~~Add a DeepSeek-family manifest/parser that validates Gate-A geometry,
+   resident FP8 descriptors, and routed record maps.~~ **Done** —
+   `src/deepseek_v4_manifest.{c,h}`, checked by
+   `tests/test_deepseek_v4_manifest.c`; see `docs/CONTAINER_V4.md` §4a.
 2. Bind resident matrices to the normal WASTE backend and routed records to the
-   existing expert-cache fetch seam.
+   existing expert-cache fetch seam. The manifest exposes the two seams
+   (`waste_ds_v4_manifest_resident_plane`,
+   `waste_ds_v4_manifest_bind_routed_record`); neither is wired to the engine
+   yet, and `deepseek_v4_manifest.o` is deliberately not in `libwaste.a`.
 3. Keep model step/generation unconditionally refused until numerical gates are
-   closed.
+   closed. `waste_ds_v4_manifest_step_refused` is that refusal, and CI checks
+   it stays unconditional.
 
 ## Merge discipline
 

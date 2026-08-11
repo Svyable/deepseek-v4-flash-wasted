@@ -1034,6 +1034,30 @@ else
     printf '%s\n' "$out" | grep -E "FAIL" | head -5
 fi
 
+# ------------------------------------------- DeepSeek loader contracts ----
+head_ "DeepSeek V4 loader contracts (model-free)"
+
+# Both of these read no container and no checkpoint. The geometry contract
+# had a CI workflow and no place here, which meant a local `make check` could
+# not tell you whether it still held.
+if out=$(./test_ds_contract 2>&1); then
+    ok "Gate-A geometry, native routed/resident plane layouts, record binding"
+else
+    no "DeepSeek Gate-A loader contract"
+    printf '%s\n' "$out" | tail -5
+fi
+
+# The manifest is untrusted input, so this is mostly mutations: a foreign or
+# absent family, one hex digit of the pinned revision, every Gate-A dimension,
+# a routed or resident plane overlapping another by one byte, and a manifest
+# that tries to declare stepping enabled. Each must be refused by name.
+if out=$(./test_ds_manifest 2>&1); then
+    ok "family manifest parse, offset validation, and refused stepping"
+else
+    no "DeepSeek family manifest parser"
+    printf '%s\n' "$out" | tail -5
+fi
+
 # The SPDX gate CI enforces globs src/*.c and misses subdirectories, so it
 # would not have seen src/quant/ at all. Check it here, recursively, while
 # CI is parked — and see .github/workflows-disabled/README.md for the glob
@@ -1263,6 +1287,13 @@ deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 ou
                 "test_v7_layer4_full_real.py"
 deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
                 "test_v7_two_layer_real.py"
+# The layer walk itself is now parameterized over a prior [4,4096] state and an
+# evidence source. This check is what keeps that generalization honest: it
+# regenerates the committed two-layer fixture byte for byte through the engine,
+# walks a three-layer source through the same driver, and shows the boundary
+# assertions refuse a drifted parameter rather than averaging it away.
+deepseek_replay "V7 — parameterized per-layer continuation engine" \
+                "test_v7_continuation_engine.py"
 
 # Gate I/V8 starts with an immutable header/source contract. This gate reads no
 # tensor payload and makes no logit claim; it prevents later numeric work from

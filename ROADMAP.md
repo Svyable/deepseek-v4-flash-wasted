@@ -282,6 +282,8 @@ The permanent V7 trace has nine boundaries per layer — `input`, `attn_pre`, `a
 
 This is deliberately **not** a claim about all 43 layers or final logits; it is the localization substrate for that work.
 
+The walk is now parameterized: `tools/deepseek_v4_continuation.py` takes an exact prior `[4, 4096]` state plus an `EvidenceSource` and continues any consecutive run of layers through either composition backend. Regenerating the two-layer fixture through it is byte-identical to the committed one, so the schedule item that remains for layers 5-42 is **evidence acquisition**, not engine work.
+
 Continue in this order:
 
 1. final hidden/norm/head/logits — **I/V8**;
