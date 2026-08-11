@@ -1,0 +1,160 @@
+name: Prove generic V8 continuation through layer-5 routing
+
+on:
+  push:
+    branches: [agent/gate-i-v8-layer-engine]
+    paths:
+      - ".github/workflows/v8-layer5-route-real.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v8-layer5-route-real
+  cancel-in-progress: true
+
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      REVISION: 9e165c30e2704aec5d9d593cce3eebd58bbef1cb
+      SNAPSHOT: reference/deepseek-v4-flash-0731
+      L4_GENERIC: /tmp/v8-layer4-route-generic
+      L5_FIXTURE: tests/fixtures/deepseek_v4/v8_layer5_route_real
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Cheap generic-engine preflight
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/make_v8_layer_route_fixture.py \
+            tools/v8_layer_surface.py \
+            tools/v8_layer_contract.py \
+            tools/apply_v8_layer_engine_registration.py \
+            tests/test_v8_layer_surface.py \
+            tests/test_v8_layer5_surface.py \
+            tests/test_v8_layer_route_real.py
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          import make_v8_layer_route_fixture
+          import deepseek_v4_hc_oracle
+          print('PASS generic route imports proven HC oracle')
+          PY
+          python3 tests/test_v7_parent_freshness.py
+          python3 tests/test_v7_two_layer_real.py
+          python3 tests/test_v8_head_surface.py
+          python3 tests/test_v8_head_ref.py
+          python3 tests/test_v8_head_primitive_real.py
+          python3 tests/test_v8_layer_surface.py
+          python3 tests/test_v8_layer5_surface.py
+          set +e
+          python3 tests/test_v8_layer_route_real.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 77 ]; then
+            echo "layer-5 route should be a pre-acquisition SKIP, got $rc" >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Fetch immutable 0731 headers only
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_hf_headers.py \
+            --model "$MODEL" --revision "$REVISION" --out "$SNAPSHOT"
+
+      - name: Reproduce V7 layer-4 route with generic engine
+        run: |
+          set -euo pipefail
+          rm -rf "$L4_GENERIC"
+          python3 tools/make_v8_layer_route_fixture.py \
+            "$SNAPSHOT" 4 reference/deepseek-v4-flash-0731.layer4-v7.json \
+            tests/fixtures/deepseek_v4/v6_moe_branch_real/provenance.json \
+            layer3_final "$L4_GENERIC"
+          python3 - <<'PY'
+          import hashlib, json, os
+          def sha(p):
+              h=hashlib.sha256()
+              with open(p,'rb') as f:
+                  for c in iter(lambda:f.read(1<<20),b''): h.update(c)
+              return h.hexdigest()
+          new=json.load(open(os.path.join(os.environ['L4_GENERIC'],'provenance.json')))
+          old_root='tests/fixtures/deepseek_v4/v7_layer4_route_real'
+          old=json.load(open(os.path.join(old_root,'provenance.json')))
+          keys=('input','attn_pre','q','kv','heads','group_latent','attention_branch','after_attn','ffn_pre')
+          for key in keys:
+              a=new['outputs'][key]; b=old['outputs'][key]
+              if a['dtype'] != b['dtype'] or a['shape'] != b['shape'] or a['sha256'] != b['sha256']:
+                  raise SystemExit(f'generic layer4 {key} drifted')
+          for field in ('ids_sha256','weights_sha256','ids_topk_order'):
+              if new['router'][field] != old['router'][field]:
+                  raise SystemExit(f'generic layer4 router {field} drifted')
+          nw=new['router']['runtime_weights_f32']; ow=old['router']['runtime_weights_f32']
+          import struct
+          bits=lambda xs:[struct.unpack('<I',struct.pack('<f',float(x)))[0] for x in xs]
+          if bits(nw) != bits(ow):
+              raise SystemExit('generic layer4 route weights differ at F32 bits')
+          for group in ('hyperconnection_and_router','attention'):
+              n=new['checkpoint_tensors'][group]; o=old['checkpoint_tensors'][group]
+              if set(n) != set(o): raise SystemExit(f'generic layer4 {group} tensor keys drifted')
+              for key in n:
+                  if n[key]['payload_sha256'] != o[key]['payload_sha256']:
+                      raise SystemExit(f'generic layer4 checkpoint payload {group}.{key} drifted')
+          print('PASS generic engine reproduces frozen V7 layer-4 route exactly')
+          PY
+          python3 tests/test_v8_layer_route_real.py "$L4_GENERIC"
+
+      - name: Acquire generic layer-5 route from exact layer-4 final state
+        run: |
+          set -euo pipefail
+          rm -rf "$L5_FIXTURE"
+          python3 tools/make_v8_layer_route_fixture.py \
+            "$SNAPSHOT" 5 reference/deepseek-v4-flash-0731.layer5-v8.json \
+            tests/fixtures/deepseek_v4/v7_layer4_full_real/provenance.json \
+            layer4_final "$L5_FIXTURE"
+
+      - name: Upload arithmetic-green layer-5 route before replay
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v8-layer5-route-real
+          retention-days: 30
+          if-no-files-found: error
+          path: tests/fixtures/deepseek_v4/v8_layer5_route_real/
+
+      - name: Replay compact layer-5 route offline
+        run: |
+          set -euo pipefail
+          python3 tests/test_v8_layer_route_real.py
+
+      - name: Register generic layer-engine gates
+        run: |
+          set -euo pipefail
+          python3 tools/apply_v8_layer_engine_registration.py
+          git diff --check
+          python3 tests/test_v8_layer_surface.py
+          python3 tests/test_v8_layer5_surface.py
+          python3 tests/test_v8_layer_route_real.py
+
+      - name: Run permanent normal suite
+        run: make check
+
+      - name: Run permanent sanitizer suite
+        run: make asan
+
+      - name: Freeze layer-5 route evidence
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$L5_FIXTURE" tests/run.sh
+          git rm tools/apply_v8_layer_engine_registration.py
+          git diff --cached --check
+          git commit -m "reference: freeze generic V8 layer-5 route [skip ci]"
+          git push origin HEAD:agent/gate-i-v8-layer-engine
