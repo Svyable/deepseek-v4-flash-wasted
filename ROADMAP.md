@@ -34,7 +34,9 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |
 | Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |
 | one full transformer layer | **H/V6** | **PASSED scalar/model-semantic** — real layer-3 HC + 64-head attention + exact runtime router + six routed/shared experts + final BF16 state |
-| multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
+| multi-layer localization | **V7** | **PASSED two-layer scalar/model-semantic** — real layer 3 ratio128 → layer 4 ratio4, 18 exact boundaries |
+| final hidden/norm/logits | **I/V8** | **NEXT** |
+| deterministic greedy generation | **K/V9** | after V8 logits |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |
 | DSpark | N | after base logits/generation |
@@ -131,7 +133,7 @@ The shared grouped output projection remains independently proved rather than du
 
 **Gate H/V6 is now PASSED at the scalar/model-semantic one-layer level.** The checkpoint-backed layer-3 path includes both real HC transitions, all 64 attention heads, exact scalar-runtime routing, six routed FP4 experts, the shared FP8 expert, and an exact final BF16 `[4,4096]` state. Raw expert records remain acquisition-only rather than repository payload.
 
-**Immediate priority: V7 multi-layer localization, then Gate I/V8 logits.** Do not jump straight to generation: establish a reproducible way to carry the frozen layer-state contract across structurally different layers and stop at the first divergent layer. Gate K/V9 follows only after final hidden/norm/logits are pinned.
+**Immediate priority: Gate I/V8 final hidden/norm/logits.** V7 now provides the reproducible first-divergence contract across a real ratio128 → ratio4 layer transition, so downstream forward/logit work has a concrete localization mechanism. Do not jump straight to generation: Gate K/V9 follows only after final hidden/norm/logits are pinned.
 
 ---
 
@@ -187,14 +189,14 @@ Completed oracle seams:
 6. ratio-0 attention core + grouped output projection — E/V5;
 7. coherent same-input ratio-128 compressor/history/attention — E/V5;
 8. ratio-4 CSA compressor + Indexer selection + selected sparse attention — E/V5;
-9. complete real layer-3 HC + attention + router + six-routed/shared-MoE transition — H/V6.
+9. complete real layer-3 HC + attention + router + six-routed/shared-MoE transition — H/V6;
+10. real consecutive layer-3 → layer-4 localization across ratio128 → ratio4, including the complete layer-4 MoE/final state and an 18-boundary trace — V7.
 
 Next oracle seams:
 
-1. multi-layer localization — V7;
-2. final hidden/norm/logits — I/V8;
-3. deterministic greedy generation — K/V9;
-4. encoder/parser — J/V10.
+1. final hidden/norm/logits — I/V8;
+2. deterministic greedy generation — K/V9;
+3. encoder/parser — J/V10.
 
 Reuse the same independent-fixture pattern rather than inventing a new oracle mechanism per subsystem.
 
@@ -265,19 +267,26 @@ Acquisition checked 28,672 expert BF16 outputs against an independent standalone
 
 A later V7 review exposed that Gate H's original Python Sinkhorn still executed its internal reductions/normalizations in double precision and only rounded `post`/`comb` at the boundary. That is not model-equivalent. `tools/deepseek_v4_hc_oracle.py` now executes every HC operation in F32 and is bit-exact with `src/deepseek_v4_mhc_ref.c`. The correction changes 9 of 16,384 final BF16 values (indices 1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717) while leaving `attn_pre`, `ffn_pre`, routing, all seven expert outputs, and the MoE branch unchanged. No checkpoint reacquisition was required.
 
-Permanent suite floor after the Gate H precision correction:
+Permanent suite floor after V7 completion and trace refinement:
 
 ```text
-make check  65 passed, 0 failed, 13 skipped
-make asan   64 passed, 0 failed, 14 skipped
+make check  74 passed, 0 failed, 13 skipped
+make asan   73 passed, 0 failed, 14 skipped
 ```
+
+### V7 multi-layer localization — PASSED for a real consecutive two-layer scalar boundary trace
+
+The corrected Gate-H layer-3 endpoint (`c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`) is consumed byte-identically by a complete real layer-4 transition. Layer 4 crosses into the ratio4-learned structural class, selects experts `[237,90,185,120,197,239]`, independently validates **28,672 BF16 expert outputs**, and freezes final state SHA `f32bec5a013bc5a0da98a6ac940dd4946fe0dad877714ffb6811c177837cf749`.
+
+The permanent V7 trace has nine boundaries per layer — `input`, `attn_pre`, `attention_branch`, `after_attn`, `ffn_pre`, `router_ids`, `router_weights`, `moe_branch`, `output` — for **18 exact boundaries total**. Mutations at the cross-layer chain, raw attention branch, F32 route weights, and terminal layer output are required to localize at the exact first divergent seam. Parent freshness is derived mechanically from current Gate-H provenance rather than a hard-coded historical hash.
+
+This is deliberately **not** a claim about all 43 layers or final logits; it is the localization substrate for that work.
 
 Continue in this order:
 
-1. multi-layer localization — **V7**;
-2. final hidden/norm/head/logits — **I/V8**;
-3. deterministic known-token generation — **K/V9**;
-4. only then broaden to encoding/API and optimization gates.
+1. final hidden/norm/head/logits — **I/V8**;
+2. deterministic known-token generation — **K/V9**;
+3. only then broaden to encoding/API and optimization gates.
 
 ---
 
