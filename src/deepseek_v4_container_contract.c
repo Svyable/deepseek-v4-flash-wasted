@@ -137,3 +137,72 @@ int waste_ds_v4_fp8_plane_layout_init(
     out->scale_bytes = out->scale_rows * out->scale_cols;
     return 0;
 }
+
+typedef struct span {
+    size_t begin;
+    size_t end;
+} span;
+
+static int make_span(size_t begin, size_t bytes, size_t record_bytes, span *out)
+{
+    if (!out || bytes == 0 || begin > record_bytes ||
+        bytes > record_bytes - begin)
+        return -1;
+    out->begin = begin;
+    out->end = begin + bytes;
+    return 0;
+}
+
+static int spans_overlap(span a, span b)
+{
+    return a.begin < b.end && b.begin < a.end;
+}
+
+int waste_ds_v4_routed_record_map_validate(
+    const waste_ds_v4_routed_record_map *map,
+    const waste_ds_v4_routed_payload_layout *layout)
+{
+    if (!map || !layout || map->record_bytes < layout->payload_bytes)
+        return -1;
+
+    span spans[6];
+    if (make_span(map->w1_offset, layout->w1.packed_weight_bytes,
+                  map->record_bytes, &spans[0]) != 0 ||
+        make_span(map->w1_scale_offset, layout->w1.e8m0_scale_bytes,
+                  map->record_bytes, &spans[1]) != 0 ||
+        make_span(map->w3_offset, layout->w3.packed_weight_bytes,
+                  map->record_bytes, &spans[2]) != 0 ||
+        make_span(map->w3_scale_offset, layout->w3.e8m0_scale_bytes,
+                  map->record_bytes, &spans[3]) != 0 ||
+        make_span(map->w2_offset, layout->w2.packed_weight_bytes,
+                  map->record_bytes, &spans[4]) != 0 ||
+        make_span(map->w2_scale_offset, layout->w2.e8m0_scale_bytes,
+                  map->record_bytes, &spans[5]) != 0)
+        return -1;
+
+    for (size_t i = 0; i < 6; i++)
+        for (size_t j = i + 1; j < 6; j++)
+            if (spans_overlap(spans[i], spans[j]))
+                return -1;
+    return 0;
+}
+
+int waste_ds_v4_routed_record_view_bind(
+    const void *record,
+    size_t record_bytes,
+    const waste_ds_v4_routed_record_map *map,
+    const waste_ds_v4_routed_payload_layout *layout,
+    waste_ds_v4_routed_record_view *out)
+{
+    if (!record || !map || !layout || !out || record_bytes != map->record_bytes ||
+        waste_ds_v4_routed_record_map_validate(map, layout) != 0)
+        return -1;
+    const uint8_t *base = (const uint8_t *)record;
+    out->w1 = base + map->w1_offset;
+    out->w1_scale = base + map->w1_scale_offset;
+    out->w3 = base + map->w3_offset;
+    out->w3_scale = base + map->w3_scale_offset;
+    out->w2 = base + map->w2_offset;
+    out->w2_scale = base + map->w2_scale_offset;
+    return 0;
+}
