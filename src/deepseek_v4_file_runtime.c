@@ -7,6 +7,7 @@
  */
 #include "deepseek_v4_file_runtime.h"
 
+#include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,14 @@ static int read_exact_fd(int fd, void *dst, size_t n)
         done += (size_t)got;
     }
     return 0;
+}
+
+static int open_buffered_readonly(const char *path)
+{
+    /* WASTE_O_BINARY is 0 on POSIX and mandatory on Windows, where omitting it
+     * can translate CRLF byte pairs inside weights. Deliberately no O_DIRECT /
+     * F_NOCACHE policy here: DeepSeek alignment is not evidence-frozen yet. */
+    return open(path, O_RDONLY | WASTE_O_BINARY);
 }
 
 void waste_ds_v4_file_runtime_close(waste_ds_v4_file_runtime *fr)
@@ -98,10 +107,7 @@ int waste_ds_v4_file_runtime_open(
 
     const size_t trunk_bytes = (size_t)manifest->trunk_bytes;
 
-    /* Buffered/random-access is intentional here. Direct-I/O alignment is a
-     * later evidence/performance contract; this ownership layer must not infer
-     * it from the imported Kimi format. */
-    const int trunk_fd = waste_open_stream(spec->trunk_path, 0);
+    const int trunk_fd = open_buffered_readonly(spec->trunk_path);
     if (trunk_fd < 0)
         return -1;
 
@@ -134,7 +140,7 @@ int waste_ds_v4_file_runtime_open(
 
     for (size_t layer = 0; layer < spec->bank_count; layer++) {
         const waste_ds_v4_file_bank_spec *in = &spec->banks[layer];
-        const int fd = waste_open_stream(in->path, 0);
+        const int fd = open_buffered_readonly(in->path);
         if (fd < 0) {
             free(pos);
             waste_ds_v4_file_runtime_close(out);
