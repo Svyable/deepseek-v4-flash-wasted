@@ -1,0 +1,15 @@
+name: Register permanent Gate-I surface regression (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after Gate-I surface replay entered the permanent test suite."
+          echo "Current suite floor: 75 normal / 74 sanitizer passes at this stacked tranche."

@@ -1,0 +1,98 @@
+{
+  "checkpoint_header_stub_sha256": "ed86fda4ac2c09c307a6578b21cbd610a24da5e6015f75309186c0e9941447cb",
+  "checkpoint_tensors": {
+    "hc_head_base": {
+      "data_offsets": [0, 16],
+      "dtype": "F32",
+      "name": "hc_head_base",
+      "payload_bytes": 16,
+      "shape": [4],
+      "shard": "model-00045-of-00048.safetensors"
+    },
+    "hc_head_fn": {
+      "data_offsets": [16, 262160],
+      "dtype": "F32",
+      "name": "hc_head_fn",
+      "payload_bytes": 262144,
+      "shape": [4, 16384],
+      "shard": "model-00045-of-00048.safetensors"
+    },
+    "hc_head_scale": {
+      "data_offsets": [262160, 262164],
+      "dtype": "F32",
+      "name": "hc_head_scale",
+      "payload_bytes": 4,
+      "shape": [1],
+      "shard": "model-00045-of-00048.safetensors"
+    },
+    "head.weight": {
+      "data_offsets": [262164, 1059323924],
+      "dtype": "BF16",
+      "name": "head.weight",
+      "payload_bytes": 1059061760,
+      "shape": [129280, 4096],
+      "shard": "model-00045-of-00048.safetensors"
+    },
+    "norm.weight": {
+      "data_offsets": [1059323924, 1059332116],
+      "dtype": "BF16",
+      "name": "norm.weight",
+      "payload_bytes": 8192,
+      "shape": [4096],
+      "shard": "model-00045-of-00048.safetensors"
+    }
+  },
+  "evidence_state": "CHECKPOINT-HEADER-AND-PINNED-SOURCE-VERIFIED",
+  "gate": "Gate I / V8 final-head surface",
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "no tensor payload was read by this gate",
+    "no final hidden state was evaluated",
+    "no logits were evaluated",
+    "no 43-layer forward was evaluated",
+    "V8 numerical parity is not passed by this surface artifact"
+  ],
+  "official_source": {
+    "load_bearing_methods": {
+      "Block.__init__": {"end_lineno": 678, "lineno": 659, "source_sha256": "9ff975e2aea5177c7cadeb77eea43997c1924c090fd5326d0a3963a1e9a61cd9"},
+      "Block.hc_head": {"end_lineno": 716, "lineno": 709, "source_sha256": "1ed85047f151da017a1d1bab28996b0db7e5bb3427756fefc2f9fd0969613c24"},
+      "ParallelHead.__init__": {"end_lineno": 729, "lineno": 721, "source_sha256": "e0648d7c821c0570aa86e3fa69d095c6184464458fd56366040b7c269fb242c8"},
+      "ParallelHead.forward": {"end_lineno": 740, "lineno": 731, "source_sha256": "a320818b11d65670b4be856e220810f3011bfee48a1c6fdc5540daa643908d8e"},
+      "RMSNorm.__init__": {"end_lineno": 195, "lineno": 190, "source_sha256": "82702085674d2331aba475cfb0e2d540d7102ac74d74b16f62245a94358a970d"},
+      "RMSNorm.forward": {"end_lineno": 202, "lineno": 197, "source_sha256": "8038d3c6f16015ff357534366da3aac1c0fd06d737ffa61d93548ea663748d07"},
+      "Transformer.__init__": {"end_lineno": 910, "lineno": 880, "source_sha256": "697feecd1a78b72db4a2236aa758ca712ad974dcf32f2ff7d3ce069bf6b62755"},
+      "Transformer.forward": {"end_lineno": 926, "lineno": 913, "source_sha256": "e054cad6ca3ea41755850aa0dfae2b49cc43141ffdf922e2a39fbad01396c667"}
+    },
+    "note": "0731 ParallelHead has __init__ + forward; do not substitute current-main get_logits/hc_head refactors.",
+    "path": "inference/model.py",
+    "sha256": "c0c19e6c9fa439bac7fbb1c5bc1868232dfd5aa2f439a548d0e33dcc2a9edd3f"
+  },
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "semantic_contract": {
+    "hc_head": {
+      "collapse": "sum(weights[j] * x[j], j=0..3)",
+      "flatten_to_f32": true,
+      "input_logical_shape": [4, 4096],
+      "mixes": "F.linear(flat_f32, hc_head_fn) * rsqrt(mean(square(flat_f32)) + norm_eps)",
+      "output_cast": "input dtype (BF16 for the checkpoint path)",
+      "rms_stat_over": 16384,
+      "weights": "sigmoid(mixes * hc_head_scale + hc_head_base) + hc_eps"
+    },
+    "order": ["hc_head", "rms_norm", "vocab_head"],
+    "rms_norm": {
+      "compute_dtype": "F32",
+      "formula": "x * rsqrt(mean(x^2) + eps)",
+      "output_cast": "input dtype",
+      "stat_axis": -1,
+      "weight": "norm.weight"
+    },
+    "vocab_head": {
+      "checkpoint_weight_dtype": "BF16",
+      "input_cast": "F32",
+      "logical_weight_shape": [129280, 4096],
+      "output_dtype": "F32",
+      "weight": "head.weight"
+    }
+  }
+}

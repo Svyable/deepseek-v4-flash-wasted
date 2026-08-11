@@ -1,0 +1,15 @@
+name: Probe Gate-I final-head surface (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after the immutable 0731 final-head surface was measured and frozen."
+          echo "Permanent no-network Gate-I surface replay now owns this contract."

@@ -1,0 +1,15 @@
+name: Freeze Gate-I final-head header/source surface (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after the five-record 0731 Gate-I surface froze green."
+          echo "No tensor payload or logit claim belongs to this workflow."
