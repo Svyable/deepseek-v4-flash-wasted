@@ -6,9 +6,9 @@
 This is intentionally exploratory. It consumes only a header-only safetensors
 snapshot plus the exact pinned `inference/model.py`, then records candidate
 root-level final-head tensors and all methods on the source classes responsible
-for final normalization/head evaluation. It does not assert final tensor names
-or promote V8; the next tranche converts the observed result into a fail-closed
-frozen contract.
+for the final HyperConnection collapse, normalization, and head evaluation. It
+does not assert final tensor names or promote V8; the next tranche converts the
+observed result into a fail-closed frozen contract.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import struct
 from typing import Any
 
 
-TARGET_CLASSES = ("RMSNorm", "ParallelHead", "Transformer")
+TARGET_CLASSES = ("RMSNorm", "Block", "ParallelHead", "Transformer")
 
 
 def sha256_bytes(data: bytes) -> str:
