@@ -5,7 +5,7 @@
  * expert offsets are caller/evidence supplied: this file deliberately does not
  * invent a container filename, record stride, ordering, header, or alignment.
  */
-#include "deepseek_v4_runtime.h"
+#include "deepseek_v4_file_runtime.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -16,23 +16,6 @@
 #ifdef _WIN32
 #include <io.h>
 #endif
-
-static int file_manifest_ready(const waste_ds_v4_manifest *manifest)
-{
-    if (!manifest ||
-        strcmp(manifest->family, WASTE_DS_V4_FAMILY) != 0 ||
-        strcmp(manifest->revision, WASTE_DS_V4_0731_REVISION) != 0 ||
-        manifest->manifest_version != WASTE_DS_V4_MANIFEST_VERSION ||
-        manifest->resident_count == 0 ||
-        manifest->resident_count > WASTE_DS_V4_MAX_RESIDENT_PLANES ||
-        manifest->trunk_bytes == 0 ||
-        manifest->routed_map.record_bytes == 0)
-        return 0;
-
-    return waste_ds_v4_gate_a_manifest_validate(&manifest->gate_a) == 0 &&
-           waste_ds_v4_routed_record_map_validate(&manifest->routed_map,
-                                                   &manifest->routed_layout) == 0;
-}
 
 static void ds_close_fd(int fd)
 {
@@ -47,6 +30,9 @@ static void ds_close_fd(int fd)
 
 static int read_exact_fd(int fd, void *dst, size_t n)
 {
+    if (fd < 0 || !dst || (uint64_t)n > (uint64_t)INT64_MAX)
+        return -1;
+
     uint8_t *p = (uint8_t *)dst;
     size_t done = 0;
     while (done < n) {
@@ -87,15 +73,28 @@ int waste_ds_v4_file_runtime_open(
         return -1;
     memset(out, 0, sizeof *out);
 
-    /* Identity and geometry are checked before a path is opened or a manifest-
-     * sized allocation is attempted. A caller can hold a parsed manifest in a
-     * mutable struct; mutation after parse must fail at the same front door as
-     * ordinary runtime_init, not after I/O has already happened. */
-    if (!file_manifest_ready(manifest) || !spec ||
+    /* Identity and geometry are revalidated before a path is opened or a
+     * manifest-sized allocation is attempted. Parsed structs are mutable C;
+     * every runtime-facing path must reject post-parse mutation consistently. */
+    if (waste_ds_v4_runtime_manifest_validate(manifest) != 0 || !spec ||
         !spec->trunk_path || !*spec->trunk_path || !spec->banks ||
         spec->bank_count != (size_t)manifest->gate_a.main_layers ||
-        manifest->trunk_bytes > SIZE_MAX)
+        manifest->trunk_bytes > (uint64_t)SIZE_MAX ||
+        manifest->trunk_bytes > (uint64_t)INT64_MAX ||
+        spec->bank_count > SIZE_MAX / sizeof *out->bank_fds)
         return -1;
+
+    const size_t experts = (size_t)manifest->gate_a.routed_experts_per_layer;
+
+    /* Refuse malformed ownership metadata before touching the filesystem. A
+     * genuinely missing/corrupt file can still fail after earlier handles have
+     * opened, which is what the partial-unwind path is for. */
+    for (size_t layer = 0; layer < spec->bank_count; layer++) {
+        const waste_ds_v4_file_bank_spec *in = &spec->banks[layer];
+        if (!in->path || !*in->path || !in->record_offsets ||
+            in->record_count != experts)
+            return -1;
+    }
 
     const size_t trunk_bytes = (size_t)manifest->trunk_bytes;
 
@@ -121,10 +120,6 @@ int waste_ds_v4_file_runtime_open(
     }
     ds_close_fd(trunk_fd); /* resident bytes are final; no second trunk copy */
 
-    if (spec->bank_count > SIZE_MAX / sizeof *out->bank_fds) {
-        waste_ds_v4_file_runtime_close(out);
-        return -1;
-    }
     out->bank_fds = (int *)malloc(spec->bank_count * sizeof *out->bank_fds);
     waste_ds_v4_positional_bank *pos = (waste_ds_v4_positional_bank *)calloc(
         spec->bank_count, sizeof *pos);
@@ -139,14 +134,6 @@ int waste_ds_v4_file_runtime_open(
 
     for (size_t layer = 0; layer < spec->bank_count; layer++) {
         const waste_ds_v4_file_bank_spec *in = &spec->banks[layer];
-        if (!in->path || !*in->path || !in->record_offsets ||
-            in->record_count !=
-                (size_t)manifest->gate_a.routed_experts_per_layer) {
-            free(pos);
-            waste_ds_v4_file_runtime_close(out);
-            return -1;
-        }
-
         const int fd = waste_open_stream(in->path, 0);
         if (fd < 0) {
             free(pos);
