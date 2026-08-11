@@ -11,6 +11,7 @@
 #include "../src/quant/deepseek_v4_linear_ref.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
