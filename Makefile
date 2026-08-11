@@ -109,8 +109,9 @@ SRC := src/model.c src/kda.c src/backend.c src/ecache.c src/version.c \
        src/tokenizer.c src/waste.c src/vq.c src/vision.c src/image.c \
        src/crc32.c src/memory.c \
        src/deepseek_v4_container_contract.c src/deepseek_v4_manifest.c \
-       src/deepseek_v4_runtime.c src/quant/deepseek_v4_linear_ref.c \
-       src/quant/fp4_e2m1.c src/quant/fp8_e4m3.c
+       src/deepseek_v4_runtime.c src/deepseek_v4_file_runtime.c \
+       src/quant/deepseek_v4_linear_ref.c src/quant/fp4_e2m1.c \
+       src/quant/fp8_e4m3.c
 # Match what backend.c tests for. Linux/aarch64 reports "aarch64", which
 # does not contain "arm" — the old findstring left kda_neon.c out of the
 # build while backend.c still emitted the call to it, so the link failed
