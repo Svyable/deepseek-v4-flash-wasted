@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The deepseek-v4-flash-wasted authors.
+#
+# The manifest is untrusted input, so this runs the mutation suite twice: once
+# with -Werror at -O2, and once under ASan/UBSan, where an out-of-range offset
+# that the parser failed to refuse becomes a report rather than a plausible
+# number read out of the wrong tensor.
+name: Validate DeepSeek V4 family manifest parser
+
+on:
+  pull_request:
+    paths:
+      - "src/deepseek_v4_manifest.c"
+      - "src/deepseek_v4_manifest.h"
+      - "src/deepseek_v4_container_contract.c"
+      - "src/deepseek_v4_container_contract.h"
+      - "src/json.h"
+      - "src/quant/fp4_e2m1.c"
+      - "src/quant/fp4_e2m1.h"
+      - "tests/test_deepseek_v4_manifest.c"
+      - ".github/workflows/deepseek-v4-family-manifest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCES: >-
+    tests/test_deepseek_v4_manifest.c
+    src/deepseek_v4_manifest.c
+    src/deepseek_v4_container_contract.c
+    src/quant/fp4_e2m1.c
+
+jobs:
+  manifest:
+    name: Parse and refuse without enabling execution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Strict build and mutation suite
+        run: |
+          cc -std=gnu11 -O2 -Wall -Wextra -Werror -Isrc \
+            ${SOURCES} -lm -o "${RUNNER_TEMP}/test_ds_manifest"
+          "${RUNNER_TEMP}/test_ds_manifest"
+
+      - name: Sanitized build and mutation suite
+        run: |
+          cc -std=gnu11 -O1 -g -Wall -Wextra -Werror \
+            -fsanitize=address,undefined -fno-sanitize-recover=all \
+            -fno-omit-frame-pointer -Isrc \
+            ${SOURCES} -lm -o "${RUNNER_TEMP}/test_ds_manifest_asan"
+          "${RUNNER_TEMP}/test_ds_manifest_asan"
+
+      - name: Pinned identity is not merely a comment
+        run: |
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          gate = json.loads(Path('reference/deepseek-v4-flash-0731.gate-a.json').read_text())
+          test = Path('tests/test_deepseek_v4_manifest.c').read_text()
+          header = Path('src/deepseek_v4_manifest.h').read_text()
+          # The good manifest the mutations start from must carry the same
+          # revision the Gate-A reference does, or every refusal below it is
+          # being measured against the wrong baseline.
+          assert gate['revision'] in test, 'test manifest revision drifted from Gate A'
+          assert 'WASTE_DS_V4_FAMILY "deepseek-v4-flash"' in header
+          assert re.search(r'WASTE_DS_V4_MANIFEST_VERSION\s+1u', header)
+          # Stepping stays refused unconditionally: no build flag, no manifest
+          # key, and no config may reach past this.
+          impl = Path('src/deepseek_v4_manifest.c').read_text()
+          body = impl.split('waste_ds_v4_manifest_step_refused')[-1]
+          assert 'return -1;' in body and '#if' not in body, \
+              'stepping refusal must stay unconditional'
+          print('MANIFEST_IDENTITY family, version and refusal are pinned')
+          PY

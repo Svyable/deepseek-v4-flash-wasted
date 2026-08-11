@@ -124,6 +124,35 @@ Uniform stride is preferable for O(1) addressing but is not mandatory if the rea
 
 The container or adjacent install must identify the exact tokenizer/encoding assets needed to reproduce official token sequences. A model directory should not depend on an ambiguous latest remote template. Exact parity is later Gate J/V10.
 
+## 4a. Implemented: the v1 family manifest parser
+
+`src/deepseek_v4_manifest.{c,h}` implements the identity, geometry and offset half of §4 against the pinned Gate-A contract. It is a parser, not a format freeze: §17's criteria are all still open, and everything §4 lists under *Routed-expert bank index* and *Encoding/tokenizer* is deliberately absent because Gate A has not settled it.
+
+What a v1 manifest must declare, and what the parser does with it:
+
+| key | checked against |
+|---|---|
+| `family` | exactly `deepseek-v4-flash`; mandatory, never inferred |
+| `manifest_version` | exactly `1` |
+| `revision` | exactly the pinned 0731 revision, all 40 hex digits |
+| `geometry` | every Gate-A field, compared to `waste_ds_v4_gate_a_manifest_validate` — not range-checked |
+| `routed_record` | six offsets + `record_bytes`, against sizes **derived** from geometry |
+| `trunk.bytes`, `trunk.resident[]` | E4M3 tile geometry derived per plane; all weight and scale spans in range and mutually non-overlapping |
+
+Three properties are worth stating because they are what the mutation tests in `tests/test_deepseek_v4_manifest.c` exist to hold:
+
+**Sizes are derived, offsets are declared.** A manifest says where a plane is, never how big it is. `routed_payload_bytes_per_record` is compared against the layout computed from `hidden_size` and `moe_intermediate_size` rather than believed. This is what §1's rule looks like at the byte level: a container cannot describe a differently shaped model, only a differently *arranged* one. Plane order and a larger record (headers, alignment padding) are accepted; §7 and §9 stay open.
+
+**Overlap is a refusal, not a checksum's problem.** A resident scale grid that lands inside another plane's weights is 256 bytes wide and decodes to entirely plausible E4M3 numbers. §10's checksums cannot see it, because each byte is individually intact. The parser therefore checks all `2N` resident spans plus the six routed spans pairwise, and refuses.
+
+**Numbers are read strictly.** `js_num` goes through `atof`, which accepts `4096.0`, `4.096e3`, `-4096` and `04096` and hands back 4096 for all of them. Every number in this manifest sizes or locates bytes, so each is read from its raw text and refused unless it is a plain non-negative integer that fits. §16 lists this class of input; this is the part of it the family parser owns.
+
+**Parsing describes; it does not enable.** `waste_ds_v4_manifest_step_refused` is unconditional, and a manifest that declares `"generation": true` or `"stepping": true` is refused outright rather than ignored — a container does not get to turn on a capability the numerical gates have not earned. A failed parse zeroes the output struct, so a caller that ignores the status finds nothing usable rather than a half-validated view.
+
+`waste_ds_v4_manifest_is_family` is the cheap discriminator §1 asks for: a dispatching loader can ask which family a manifest declares without either parser having to tolerate the other's schema. `tests/test_deepseek_v4_manifest.c` checks a Kimi v0 manifest against it in both directions.
+
+Still to build: binding the validated resident planes to the WASTE backend and the routed record map to the expert-cache fetch seam. The parser is the input side of that work; `waste_ds_v4_manifest_bind_routed_record` and `waste_ds_v4_manifest_resident_plane` are the seams it exposes.
+
 ## 5. Resident trunk
 
 The first correct converter preserves the official non-expert quantization semantics rather than dequantizing everything to f32 by default or requantizing it to WASTE's Kimi formats.

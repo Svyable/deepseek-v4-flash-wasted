@@ -234,7 +234,7 @@ waste$(EXE): cli/main.o libwaste.a
 # `test` builds and `clean` forgets defeats the check meant to notice it.
 TESTNAMES := test_kda test_container test_forward test_tokenizer test_k3parts \
              test_state test_vision test_image test_memory test_cpus sweep \
-             test_quant
+             test_quant test_ds_contract test_ds_manifest
 TESTBINS  := $(addsuffix $(EXE),$(TESTNAMES))
 
 test: $(TESTBINS)
@@ -285,6 +285,19 @@ test_cpus$(EXE): tests/test_cpus.o
 # it still runs when the model path is mid-surgery, which is exactly when
 # a decode regression is easiest to misattribute.
 test_quant$(EXE): tests/test_quant.o src/quant/fp4_e2m1.o src/quant/fp8_e4m3.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The DeepSeek Gate-A geometry contract. It had a CI workflow and no place in
+# `make check`, so a local run could not tell you it was still true — which is
+# exactly the silent-pass shape tests/run.sh exists to prevent.
+test_ds_contract$(EXE): tests/test_deepseek_v4_container_contract.o \
+                        src/deepseek_v4_container_contract.o src/quant/fp4_e2m1.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+# The family manifest parser. Links the contract and the FP4 geometry it
+# derives sizes from, and no engine: a manifest is untrusted input and its
+# refusals are checkable with no container on disk.
+test_ds_manifest$(EXE): tests/test_deepseek_v4_manifest.o \
+                        src/deepseek_v4_manifest.o \
+                        src/deepseek_v4_container_contract.o src/quant/fp4_e2m1.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c

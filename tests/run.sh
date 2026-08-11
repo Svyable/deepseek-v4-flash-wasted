@@ -1034,6 +1034,30 @@ else
     printf '%s\n' "$out" | grep -E "FAIL" | head -5
 fi
 
+# ------------------------------------------- DeepSeek loader contracts ----
+head_ "DeepSeek V4 loader contracts (model-free)"
+
+# Both of these read no container and no checkpoint. The geometry contract
+# had a CI workflow and no place here, which meant a local `make check` could
+# not tell you whether it still held.
+if out=$(./test_ds_contract 2>&1); then
+    ok "Gate-A geometry, native routed/resident plane layouts, record binding"
+else
+    no "DeepSeek Gate-A loader contract"
+    printf '%s\n' "$out" | tail -5
+fi
+
+# The manifest is untrusted input, so this is mostly mutations: a foreign or
+# absent family, one hex digit of the pinned revision, every Gate-A dimension,
+# a routed or resident plane overlapping another by one byte, and a manifest
+# that tries to declare stepping enabled. Each must be refused by name.
+if out=$(./test_ds_manifest 2>&1); then
+    ok "family manifest parse, offset validation, and refused stepping"
+else
+    no "DeepSeek family manifest parser"
+    printf '%s\n' "$out" | tail -5
+fi
+
 # The SPDX gate CI enforces globs src/*.c and misses subdirectories, so it
 # would not have seen src/quant/ at all. Check it here, recursively, while
 # CI is parked — and see .github/workflows-disabled/README.md for the glob

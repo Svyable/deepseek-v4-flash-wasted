@@ -59,6 +59,11 @@ state, so final-model logits remain open.
 - resident E4M3 + E8M0 tile geometry is validated;
 - an opaque expert-cache record can be mapped to six native routed planes via a
   manifest-supplied, non-overlapping byte map;
+- a v1 DeepSeek-family manifest parses fail-closed: mandatory exact `family`,
+  pinned revision, Gate-A geometry compared rather than range-checked, derived
+  plane sizes against declared offsets, pairwise non-overlap for every routed
+  and resident span, strict integer number reading, and a refused
+  stepping/generation declaration;
 - no on-disk header/order/alignment has been prematurely frozen;
 - no DeepSeek public stepping/generation is enabled.
 
@@ -72,8 +77,11 @@ state, so final-model logits remain open.
 2. **Final-model logits.** The final-head primitive is proven only on a bounded
    real test vector, not the true final transformer state.
 3. **Deterministic greedy generation / V9.** Blocked on final logits.
-4. **Family manifest/parser/binding.** Loader contracts exist; the actual
-   DeepSeek family parser and resident/expert-cache binding remain to be built.
+4. **Family manifest/parser/binding.** The v1 family manifest parser is built
+   and fail-closed (`src/deepseek_v4_manifest.{c,h}`); binding validated
+   resident planes to the WASTE backend and routed records to the expert-cache
+   fetch seam remains to be built. No on-disk record header/order/alignment is
+   frozen.
 5. **Encoding/API and serving.** Downstream of raw model arithmetic.
 6. **Storage/cache/performance.** Correct native record geometry exists; real
    container/cache identity and performance remain open.
@@ -97,12 +105,18 @@ state, so final-model logits remain open.
 
 ### Runtime path in parallel
 
-1. Add a DeepSeek-family manifest/parser that validates Gate-A geometry,
-   resident FP8 descriptors, and routed record maps.
+1. ~~Add a DeepSeek-family manifest/parser that validates Gate-A geometry,
+   resident FP8 descriptors, and routed record maps.~~ **Done** —
+   `src/deepseek_v4_manifest.{c,h}`, checked by
+   `tests/test_deepseek_v4_manifest.c`; see `docs/CONTAINER_V4.md` §4a.
 2. Bind resident matrices to the normal WASTE backend and routed records to the
-   existing expert-cache fetch seam.
+   existing expert-cache fetch seam. The manifest exposes the two seams
+   (`waste_ds_v4_manifest_resident_plane`,
+   `waste_ds_v4_manifest_bind_routed_record`); neither is wired to the engine
+   yet, and `deepseek_v4_manifest.o` is deliberately not in `libwaste.a`.
 3. Keep model step/generation unconditionally refused until numerical gates are
-   closed.
+   closed. `waste_ds_v4_manifest_step_refused` is that refusal, and CI checks
+   it stays unconditional.
 
 ## Merge discipline
 
