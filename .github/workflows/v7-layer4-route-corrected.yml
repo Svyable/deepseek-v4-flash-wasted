@@ -1,0 +1,15 @@
+name: Reacquire layer-4 route from corrected Gate-H state (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after corrected Gate-H -> layer-4 route froze green."
+          echo "Frozen route fixture is the permanent no-network replay target."

@@ -81,6 +81,10 @@ def e4m3_fraction(code):
 
 
 def e4m3_float(code):
+    """Decode finite E4M3 while preserving the format's signed zero."""
+    # Fraction is exact for nonzero values but has no signed-zero state.
+    if (code & 0x7F) == 0:
+        return -0.0 if (code & 0x80) else 0.0
     return float(e4m3_fraction(code))
 
 

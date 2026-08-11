@@ -1,0 +1,15 @@
+name: Refine V7 two-layer localization boundaries (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after the 18-boundary V7 two-layer trace froze green."
+          echo "Permanent no-network replays now own this correctness contract."

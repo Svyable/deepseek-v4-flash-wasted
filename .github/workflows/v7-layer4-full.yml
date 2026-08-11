@@ -1,0 +1,15 @@
+name: Acquire complete chained layer-4 V7 evidence (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after complete layer-4 and real two-layer V7 evidence froze green."
+          echo "Permanent no-network replays are now the correctness gates."

@@ -1,0 +1,188 @@
+{
+  "layers": [
+    {
+      "boundaries": [
+        {
+          "dtype": "BF16",
+          "file": "layer3/input.bf16.bin",
+          "name": "input",
+          "sha256": "cfe444e78a946d71fbe5e3a9605b39157dd067016b60d21d3b2b3ffe1f50098d",
+          "shape": [
+            4,
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/attn_pre.bf16.bin",
+          "name": "attn_pre",
+          "sha256": "0e2897157b2815db37eec1d195c2b1ffd4fad02e19bcea65922c2330aade78c7",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/attention_branch.bf16.bin",
+          "name": "attention_branch",
+          "sha256": "e8d105fa930958028636a74c63e62577d0d670b5609f671a3d0b7075f8254068",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/after_attn.bf16.bin",
+          "name": "after_attn",
+          "sha256": "4ca321caf941c2e2b8994eccae3dc135ca5fa83d69fde33ab8191a79072aab20",
+          "shape": [
+            4,
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/ffn_pre.bf16.bin",
+          "name": "ffn_pre",
+          "sha256": "30e27b02c8a662ad5d1966d02d62afff6c4ffb2b367fb817d846c449eb8e7a21",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "U32",
+          "file": "layer3/router_ids.u32.bin",
+          "name": "router_ids",
+          "sha256": "97aa01bfd828aa5732492f2d6dccec9a9738f7f79c6f75154bbd4a833ee9745e",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "F32",
+          "file": "layer3/router_weights.f32.bin",
+          "name": "router_weights",
+          "sha256": "8bf7da67aa935e3f0230b08f1c33f94a0f740b82bea39c4da1d3ea7fd24c2d38",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/moe_branch.bf16.bin",
+          "name": "moe_branch",
+          "sha256": "809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer3/output.bf16.bin",
+          "name": "output",
+          "sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+          "shape": [
+            4,
+            4096
+          ]
+        }
+      ],
+      "layer": 3,
+      "structural_class": "ratio128-learned"
+    },
+    {
+      "boundaries": [
+        {
+          "dtype": "BF16",
+          "file": "layer4/input.bf16.bin",
+          "name": "input",
+          "sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+          "shape": [
+            4,
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/attn_pre.bf16.bin",
+          "name": "attn_pre",
+          "sha256": "7923282fb6c71983d66cdc6bd3fe598a79d04e628717f113f21faa0111591448",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/attention_branch.bf16.bin",
+          "name": "attention_branch",
+          "sha256": "c09e659edc96542184c31b7eb9898c8f9fd68934ecd621202b4442de8688d620",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/after_attn.bf16.bin",
+          "name": "after_attn",
+          "sha256": "b0bdc89e65b991145b35fd74659a9e850c7597288ff7996d1d6e91b5b546d08d",
+          "shape": [
+            4,
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/ffn_pre.bf16.bin",
+          "name": "ffn_pre",
+          "sha256": "404edd7870f841686558c3f56ee15b8af8875f42057bebd0f1abcefbc9383767",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "U32",
+          "file": "layer4/router_ids.u32.bin",
+          "name": "router_ids",
+          "sha256": "ce94ab5ae1130fcae05aad3e5bba0046df27207a6bba6ccd4cca5809bbf9f0ed",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "F32",
+          "file": "layer4/router_weights.f32.bin",
+          "name": "router_weights",
+          "sha256": "6f0ddaf999889e6be87ea763b42054c44505985dabd1b1025368b80cd07f1a74",
+          "shape": [
+            6
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/moe_branch.bf16.bin",
+          "name": "moe_branch",
+          "sha256": "299dde0813e4305d870b5f8b2d734a92f329e99641572acb4ce3dc1933c32db0",
+          "shape": [
+            4096
+          ]
+        },
+        {
+          "dtype": "BF16",
+          "file": "layer4/output.bf16.bin",
+          "name": "output",
+          "sha256": "f32bec5a013bc5a0da98a6ac940dd4946fe0dad877714ffb6811c177837cf749",
+          "shape": [
+            4,
+            4096
+          ]
+        }
+      ],
+      "layer": 4,
+      "structural_class": "ratio4-learned"
+    }
+  ],
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "schema_version": 1,
+  "trace_name": "real-layer3-to-layer4-runtime"
+}

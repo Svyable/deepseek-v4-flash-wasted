@@ -1,0 +1,50 @@
+{
+  "boundary_order": [
+    "input",
+    "attn_pre",
+    "attention_branch",
+    "after_attn",
+    "ffn_pre",
+    "router_ids",
+    "router_weights",
+    "moe_branch",
+    "output"
+  ],
+  "chain": {
+    "byte_identical": true,
+    "layer3_output_sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7",
+    "layer4_input_sha256": "c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7"
+  },
+  "composition_paths": {
+    "attention_moe_router": "reuse already-frozen real checkpoint-backed boundaries; primitive arithmetic remains owned by Gate E/F/H and the complete layer-4 fixture",
+    "expected_hyperconnection": "independent Python F32 oracle using system libm; no WASTE source linkage",
+    "runtime_hyperconnection": "src/deepseek_v4_mhc_ref.c through the scalar C reference"
+  },
+  "evidence_state": "END-TO-END-VERIFIED-TWO-LAYER-SCALAR-BOUNDARIES",
+  "expected_manifest": "expected/trace.json",
+  "gate": "V7 first real consecutive two-layer localization trace",
+  "layers": [
+    3,
+    4
+  ],
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "non_claims": [
+    "two consecutive layers only, not all 43 transformer layers",
+    "position 0 does not re-prove non-empty ratio-4 compressor/indexer history; Gate E owns that primitive evidence",
+    "no final-model logits, generation, converted-container/cache identity, RAM or throughput claim"
+  ],
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "runtime_manifest": "runtime/trace.json",
+  "schema_version": 1,
+  "source_provenance_sha256": {
+    "l3_att": "92b8bd25c52113368cb813f90ad9bb9c31df81a81546de4b0b6beecd82e872d0",
+    "l3_hc": "fd42499079796def7e1d27d2f23ebc14f7e9973671f62d6d27235973f687a3d3",
+    "l3_moe": "fdb994aee8c1387b3af9543b947787c923eb3db1cde9afc5ba254d7f43056762",
+    "l4_full": "53c38acda7eb3889b019e202f1e12a6aaca39d9914d2d5addc3c64e960f93d18",
+    "l4_route": "e41b7b8c9794c8bbfc454f27902938d168d7e53ffdfdf0c90563dfc2c5405134"
+  },
+  "structural_classes": [
+    "ratio128-learned",
+    "ratio4-learned"
+  ]
+}

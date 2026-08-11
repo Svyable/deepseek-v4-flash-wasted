@@ -1239,6 +1239,30 @@ deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \
 # BF16 [4,4096] final state. This is the Gate H endpoint.
 deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
                 "test_v6_layer3_full_real.py"
+# V7 precision boundaries found by real chained-layer acquisition. These are
+# permanent because each caught an otherwise plausible, near-bit-exact oracle.
+deepseek_replay "V7 — hc_pre sequential F32 reduction boundary" \
+                "test_v7_hc_pre_f32_scalar.py"
+deepseek_replay "V7 — sparse FP8 scalar differential and signed-zero cases" \
+                "test_v7_sparse_fp8_oracle.py"
+deepseek_replay "V7 — one-row online-softmax signed-zero operation order" \
+                "test_v7_one_row_attention_signed_zero.py"
+deepseek_replay "V7 — correction bias operation vs input-specific top-k outcome" \
+                "test_v7_router_bias_observation.py"
+deepseek_replay "V7 — current Gate-H parent freshness contract" \
+                "test_v7_parent_freshness.py"
+
+# V7 infrastructure: compare chained expected/runtime layer-boundary traces,
+# reject stale manifests/broken output->input chains, and stop at the first
+# differing layer/boundary rather than reporting a downstream symptom.
+deepseek_replay "V7 — fail-closed first-divergence layer trace localizer" \
+                "test_v7_localize.py"
+deepseek_replay "V7 — real chained layer-3 output through layer-4 router" \
+                "test_v7_layer4_route_real.py"
+deepseek_replay "V7 — complete real layer-4 composition from frozen layer-3 output" \
+                "test_v7_layer4_full_real.py"
+deepseek_replay "V7 — real consecutive layer-3 to layer-4 trace" \
+                "test_v7_two_layer_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

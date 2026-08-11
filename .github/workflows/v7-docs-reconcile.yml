@@ -1,0 +1,15 @@
+name: Reconcile V7 evidence documentation (parked)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parked:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo "Parked after V7 validation/roadmap claims were reconciled to frozen evidence."
+          echo "Gate I/V8 final hidden/norm/logits is the next numerical target."

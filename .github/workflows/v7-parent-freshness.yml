@@ -1,0 +1,59 @@
+name: Validate V7 stacked evidence freshness
+
+on:
+  pull_request:
+    paths:
+      - "tools/v7_parent_freshness.py"
+      - "tests/test_v7_parent_freshness.py"
+      - "tests/test_v7_two_layer_real.py"
+      - "tests/fixtures/deepseek_v4/v6_moe_branch_real/provenance.json"
+      - "tests/fixtures/deepseek_v4/v6_moe_branch_real/expected-layer3-final.bf16.bin"
+      - "tests/fixtures/deepseek_v4/v7_layer4_route_real/**"
+      - "tests/fixtures/deepseek_v4/v7_layer4_full_real/**"
+      - "tests/fixtures/deepseek_v4/v7_two_layer_real/**"
+      - ".github/workflows/v7-parent-freshness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v7-parent-freshness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  freshness:
+    name: Bind V7 inputs to current Gate-H endpoint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compile freshness helpers
+        run: |
+          python3 -m py_compile \
+            tools/v7_parent_freshness.py \
+            tests/test_v7_parent_freshness.py \
+            tests/test_v7_two_layer_real.py
+
+      - name: Refuse stale downstream V7 evidence
+        run: python3 tests/test_v7_parent_freshness.py
+
+      - name: Prove dormant two-layer test derives the current parent endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 tests/test_v7_two_layer_real.py > "${RUNNER_TEMP}/two-layer.log" 2>&1
+          rc=$?
+          set -e
+          cat "${RUNNER_TEMP}/two-layer.log"
+          # The full chained fixture is intentionally absent today. Exit 77 is
+          # therefore the only accepted non-pass result; importantly, the test
+          # resolves and validates the current Gate-H endpoint before skipping.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 77 ]; then
+            exit "$rc"
+          fi
+          grep -q "current Gate-H chain sha256:" "${RUNNER_TEMP}/two-layer.log"
