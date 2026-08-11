@@ -23,6 +23,69 @@
 extern "C" {
 #endif
 
+/* One positional storage read. The contract intentionally mirrors pread:
+ * return the number of bytes copied, 0 for EOF, or a negative value on error.
+ * Short positive reads are legal; the source layer loops until the exact
+ * expert record has landed. `off` is absolute within the named bank.
+ *
+ * Keeping this callback below filenames/fds is deliberate. The real 0731
+ * container evidence has not frozen bank names, record headers, ordering or
+ * alignment. A caller may use ordinary files, direct I/O, memory, a test fault
+ * injector, or another positional medium without changing expert identity. */
+typedef int64_t (*waste_ds_v4_read_at_fn)(void *user,
+                                          void *dst,
+                                          size_t n,
+                                          uint64_t off);
+
+/* Caller-supplied description of one routed bank. There must be exactly one
+ * spec per manifest layer and exactly one explicit offset per routed expert.
+ * No ordering is inferred from the expert id. */
+typedef struct waste_ds_v4_positional_bank {
+    waste_ds_v4_read_at_fn read_at;
+    void *read_user;
+    uint64_t bytes;
+    const uint64_t *record_offsets;
+    size_t record_count;
+} waste_ds_v4_positional_bank;
+
+/* Validated, owned copy of the per-layer positional index. The read_user
+ * objects themselves stay caller-owned and must outlive this source. */
+typedef struct waste_ds_v4_positional_source {
+    waste_ds_v4_positional_bank *banks;
+    uint64_t *record_offsets;
+    size_t bank_count;
+    size_t record_bytes;
+    uint32_t experts_per_layer;
+} waste_ds_v4_positional_source;
+
+/* Validate and deep-copy every bank descriptor and expert offset. This freezes
+ * placement identity after open: mutating the caller's offset table cannot
+ * redirect a later cache miss. Offsets must fit both the declared bank size
+ * and WASTE's signed-64-bit positional-I/O range. */
+int waste_ds_v4_positional_source_init(
+    waste_ds_v4_positional_source *source,
+    const waste_ds_v4_manifest *manifest,
+    const waste_ds_v4_positional_bank *banks,
+    size_t bank_count);
+
+void waste_ds_v4_positional_source_free(waste_ds_v4_positional_source *source);
+
+/* waste_fetch_fn-compatible adapter used by waste_ecache. It performs an
+ * exact-length read at the explicit [layer][expert] offset; EOF, zero progress,
+ * an over-reporting reader, or any read error is a hard failure. */
+int waste_ds_v4_positional_fetch(void *user,
+                                 int layer,
+                                 int expert,
+                                 uint8_t *dst);
+
+/* Small adapter for callers backed by a native WASTE file descriptor. `user`
+ * points to an int fd. The source still requires the file's declared byte size
+ * and explicit expert offsets; this helper does not invent either. */
+int64_t waste_ds_v4_fd_read_at(void *user,
+                               void *dst,
+                               size_t n,
+                               uint64_t off);
+
 typedef struct waste_ds_v4_runtime {
     /* Copy the validated description so caller mutation cannot change offsets
      * after a cache entry or resident view has already been accepted. */
@@ -50,6 +113,18 @@ int waste_ds_v4_runtime_init(waste_ds_v4_runtime *runtime,
                              int cache_policy,
                              waste_fetch_fn fetch,
                              void *fetch_user);
+
+/* Same runtime binding, but with the validated positional source above. This
+ * prevents a family-open caller from accidentally pairing a source built for a
+ * different layer/expert/record geometry with this manifest. */
+int waste_ds_v4_runtime_init_positional(
+    waste_ds_v4_runtime *runtime,
+    const waste_ds_v4_manifest *manifest,
+    const void *trunk,
+    size_t trunk_bytes,
+    size_t cache_bytes,
+    int cache_policy,
+    waste_ds_v4_positional_source *source);
 
 void waste_ds_v4_runtime_free(waste_ds_v4_runtime *runtime);
 
