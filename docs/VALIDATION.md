@@ -1,6 +1,6 @@
 # Validation — correctness gates for the DeepSeek V4 port
 
-**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 one complete transformer layer is the next numerical integration rung. Gate G still owns converted-record/cache identity.**
+**Status: Gates A/V0, B/V1, C/V2, README Gate D's mHC seam, Gate E/V5 attention-by-type, and Gate F/V4 are passed at their stated scalar/model-semantic evidence levels. Gate E includes ratio-0, shared grouped output, coherent ratio-128, and coherent ratio-4 CSA/indexer checkpoint evidence. Gate H/V6 is PARTIAL: layer-3 block wiring, the real HC composition, and the attention half composed for real (residual → hc_pre → real 64-head attention → hc_post) are passed; the FFN half still runs a stub, so the real router/MoE composed at the ffn_pre state is what remains. Gate G still owns converted-record/cache identity.**
 
 Pinned model:
 
@@ -329,9 +329,128 @@ Coherent main fixture: `tests/fixtures/deepseek_v4/v5_csa_attention_real/`. The 
 
 See `ATTENTION.md` for detailed cast boundaries and fixture provenance.
 
-### V6 — complete transformer layer — **Gate H**
+### V6 — complete transformer layer — **Gate H** — **PASSED scalar/model-semantic**
 
-After Gate E closes, compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
+The target: compare layer input, attention/mHC merge, routing/MoE output and final layer output for every structurally distinct layer class.
+
+#### Block wiring — **PASSED, model-free**
+
+The layer-3 composition order is pinned as `hc_pre(attn) -> branch -> hc_post -> hc_pre(ffn) -> branch -> hc_post`, with the attention and FFN HyperConnection parameter sets distinct.
+
+Five wirings are refused, each chosen because it produces plausible numbers rather than an error:
+
+```text
+reuse the original residual for the FFN hc_pre        max_abs 0.760
+swap the attention and FFN HC parameter sets          max_abs 0.403
+feed a correct branch output from the wrong input     max_abs 0.203
+replace the FFN hc_post with an ordinary residual add max_abs 0.193
+replace the attention hc_post the same way            max_abs 0.654
+```
+
+Each is measured against the independent oracle before the C library is involved, so a vacuous construction cannot pass. The last two matter most: the natural wrong implementation of "drop the hc_post transition" is not omitting a step — the shapes would not line up — but writing `out[k] = residual[k] + branch`, the ordinary transformer residual add that mHC exists to replace. That compiles and runs. It was named in the gate's contract but not enforced until `EXPERIMENTS.md` entry 8.
+
+#### Real layer-3 HC composition — **PASSED sub-seam**
+
+`tests/fixtures/deepseek_v4/v6_hc_composition_real/` replays the composition with real layer-3 `hc_attn_*` and `hc_ffn_*` parameters, SHA-pinned per file, exact at BF16 across attention hc_pre, attention hc_post, FFN hc_pre and the final state.
+
+**Evidence boundary — both branches are stubs in this fixture.** It proves the *wiring and the HyperConnection arithmetic* with real parameters; it does not run real attention or real MoE inside the composition. The frozen files say so by name (`attn-stub-branch.bf16.bin`, `ffn-stub-branch.bf16.bin`), and the test separately pins that each stub is bound to the frozen hc_pre state so a stub that ignored its input would fail.
+
+#### Real attention composed through the transition — **PASSED sub-seam**
+
+`tests/test_v6_attention_composition_real.py` replaces the attention stub with the real 64-head branch from `v6_attention_branch_real`, giving the attention half of the layer end to end from checkpoint bytes:
+
+```text
+residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post
+```
+
+Chaining two separately frozen fixtures is only legitimate if the second was produced from the first's state, so that is **checked, not assumed**: the attention fixture records the producing file and its SHA-256, the test recomputes that digest, and it also re-derives `attn_pre` through `hc_pre` and requires the frozen BF16 state back. Feeding a correct branch output produced from the wrong branch input is a wiring error this gate names explicitly; hash equality plus re-derivation is what rules it out.
+
+`post`/`comb` come from an independent Sinkhorn rather than from the `hc_pre` under test. That distinction is load-bearing — with them read out of `hc_pre`, a fault inside the Sinkhorn normalization cancels on both sides of the comparison and the test cannot see it. Measured against the C:
+
+```text
+hc_post f32 max_abs vs independent oracle       2.38418579e-07
+hc_pre post/comb max_abs vs independent Sinkhorn 7.13651154e-08
+composed after-attn state                        exact at BF16, 16,384 values
+```
+
+Refused: the stub branch in place of the real one, the FFN HC `post`/`comb` on the attention transition, a plain residual add instead of `hc_post`, and a composed state equal to the frozen stub composition. Four `src/deepseek_v4_mhc_ref.c` mutations die against it — `comb` transposed inside `hc_post`, `comb` transposed inside the Sinkhorn normalization, the `post[]` branch scaling dropped, and the residual indexed by `k` instead of `j`.
+
+#### Real FFN hc_pre and the routing decision — **PASSED sub-seam**
+
+`tests/test_v6_ffn_route_real.py` carries the composition one stage further and runs the real layer-3 learned router on the result:
+
+```text
+residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post
+         -> hc_pre(hc_ffn_*)  -> real layer-3 router
+```
+
+This needed no new acquisition: the complete `[256,4096]` layer-3 gate and its 256 correction biases are already frozen in `v3_router_real/`. C is checked against an independent Python router built from the pinned source contract, and three mutations die against it — `sqrt` dropped from `sqrt(softplus)`, the correction bias ignored for selection, and the routed scaling factor dropped.
+
+```text
+selected experts   [255, 30, 99, 40, 44, 238]
+route weights      0.2606 0.2582 0.2489 0.2525 0.2422 0.2376
+top-k margin       0.011921765
+```
+
+The weights are non-monotonic in selection order by design: selection ranks on `score + bias`, the weights are gathered from the unbiased `score`. That is Gate F's contract holding at a new input.
+
+**This bounds the remaining work rather than doing it.** No expert is executed. What it settles is *which* experts the real composition selects — and that turns out to matter: the stub composition routes to `[217, 0, 172, 9, 241, 74]`, sharing **no** expert with the real one, so a MoE fixture frozen against the stub state would exercise six experts the real layer never touches. `EXPERIMENTS.md` entry 9 records it. The test also refuses a top-k margin below 1e-4, so a selection decided by rounding noise cannot become an acquisition list.
+
+#### Real full-width MoE branch — **PASSED real-checkpoint sub-seam**
+
+Frozen fixture: `tests/fixtures/deepseek_v4/v6_moe_branch_real/`. The input is not a synthetic router vector: `ffn-pre.bf16.bin` is the exact BF16 state produced by the real attention half plus the layer-3 FFN HyperConnection pre-transition, pinned by SHA-256 `30e27b02c8a662ad5d1966d02d62afff6c4ffb2b367fb817d846c449eb8e7a21`.
+
+The scalar router selects `[255,30,99,40,44,238]`. Those exact scalar-runtime F32 route weights are used as expert inputs:
+
+```text
+0.260602713 0.258183122 0.248908937 0.252534091 0.242217511 0.237553567
+```
+
+An independent Python router selects the same six IDs. Its maximum route-weight delta versus the scalar runtime is `1.49662139e-07`; the fixture records both vectors rather than substituting one for the other. Reacquiring with the exact runtime weights changed the F32 weight file/provenance but did **not** change any routed BF16 output, the combined MoE branch, or the final layer state for this input.
+
+Exactly those six routed FP4 experts plus the resident shared FP8 expert are evaluated for all 4,096 model outputs. A 4,096-row specialization of the standalone Gate-F oracle (no `src/` linkage) and the WASTE scalar implementation must agree bit-for-bit before the compact fixture can freeze:
+
+```text
+routed expert values checked   6 x 4096 = 24,576 BF16
+shared expert values checked   1 x 4096 =  4,096 BF16
+total independent comparisons              28,672 BF16 exact
+MoE branch SHA-256             809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659
+```
+
+The ordinary offline replay recombines routed branches in official ascending-expert-ID order and then adds the shared expert. Dropping any one branch changes thousands of final BF16 values: experts 255/30/99/40/44/238 change 4,074/4,070/4,072/4,075/4,073/4,070 values respectively; dropping the shared expert changes 4,087. Raw expert checkpoint payloads are transient acquisition evidence and are deliberately not committed.
+
+A fixture-era assumption also died here: Gate F's shared-expert test only needed eight `w2` rows, so the scalar helper rejected `out_rows > 128` and only one E8M0 scale-grid row was ever supplied. `tests/test_v6_shared_expert_full_rows_scalar.py` now crosses row 128 explicitly and proves row 128 consumes the second scale-grid row before the full 4,096-row shared path is allowed.
+
+#### Complete real layer-3 state transition — **PASSED**
+
+`tests/test_v6_layer3_full_real.py` is the Gate-H endpoint. It composes the complete real checkpoint-backed layer-3 transition offline:
+
+```text
+real residual
+  -> HC-attn-pre
+  -> real 64-head attention branch
+  -> HC-attn-post
+  -> HC-FFN-pre
+  -> real learned router
+  -> six routed FP4 experts + shared FP8 expert
+  -> HC-FFN-post
+  -> BF16 [4,4096] layer state
+```
+
+The final 16,384 BF16 values are exact. The canonical final-state SHA-256 is `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`; representative first values are `3f93 3e9a 3ed7 bcba 3e11 3e57 bd52 bf2d`.
+
+A V7 consecutive-layer review tightened the numerical contract again. Merely rounding Python Sinkhorn `post`/`comb` to F32 at the boundary was insufficient because its internal reductions and normalizations had still executed in Python double precision. The canonical independent oracle now performs every HyperConnection operation in F32, including RMS reduction, mix dot products, sigmoid/softmax, every Sinkhorn row/column reduction and normalization, and `hc_pre`/`hc_post` accumulation. It is bit-exact with the scalar C reference. The corrected final state differs from the earlier frozen Gate-H endpoint at exactly 9 BF16 indices (1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717); `attn_pre` and `ffn_pre` are unchanged, so routing and all expert/MoE acquisition evidence remain valid. The permanent regression explicitly refuses the old SHA `0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761`; no comparison tolerance was added.
+
+The final replay also refuses replacing the FFN `hc_post` with an ordinary residual add and refuses substituting the old deterministic FFN stub for the real MoE branch.
+
+Permanent no-network validation after registration:
+
+```text
+make check   63 passed, 0 failed, 13 skipped
+make asan    62 passed, 0 failed, 14 skipped
+```
+
+**Evidence boundary:** Gate H is passed at the scalar/model-semantic level for one real layer-3 state transition. This is not yet a 43-layer forward, final-hidden/logit proof, greedy-generation proof, converted-container proof, cache/disk identity proof, or performance result. V7/I/K and Gate G remain separate gates.
 
 ### V7 — multi-layer localization
 
@@ -366,7 +485,7 @@ Test direct-C versus API generation parity, streaming/non-streaming behavior, ca
 | **E** attention by type | **V5** | **PASSED scalar/model-semantic — ratio 0 + output + coherent ratio-128 + coherent ratio-4 CSA checkpoint-passed** |
 | **F** routing + one MoE block | **V4** | **PASSED scalar/model-semantic** |
 | **G** disk/cache identity | systems correctness | streaming/container phase |
-| **H** complete transformer block | **V6** | after E/V5 |
+| **H** complete transformer block | **V6** | **PASSED scalar/model-semantic** — one real layer-3 attention + mHC + router + six-routed/shared-MoE transition exact at BF16 |
 | **I** 43-layer base forward/logits | **V8** | base-model bring-up |
 | **J** tokenizer/encoding | **V10** | encoding/API phase |
 | **K** generation | **V9** | after logits |

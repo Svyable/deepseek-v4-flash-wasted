@@ -1,0 +1,28 @@
+{
+  "absolute_end": 2009155,
+  "absolute_start": 2009060,
+  "dtype": "F32",
+  "endpoint": "https://huggingface.co",
+  "header_json_bytes": 172656,
+  "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "output_file": "ffn-base.f32.bin",
+  "payload_bytes": 96,
+  "payload_sha256": "4a08d2e68f2439782e5c19850dbead4d96fc75bf283270e92b9572b349782f4e",
+  "relative_end": 1836492,
+  "relative_start": 1836396,
+  "remote_file_bytes": 3568768976,
+  "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "row_bytes": 4,
+  "row_end": 24,
+  "row_start": 0,
+  "schema_version": 1,
+  "shape": [
+    24
+  ],
+  "shard": "model-00005-of-00048.safetensors",
+  "tensor": "layers.3.hc_ffn_base",
+  "tensor_data_offsets": [
+    1836396,
+    1836492
+  ]
+}

@@ -222,9 +222,40 @@ int waste_ds_v4_fp4_linear_ref(const float *x,
         return -1;
 
     const size_t weight_blocks = k / DS_V4_FP4_WEIGHT_BLOCK;
+    const size_t act_blocks = k / DS_V4_ACT_BLOCK;
+    uint8_t *qx = malloc(m * k);
+    float *act_scales = malloc(m * act_blocks * sizeof(float));
+    if (!qx || !act_scales) {
+        free(qx);
+        free(act_scales);
+        return -1;
+    }
 
+    /* Same invariant as the FP8 path above: activation quantization depends
+     * only on the input row and K128 block, never on the output row. Gate F
+     * used tiny w2 slices, so recomputing it per output row was tolerable.
+     * Gate H evaluates full 4096-row expert outputs; precomputing the exact
+     * same E4M3 bytes/scales once keeps the scalar reference practical without
+     * changing reduction order or any BF16 boundary. */
     for (size_t mi = 0; mi < m; mi++) {
         const float *xr = x + mi * k;
+        for (size_t ab = 0; ab < act_blocks; ab++) {
+            const float *xb = xr + ab * DS_V4_ACT_BLOCK;
+            float s = waste_ds_v4_act_scale_ref(xb, DS_V4_ACT_BLOCK);
+            if (!(s > 0.0f) || !isfinite(s)) {
+                free(qx);
+                free(act_scales);
+                return -1;
+            }
+            act_scales[mi * act_blocks + ab] = s;
+            for (size_t j = 0; j < DS_V4_ACT_BLOCK; j++)
+                qx[mi * k + ab * DS_V4_ACT_BLOCK + j] = quantize_act(xb, j, s);
+        }
+    }
+
+    for (size_t mi = 0; mi < m; mi++) {
+        const uint8_t *qr = qx + mi * k;
+        const float *as = act_scales + mi * act_blocks;
         for (size_t ni = 0; ni < n; ni++) {
             const uint8_t *wr = packed_weight + ni * (k / 2u);
             const uint8_t *sr = weight_scales_e8m0 + ni * weight_blocks;
@@ -233,27 +264,28 @@ int waste_ds_v4_fp4_linear_ref(const float *x,
             for (size_t wb = 0; wb < weight_blocks; wb++) {
                 size_t base = wb * DS_V4_FP4_WEIGHT_BLOCK;
                 size_t ab = base / DS_V4_ACT_BLOCK;
-                const float *act_block = xr + ab * DS_V4_ACT_BLOCK;
-                float act_scale = waste_ds_v4_act_scale_ref(
-                    act_block, DS_V4_ACT_BLOCK);
                 float weight_scale = waste_ue8m0_decode(sr[wb]);
-                if (!isfinite(weight_scale))
+                if (!isfinite(weight_scale)) {
+                    free(qx);
+                    free(act_scales);
                     return -1;
+                }
                 float part = 0.0f;
 
                 for (size_t j = 0; j < DS_V4_FP4_WEIGHT_BLOCK; j++) {
                     size_t logical_k = base + j;
-                    size_t act_lane = logical_k - ab * DS_V4_ACT_BLOCK;
-                    float a = waste_e4m3_decode(
-                        quantize_act(act_block, act_lane, act_scale));
+                    float a = waste_e4m3_decode(qr[logical_k]);
                     float b = waste_e2m1_decode(
                         packed_fp4_code(wr, logical_k));
                     part += a * b;
                 }
-                accum += part * act_scale * weight_scale;
+                accum += part * as[ab] * weight_scale;
             }
             y[mi * n + ni] = waste_ds_v4_bf16_round_ref(accum);
         }
     }
+
+    free(qx);
+    free(act_scales);
     return 0;
 }

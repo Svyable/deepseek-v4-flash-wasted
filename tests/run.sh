@@ -1070,7 +1070,7 @@ else
 fi
 
 # ------------------------------------------------- DeepSeek gate replays ----
-head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, partial E/V5)"
+head_ "DeepSeek gate replays (Gate A/V0 acquisition, B/V1 → F/V4, E/V5, H/V6)"
 
 # These eleven replays did run before this section existed, but not under
 # their own names. test_inventory.py imported the Gate B/V1 driver, which
@@ -1193,6 +1193,52 @@ deepseek_replay "Gate E/V5 — real ratio-4 CSA indexer" \
                 "test_v5_csa_indexer_real.py"
 deepseek_replay "Gate E/V5 — coherent real ratio-4 CSA attention" \
                 "test_v5_csa_attention_real.py"
+
+# Gate H/V6 — PARTIAL. Layer-3 composition. The model-free half pins the block
+# wiring: hc_pre(attn) -> branch -> hc_post -> hc_pre(ffn) -> branch -> hc_post,
+# and refuses five wirings that would still produce plausible numbers — reusing
+# the original residual for the FFN hc_pre, swapping the attention and FFN HC
+# parameter sets, feeding a correct branch output from the wrong branch input,
+# and replacing either hc_post with the ordinary residual add. The real half
+# replays that composition with layer-3 HC parameters from the checkpoint.
+deepseek_replay "Gate H/V6 — bit-exact independent F32 HyperConnection oracle" \
+                "test_v6_hc_oracle_f32.py"
+deepseek_replay "Gate H/V6 — corrected real layer-3 final HC precision boundary" \
+                "test_v6_layer3_hc_precision.py"
+deepseek_replay "Gate H/V6 — model-free layer block wiring and five refusals" \
+                "test_v6_layer_composition_scalar.py"
+deepseek_replay "Gate H/V6 — full eight-group attention output seam" \
+                "test_v6_attention_output_full_scalar.py"
+deepseek_replay "Gate H/V6 — real layer-3 HC composition, exact BF16 final" \
+                "test_v6_hc_composition_real.py"
+# The attention half composed for real: the frozen 64-head branch is bound by
+# SHA-256 to the attn_pre state it was produced from, so chaining the two
+# fixtures is checked rather than assumed. post/comb come from an independent
+# Sinkhorn rather than from the hc_pre under test, which is what lets a fault
+# in the normalization show up instead of cancelling on both sides.
+deepseek_replay "Gate H/V6 — real attention branch composed through hc_post" \
+                "test_v6_attention_composition_real.py"
+# One stage further: the real FFN hc_pre and the real layer-3 router on it.
+# This is the cheap test that bounds the expensive one — it decides which six
+# routed expert records Gate H's remaining step has to fetch, from checkpoint
+# bytes rather than from assumption, and refuses a selection whose top-k
+# boundary is too narrow to be a stable acquisition list.
+deepseek_replay "Gate H/V6 — real FFN hc_pre and layer-3 routing decision" \
+                "test_v6_ffn_route_real.py"
+# The full shared expert must cross E8M0 w2 scale-grid row boundaries; Gate F's
+# first-eight-row fixture never exercised row 128 or beyond.
+deepseek_replay "Gate H/V6 — shared FP8 full-output scale-grid boundary" \
+                "test_v6_shared_expert_full_rows_scalar.py"
+# Frozen from the exact real FFN hc_pre state and exact scalar-router F32
+# weights. Acquisition cross-checked six routed experts plus the shared
+# expert against an independent oracle for all 28,672 BF16 outputs.
+deepseek_replay "Gate H/V6 — real six-routed-plus-shared full MoE branch" \
+                "test_v6_moe_branch_real.py"
+# The complete layer transition composes the two real HC stages, frozen
+# real 64-head attention branch, exact real router/MoE branch, and exact
+# BF16 [4,4096] final state. This is the Gate H endpoint.
+deepseek_replay "Gate H/V6 — complete real layer-3 composition" \
+                "test_v6_layer3_full_real.py"
 
 # ------------------------------------------------------------ converter ----
 head_ "converter"

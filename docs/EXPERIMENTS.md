@@ -231,6 +231,132 @@ Worse, pair 0 was also the *only* pair the test verified against an independent 
 
 ---
 
+## 8 — 2026-08-09 — A refusal named in the gate contract but not implemented
+
+**Question:** Gate H/V6's contract names four wirings the full-layer test must reject. Does the model-free composition test reject all four?
+
+**Protects:** Gate H, and every layer built on it. A layer that composes its HyperConnection transitions wrongly still produces finite, plausible hidden states; the error surfaces at V8 logits with nothing pointing back to the wiring.
+
+**README gate letter(s):** H. **Operational V-level:** V6 model-free half.
+
+**Evidence state:** MEASURED on this checkout.
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64.
+
+**Method:** read the four refusals the PR contract names — reusing the original residual for the FFN `hc_pre`, swapping the attention and FFN HC parameter sets, dropping either `hc_post` transition, and feeding an independently correct branch output produced from the wrong branch input — against what `tests/test_v6_layer_composition_scalar.py` actually asserts.
+
+**Result:** three of four were implemented. **Dropping either `hc_post` transition was not.**
+
+The gap is not obvious from reading the test, because "drop a step" sounds like it would fail loudly. It does not. `hc_post` maps a `[DIM]` branch and an `[HC*DIM]` residual to a new `[HC*DIM]` state as `out[k*DIM+d] = post[k]*branch[d] + Σ_j comb[j][k]*residual[j*DIM+d]`. Omitting it entirely breaks the shapes and would be caught immediately. The realistic wrong implementation is to write the ordinary transformer residual add — `out[k*DIM+d] = residual[k*DIM+d] + branch[d]` — which has the right shape, compiles, runs, and is precisely the thing mHC replaces. Nothing in the suite refused it.
+
+Both variants are now asserted, and all five refusals are measured against the independent oracle before the C library is involved:
+
+| refused wiring | max_abs vs oracle |
+|---|---:|
+| reuse the original residual for the FFN `hc_pre` | 0.760 |
+| replace the attention `hc_post` with a plain residual add | 0.654 |
+| swap the attention and FFN HC parameter sets | 0.403 |
+| feed a correct branch output from the wrong branch input | 0.203 |
+| replace the FFN `hc_post` with a plain residual add | 0.193 |
+
+All are three orders of magnitude above the 1e-3 visibility threshold, so none is marginal.
+
+**Verdict:** the contract was right and the implementation of it was incomplete. Distinct from entries 3 and 7 — there the check existed and could not discriminate; here the check was simply absent while the prose said otherwise, which is harder to notice because the document reads as evidence.
+
+**Consequence:** both `hc_post` refusals added. `VALIDATION.md` §V6 now lists the five refusals with their margins, so the claim and the assertions can be compared without reading the test.
+
+**Follow-up:** when a gate's prose names the mutations it rejects, treat that list as a checklist to diff against the test, not as a description of it. The remaining Gate H work — real attention and real MoE composed in place of the current stubs — should have its own refusals named and then verified the same way.
+
+---
+
+## 9 — 2026-08-10 — A stub branch routes to six entirely different experts
+
+**Question:** Gate H's remaining step needs the real routed experts evaluated at the layer-3 `ffn_pre` state. Which six experts are those, and could the existing stub-branch composition stand in while checkpoint access is unavailable?
+
+**Protects:** a routed expert record is 13.4 MB, and fetching the wrong six produces a fixture that looks authoritative and tests the wrong thing. This is the working rule applied literally — run the cheap real test that could kill the expensive step before running the expensive step.
+
+**README gate letter(s):** H, with F/V4's router. **Operational V-level:** V6 step 4 and the selection half of step 5.
+
+**Evidence state:** CHECKPOINT-VERIFIED for the routing decision — the complete layer-3 gate `[256,4096]` and its 256 correction biases are already frozen in `v3_router_real/`, so no new acquisition was needed. No expert is executed.
+
+**Port commit:** this entry's commit. **Environment:** Ubuntu 24.04, gcc 13.3.0, x86-64, 2 s wall.
+
+**Method:** compose forward to the real FFN branch input — `residual -> hc_pre(hc_attn_*) -> real 64-head attention -> hc_post -> hc_pre(hc_ffn_*)` — then run the real layer-3 learned router on it. C against an independent Python router built from the pinned source contract. Repeat with the stub attention branch in place of the real one.
+
+**Result:**
+
+```text
+real attention branch  -> experts [255, 30, 99, 40, 44, 238]
+stub attention branch  -> experts [217,  0, 172,  9, 241,  74]
+Gate F's earlier input -> experts [  2, 29, 225, 220, 108,  69]
+```
+
+**Zero overlap between the real and stub selections.** All six differ. The stub composition is not a weaker version of the real one for routing purposes — it is a different question with a different answer, and a MoE fixture frozen against it would have exercised six experts the real layer never touches.
+
+Supporting numbers:
+
+```text
+top-k boundary margin              0.011921765   (Gate F's was 0.000405312)
+selection ignoring correction bias [255,30,40,99,44,238]  — same set, 99/40 reordered
+route weights                      0.2606 0.2582 0.2489 0.2525 0.2422 0.2376
+```
+
+The weights are deliberately non-monotonic in selection order: selection ranks by `score + bias` while the weights are gathered from the unbiased `score`, which is the Gate F contract holding at a new input. The margin is 29x wider than Gate F's, comfortably outside BF16 resolution, so this selection is a stable acquisition list rather than a coin flip at the boundary.
+
+**Verdict:** the stub cannot stand in, and the acquisition is now bounded. Gate H step 5 needs exactly layer-3 routed experts **30, 40, 44, 99, 238, 255** plus the shared expert — six records, not a search.
+
+**Consequence:** `tests/test_v6_ffn_route_real.py` replays this in the ordinary suite and refuses a top-k margin below 1e-4, so a future state whose sixth expert is decided by rounding noise cannot silently become an acquisition list. Three router mutations die against it: `sqrt` dropped from `sqrt(softplus)`, the correction bias ignored for selection, and the routed scaling factor dropped.
+
+**Follow-up:** when those six records are fetched, the resulting fixture should declare `ffn-pre.bf16.bin` as its `input_dependency` with the digest pinned, exactly as `v6_attention_branch_real` declares `attn-pre.bf16.bin`. That is what made the attention half composable offline afterwards, and it would make the final Gate H composition an offline step rather than a third acquisition round.
+
+---
+
+## 10 — 2026-08-10 — Gate F's eight-row shared fixture hid a 128-row scale-grid boundary
+
+**Question:** can the already-proven shared FP8 expert helper be used unchanged for Gate H's full 4,096 output rows?
+
+**Evidence:** model-free scalar regression plus the existing real Gate-F fixture. Gate F only supplied eight `w2` rows and one E8M0 scale-grid row; the helper therefore carried a fixture-era `out_rows <= 128` rejection.
+
+**Result:** the limit was not a model semantic. A 129-row construction makes row 128 consume scale-grid row 1: row 127 is `0.75`, row 128 is `1.5` when the second scale is 2, and returns to `0.75` when that scale is changed to 1. Gate-F real routed/shared fixtures remain bit-exact after removing the cap.
+
+**Verdict:** passed only after making scale-grid coverage explicit. A bounded fixture must not silently become a runtime dimension limit.
+
+---
+
+## 11 — 2026-08-10 — Full real Gate H MoE arithmetic agrees on all 28,672 expert outputs
+
+**Question:** do the six experts selected by the real layer-3 FFN input and the shared expert reproduce independently at full model width?
+
+**Method:** derive the SHA-pinned real `ffn_pre`, fetch exactly experts `[255,30,99,40,44,238]` plus the shared expert from immutable 0731, evaluate all 4,096 outputs with a 4,096-row specialization of standalone `tools/v4_moe_oracle.c`, then replay the same bytes through WASTE's scalar expert refs. Raw checkpoint expert payloads are deleted after acquisition.
+
+**Result:** `6 x 4096 = 24,576` routed BF16 values plus `4,096` shared BF16 values agree exactly — **28,672 / 28,672**. The combined branch SHA-256 is `809f1468f034d21909da7127d08d2c0b6249013630ffd32912a148473044a659`. Dropping any routed branch changes 4,070–4,075 BF16 values; dropping shared changes 4,087.
+
+**Verdict:** PASSED. Gate H's MoE half is a real checkpoint-backed branch, not a stub or a first-eight-row extrapolation.
+
+---
+
+## 12 — 2026-08-10 — One final BF16 exposed an unpinned F32 HyperConnection boundary
+
+**Question:** why did the first full-layer replay disagree at exactly one of 16,384 final BF16 values after every expert output had already matched?
+
+**Result:** final index 13,648 was `0x378d` in the independent Python calculation and `0x378e` in C. The Python Sinkhorn oracle retained double precision for `post`/`comb`; the model/runtime boundary consumes F32 tensors. Rounding independent `post`/`comb` to F32 before `hc_post` changes exactly that one BF16 value and restores exact agreement.
+
+**Verdict:** this was an oracle-boundary bug, not a checkpoint/expert mismatch. No tolerance was introduced. Provenance now records the F32 boundary and the one changed index explicitly.
+
+---
+
+## 13 — 2026-08-10 — Independent router weights were close enough numerically but still the wrong branch inputs
+
+**Question:** should Gate H feed experts the independently computed Python route weights or the exact scalar-runtime router weights?
+
+**Result:** IDs agree exactly at `[255,30,99,40,44,238]`, but the two F32 vectors differ by up to `1.49662139e-07`. Route weight is multiplied before the expert hidden BF16 cast, so the complete-layer fixture was reacquired using the scalar runtime's exact F32 weights while retaining the Python router as an independent ID/tolerance oracle.
+
+Reacquisition changed only the six-F32 weight file and provenance; the 24,576 routed BF16 outputs, 4,096 shared outputs, combined MoE branch, and final layer state were unchanged for this input.
+
+**Verdict:** semantic inputs should come from the implementation boundary being composed even when an independent oracle is numerically very close. Independence verifies the boundary; it does not replace it.
+
+---
+
 ## Candidate experiments after base correctness
 
 These are hypotheses, not planned conclusions. Run only after the canonical gate that makes the result interpretable.
@@ -249,3 +375,29 @@ These are hypotheses, not planned conclusions. Run only after the canonical gate
 - DSpark acceptance/speed/memory tradeoff — Gate N after Gate I/V8 + Gate K/V9.
 
 Each candidate gets its own numbered entry whether it succeeds or fails.
+
+---
+
+## 14. Gate-H final HC must execute Sinkhorn itself in F32, not only cast its outputs
+
+**Status:** corrected and permanently replayed
+
+The first Gate-H fix in experiment 12 was necessary but incomplete. It established that `post`/`comb` are F32 tensors at the final HC boundary and fixed one observed BF16 mismatch, but its independent Python producer still executed the RMS/mix/Sinkhorn arithmetic in Python double precision before casting those tensors to F32. A real consecutive-layer V7 trace exposed that this is not equivalent to the scalar/model dtype contract.
+
+A new independent oracle, `tools/deepseek_v4_hc_oracle.py`, now rounds every HyperConnection arithmetic operation in the model's F32 order and uses the platform `expf`/`sqrtf`. `tests/test_v6_hc_oracle_f32.py` compares 24 mixes, 4 pre coefficients, 4 post coefficients, 16 comb coefficients, `hc_pre` outputs, and `hc_post` outputs against `src/deepseek_v4_mhc_ref.c` at raw F32-bit equality. The real-data regression `tests/test_v6_layer3_hc_precision.py` then runs both paths on the frozen layer-3 checkpoint evidence.
+
+Result:
+
+```text
+old final SHA-256       0e65c4ecb328d5067f2274e724f9f46e4a13218e7fdeb706f7d1a465c0ee4761
+corrected final SHA-256 c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7
+BF16 values changed     9 / 16,384
+changed indices          1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717
+attn_pre                 unchanged
+ffn_pre                  unchanged
+router/expert/MoE        unchanged
+```
+
+The correction required no checkpoint or expert reacquisition: the stale boundary was after the already-frozen MoE branch. The old final SHA is now explicitly refused by the permanent test.
+
+**Lesson:** a later cast to the correct dtype does not retroactively make higher-precision reductions model-equivalent. For precision-sensitive reference paths, the operation sequence *and every intermediate dtype boundary* are part of the oracle contract.

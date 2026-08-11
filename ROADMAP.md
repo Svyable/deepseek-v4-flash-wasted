@@ -33,7 +33,7 @@ deepseek-ai/DeepSeek-V4-Flash-0731
 | coherent same-input ratio-128 forward | **E/V5 partial** | **CHECKPOINT-PASSED**, one head / row 255 through inverse compressed RoPE |
 | ratio-4 CSA/indexer attention | **E/V5** | **CHECKPOINT-PASSED** — real Indexer + coherent selected attention |
 | Gate E attention by type | **E/V5** | **PASSED** at stated scalar/model-semantic evidence level |
-| one full transformer layer | **H/V6** | **NEXT** |
+| one full transformer layer | **H/V6** | **PASSED scalar/model-semantic** — real layer-3 HC + 64-head attention + exact runtime router + six routed/shared experts + final BF16 state |
 | multi-layer localization/logits/generation | V7, I/V8, K/V9 | later base bring-up |
 | encoding/parser/API | J/V10 + V11 | after raw model arithmetic |
 | storage/cache/performance | G/L/M | after container/base correctness |
@@ -129,7 +129,9 @@ coherent CSA: same positions 3/7 input -> main overlap compressor -> selected sp
 
 The shared grouped output projection remains independently proved rather than duplicated inside each mode fixture. Gate H/V6 is the next numerical integration rung.
 
-**Immediate priority: Gate H/V6 — one complete transformer layer. Gate E attention-by-type is now checkpoint-passed at the stated scalar/model-semantic evidence level.**
+**Gate H/V6 is now PASSED at the scalar/model-semantic one-layer level.** The checkpoint-backed layer-3 path includes both real HC transitions, all 64 attention heads, exact scalar-runtime routing, six routed FP4 experts, the shared FP8 expert, and an exact final BF16 `[4,4096]` state. Raw expert records remain acquisition-only rather than repository payload.
+
+**Immediate priority: V7 multi-layer localization, then Gate I/V8 logits.** Do not jump straight to generation: establish a reproducible way to carry the frozen layer-state contract across structurally different layers and stop at the first divergent layer. Gate K/V9 follows only after final hidden/norm/logits are pinned.
 
 ---
 
@@ -182,18 +184,17 @@ Completed oracle seams:
 3. real mHC/Sinkhorn primitive — D/V3;
 4. learned + hash routing — F/V4;
 5. routed FP4 + shared FP8 expert and six-branch MoE combination — F/V4;
-6. ratio-0 Q/KV/RoPE/K64-QAT/sink-sparse-attention core — partial E/V5;
-7. grouped `wo_a/wo_b` output projection — shared partial E/V5 seam;
-8. real ratio-128 learned compressor — 4,096 exact BF16 diagnostics;
-9. real ratio-128 compressed-history composition — 130 exact indices + 512 BF16 attention values.
+6. ratio-0 attention core + grouped output projection — E/V5;
+7. coherent same-input ratio-128 compressor/history/attention — E/V5;
+8. ratio-4 CSA compressor + Indexer selection + selected sparse attention — E/V5;
+9. complete real layer-3 HC + attention + router + six-routed/shared-MoE transition — H/V6.
 
 Next oracle seams:
 
-1. coherent same-input ratio-128 forward through inverse compressed RoPE;
-2. ratio-4 CSA compressor + indexer/top-512 selection + sparse attention — completes E/V5;
-3. complete layer — H/V6;
-4. final logits/generation — I/V8 + K/V9;
-5. encoder/parser — J/V10.
+1. multi-layer localization — V7;
+2. final hidden/norm/logits — I/V8;
+3. deterministic greedy generation — K/V9;
+4. encoder/parser — J/V10.
 
 Reuse the same independent-fixture pattern rather than inventing a new oracle mechanism per subsystem.
 
@@ -245,32 +246,38 @@ See `docs/MHC.md`.
 
 PR #8 is merged. Ordinary `make check` permanently replays model-free routing, real learned/hash routing, a full routed expert, the shared expert, all six routed output slices, and final combination.
 
-### Gate E / V5 attention — PARTIAL
+### Gate E / V5 attention — PASSED scalar/model-semantic
 
-Passed and permanently replayed:
+Permanently replayed structural modes now include ratio-0, coherent ratio-128 compressed history, and coherent ratio-4 CSA/Indexer attention, with the shared grouped `wo_a/wo_b` output projection separately proven. See `docs/ATTENTION.md` and `docs/VALIDATION.md` for the exact evidence boundaries.
 
-- ratio-0 learned/direct-Q normalization boundaries;
-- base/inverse RoPE;
-- K64 KV QAT with K128 mutation;
-- causal window/ring indexing;
-- sink-softmax sparse attention including 64-position online-softmax blocks;
-- real two-token/two-head ratio-0 core;
-- grouped output projection with real `wo_a/wo_b` checkpoint bytes.
+### Gate H / V6 complete transformer layer — PASSED scalar/model-semantic
 
-Remaining operational order:
+One real layer-3 transition is frozen end to end at the model-semantic boundary:
 
-1. **ratio 128** — learned compressor + compressed-history attention;
-2. **ratio 4 / CSA** — compressor + indexer scoring/top-512 selection + sparse attention;
-3. Gate E closes only after both remaining structural modes pass independent real fixtures.
+```text
+residual -> hc_pre(attn) -> real 64-head attention -> hc_post
+         -> hc_pre(ffn)  -> real router [255,30,99,40,44,238]
+         -> six routed FP4 experts + shared FP8 expert -> hc_post
+         -> exact BF16 [4,4096]
+```
 
-Every replay named above is a line in `tests/run.sh` under "DeepSeek gate replays". Until 2026-08-09 they reached `make check` only by being imported from `tests/test_inventory.py`, so the replay was real but the whole ladder reported as one "inventory" line — and a corrupted Gate F fixture blamed the tensor classifier. `docs/EXPERIMENTS.md` entry 6 records the mutations. The list is deliberately not a glob: **when ratio-128 and CSA fixtures are frozen, each needs its line added, or it is not replayed.**
+Acquisition checked 28,672 expert BF16 outputs against an independent standalone oracle. The exact scalar-router F32 weights are recorded separately from the independent Python router (same IDs; max weight delta `1.49662139e-07`). The canonical final state SHA-256 is `c3d175f8170b33f344a471739640f683c41fb8b9c2c69f1529f70b0479a1d8f7`.
 
-Then continue:
+A later V7 review exposed that Gate H's original Python Sinkhorn still executed its internal reductions/normalizations in double precision and only rounded `post`/`comb` at the boundary. That is not model-equivalent. `tools/deepseek_v4_hc_oracle.py` now executes every HC operation in F32 and is bit-exact with `src/deepseek_v4_mhc_ref.c`. The correction changes 9 of 16,384 final BF16 values (indices 1186, 10135, 10503, 10877, 11565, 11672, 11675, 13648, 13717) while leaving `attn_pre`, `ffn_pre`, routing, all seven expert outputs, and the MoE branch unchanged. No checkpoint reacquisition was required.
 
-1. complete transformer layer — **H/V6**;
-2. multi-layer localization — **V7**;
-3. final norm/head/logits — **I/V8**;
-4. deterministic known-token generation — **K/V9**.
+Permanent suite floor after the Gate H precision correction:
+
+```text
+make check  65 passed, 0 failed, 13 skipped
+make asan   64 passed, 0 failed, 14 skipped
+```
+
+Continue in this order:
+
+1. multi-layer localization — **V7**;
+2. final hidden/norm/head/logits — **I/V8**;
+3. deterministic known-token generation — **K/V9**;
+4. only then broaden to encoding/API and optimization gates.
 
 ---
 
