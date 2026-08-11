@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The deepseek-v4-flash-wasted authors.
+#
+# The resolver turns a container's declaration into paths and offsets, so its
+# inputs are untrusted twice over: a manifest that may be malformed, and
+# strings that become open() arguments. Build through the same Makefile target
+# `make check` uses, then again under ASan/UBSan.
+name: Validate DeepSeek V4 family resolver
+
+on:
+  pull_request:
+    paths:
+      - "src/deepseek_v4_resolver.c"
+      - "src/deepseek_v4_resolver.h"
+      - "src/deepseek_v4_json_strict.h"
+      - "src/deepseek_v4_file_runtime.c"
+      - "src/deepseek_v4_file_runtime.h"
+      - "src/deepseek_v4_manifest.c"
+      - "src/deepseek_v4_manifest.h"
+      - "src/json.h"
+      - "tests/test_deepseek_v4_resolver.c"
+      - "Makefile"
+      - ".github/workflows/deepseek-v4-family-resolver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolver:
+    name: Resolve from declaration without inventing a convention
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Makefile build and mutation suite
+        run: |
+          make test_ds_resolver
+          ./test_ds_resolver
+
+      - name: Sanitized rebuild and mutation suite
+        run: |
+          make clean
+          make test_ds_resolver \
+            CFLAGS="-std=gnu11 -Wall -Wextra -DVQ_SUPER=2 -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1" \
+            LDLIBS="-lm -lpthread -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g -O1"
+          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 ./test_ds_resolver
+
+      - name: No filename convention is compiled in
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/deepseek_v4_resolver.c').read_text()
+          code = "\n".join(
+              line for line in src.splitlines()
+              if not line.lstrip().startswith(('*', '/*', '//')))
+          # The whole point of this layer is that names come from the
+          # container. A format string or literal that builds one would
+          # reintroduce exactly the convention the file-runtime layer refused
+          # to freeze.
+          for bad in ('trunk.bin', 'experts-', '%03u', '%03d', 'snprintf', 'sprintf'):
+              assert bad not in code, f'resolver constructs a filename: {bad}'
+          # Stepping stays refused; the resolver must not open that door.
+          assert 'step_refused' not in code or 'return -1' in code
+          print('RESOLVER_NO_CONVENTION no filename is constructed in code')
+          PY
