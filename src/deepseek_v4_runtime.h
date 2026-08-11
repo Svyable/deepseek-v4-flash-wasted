@@ -49,13 +49,16 @@ typedef struct waste_ds_v4_positional_bank {
 } waste_ds_v4_positional_bank;
 
 /* Validated, owned copy of the per-layer positional index. The read_user
- * objects themselves stay caller-owned and must outlive this source. */
+ * objects themselves stay caller-owned and must outlive this source and any
+ * runtime using it. The routed map is copied too so a source cannot later be
+ * paired with another equally-sized record layout and silently misbind planes. */
 typedef struct waste_ds_v4_positional_source {
     waste_ds_v4_positional_bank *banks;
     uint64_t *record_offsets;
     size_t bank_count;
     size_t record_bytes;
     uint32_t experts_per_layer;
+    waste_ds_v4_routed_record_map routed_map;
 } waste_ds_v4_positional_source;
 
 /* Validate and deep-copy every bank descriptor and expert offset. This freezes
@@ -116,7 +119,8 @@ int waste_ds_v4_runtime_init(waste_ds_v4_runtime *runtime,
 
 /* Same runtime binding, but with the validated positional source above. This
  * prevents a family-open caller from accidentally pairing a source built for a
- * different layer/expert/record geometry with this manifest. */
+ * different layer/expert/record geometry or routed-plane map with this
+ * manifest. The source must outlive the runtime. */
 int waste_ds_v4_runtime_init_positional(
     waste_ds_v4_runtime *runtime,
     const waste_ds_v4_manifest *manifest,
